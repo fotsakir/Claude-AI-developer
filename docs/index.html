@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fotios Claude System - Self-hosted AI Coding Agent</title>
+    <meta name="description" content="Self-hosted autonomous AI coding agent powered by Claude. Process development tickets automatically with your own AI developer.">
+    <meta name="keywords" content="claude ai, coding agent, autonomous ai, self-hosted, ai developer, ticket system, claude code">
+    <link rel="canonical" href="https://fotsakir.github.io/Claude-AI-developer/">
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Fotios Claude System - Self-hosted AI Coding Agent">
+    <meta property="og:description" content="Transform your development workflow with an AI agent that writes code, manages projects, and works autonomously on your tickets.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://fotsakir.github.io/Claude-AI-developer/">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Fotios Claude System - Self-hosted AI Coding Agent">
+    <meta name="twitter:description" content="Self-hosted autonomous AI coding agent powered by Claude AI.">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-dark: #0a0a0f;
+            --bg-card: #12121a;
+            --bg-card-hover: #1a1a25;
+            --accent: #00d9ff;
+            --accent-purple: #a855f7;
+            --accent-green: #22c55e;
+            --text: #e4e4e7;
+            --text-muted: #a1a1aa;
+            --border: #27272a;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Hero Section */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 40px 20px;
+            background: radial-gradient(ellipse at top, #1a1a2e 0%, var(--bg-dark) 70%);
+        }
+
+        .logo {
+            width: 120px;
+            height: 120px;
+            margin-bottom: 30px;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-purple) 100%);
+            border-radius: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            box-shadow: 0 20px 60px rgba(0, 217, 255, 0.3);
+        }
+
+        .hero h1 {
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            font-weight: 700;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #fff 0%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero .subtitle {
+            font-size: clamp(1.1rem, 2vw, 1.4rem);
+            color: var(--text-muted);
+            max-width: 700px;
+            margin-bottom: 40px;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 14px 32px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-purple) 100%);
+            color: #000;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 40px rgba(0, 217, 255, 0.4);
+        }
+
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--accent);
+        }
+
+        /* Features Section */
+        .features {
+            padding: 100px 20px;
+            background: var(--bg-dark);
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 60px;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 32px;
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 16px;
+        }
+
+        .feature-card h3 {
+            font-size: 1.3rem;
+            margin-bottom: 12px;
+            color: var(--accent);
+        }
+
+        .feature-card p {
+            color: var(--text-muted);
+        }
+
+        /* How it Works */
+        .how-it-works {
+            padding: 100px 20px;
+            background: linear-gradient(180deg, var(--bg-dark) 0%, #0f0f18 100%);
+        }
+
+        .steps {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 40px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .step {
+            flex: 1;
+            min-width: 200px;
+            max-width: 250px;
+            text-align: center;
+        }
+
+        .step-number {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-purple) 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #000;
+            margin: 0 auto 20px;
+        }
+
+        .step h3 {
+            margin-bottom: 10px;
+        }
+
+        .step p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        /* Screenshots */
+        .screenshots {
+            padding: 100px 20px;
+            background: var(--bg-dark);
+        }
+
+        .screenshot-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 30px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .screenshot {
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            transition: all 0.3s ease;
+        }
+
+        .screenshot:hover {
+            transform: scale(1.02);
+            box-shadow: 0 20px 60px rgba(0, 217, 255, 0.2);
+        }
+
+        .screenshot img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .screenshot-caption {
+            padding: 16px;
+            background: var(--bg-card);
+            text-align: center;
+            color: var(--text-muted);
+        }
+
+        /* CTA Section */
+        .cta-section {
+            padding: 100px 20px;
+            text-align: center;
+            background: radial-gradient(ellipse at bottom, #1a1a2e 0%, var(--bg-dark) 70%);
+        }
+
+        .cta-section h2 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+        }
+
+        .cta-section p {
+            color: var(--text-muted);
+            max-width: 600px;
+            margin: 0 auto 40px;
+            font-size: 1.1rem;
+        }
+
+        /* Footer */
+        footer {
+            padding: 40px 20px;
+            text-align: center;
+            border-top: 1px solid var(--border);
+            color: var(--text-muted);
+        }
+
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Code Block */
+        .code-block {
+            background: #1a1a2e;
+            border-radius: 12px;
+            padding: 24px;
+            margin: 40px auto;
+            max-width: 700px;
+            text-align: left;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+            border: 1px solid var(--border);
+        }
+
+        .code-block .comment {
+            color: #6b7280;
+        }
+
+        .code-block .command {
+            color: var(--accent);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .screenshot-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .cta-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .btn {
+                width: 100%;
+                max-width: 300px;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="logo">🤖</div>
+        <h1>Fotios Claude System</h1>
+        <p class="subtitle">
+            Self-hosted autonomous AI coding agent powered by Claude.
+            Create tickets, let AI write your code. The future of development is here.
+        </p>
+        <div class="cta-buttons">
+            <a href="https://github.com/fotsakir/Claude-AI-developer" class="btn btn-primary">
+                ⭐ Star on GitHub
+            </a>
+            <a href="https://github.com/fotsakir/Claude-AI-developer/releases/latest" class="btn btn-secondary">
+                📦 Download Latest
+            </a>
+        </div>
+
+        <div class="code-block">
+            <span class="comment"># Quick Install</span><br>
+            <span class="command">cd /root</span><br>
+            <span class="command">unzip fotios-claude-system-2.26.14.zip</span><br>
+            <span class="command">cd fotios-claude-system</span><br>
+            <span class="command">./setup.sh</span>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features">
+        <h2 class="section-title">Why Fotios Claude System?</h2>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🤖</div>
+                <h3>Autonomous AI Agent</h3>
+                <p>Claude AI works on tickets independently, writing production-ready code without constant supervision.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🎫</div>
+                <h3>Ticket-Based Workflow</h3>
+                <p>Create tickets describing what you need. The daemon picks them up and delivers working code.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🔒</div>
+                <h3>Self-Hosted & Private</h3>
+                <p>Your code stays on your server. Complete control over your data and infrastructure.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">⚡</div>
+                <h3>Parallel Execution</h3>
+                <p>Process multiple projects simultaneously. Each project gets its own isolated worker.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">👁️</div>
+                <h3>Real-Time Console</h3>
+                <p>Watch Claude write code live in your browser. See every file change as it happens.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🛑</div>
+                <h3>Kill Switch</h3>
+                <p>Control Claude while working: /stop to pause, /skip to restart, /done to finish.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">💾</div>
+                <h3>Auto Backups</h3>
+                <p>Automatic backups before and after each ticket. One-click restore to any point.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🗄️</div>
+                <h3>Database Per Project</h3>
+                <p>Each project gets its own MySQL database, automatically provisioned and managed.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- How it Works -->
+    <section class="how-it-works">
+        <h2 class="section-title">How It Works</h2>
+        <div class="steps">
+            <div class="step">
+                <div class="step-number">1</div>
+                <h3>Create Ticket</h3>
+                <p>Describe what you need built in plain language</p>
+            </div>
+            <div class="step">
+                <div class="step-number">2</div>
+                <h3>Daemon Picks Up</h3>
+                <p>Background service assigns the ticket to a worker</p>
+            </div>
+            <div class="step">
+                <div class="step-number">3</div>
+                <h3>Claude Works</h3>
+                <p>AI writes code, creates files, runs commands</p>
+            </div>
+            <div class="step">
+                <div class="step-number">4</div>
+                <h3>You Review</h3>
+                <p>Watch live or review when complete. Iterate if needed.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Screenshots -->
+    <section class="screenshots">
+        <h2 class="section-title">Screenshots</h2>
+        <div class="screenshot-grid">
+            <div class="screenshot">
+                <img src="https://raw.githubusercontent.com/fotsakir/Claude-AI-developer/main/screenshots/dashboard.png" alt="Dashboard">
+                <div class="screenshot-caption">Dashboard - Real-time overview</div>
+            </div>
+            <div class="screenshot">
+                <img src="https://raw.githubusercontent.com/fotsakir/Claude-AI-developer/main/screenshots/console.png" alt="Console">
+                <div class="screenshot-caption">Console - Watch Claude work live</div>
+            </div>
+            <div class="screenshot">
+                <img src="https://raw.githubusercontent.com/fotsakir/Claude-AI-developer/main/screenshots/ticket-detail.png" alt="Ticket Detail">
+                <div class="screenshot-caption">Ticket Detail - Full conversation history</div>
+            </div>
+            <div class="screenshot">
+                <img src="https://raw.githubusercontent.com/fotsakir/Claude-AI-developer/main/screenshots/projects.png" alt="Projects">
+                <div class="screenshot-caption">Projects - Manage multiple projects</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <h2>Ready to hire your AI Developer?</h2>
+        <p>Join the future of software development. Self-host your own autonomous coding agent today.</p>
+        <div class="cta-buttons">
+            <a href="https://github.com/fotsakir/Claude-AI-developer" class="btn btn-primary">
+                🚀 Get Started
+            </a>
+            <a href="https://github.com/fotsakir/Claude-AI-developer/blob/main/INSTALL.md" class="btn btn-secondary">
+                📖 Documentation
+            </a>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <p>
+            Built by <a href="https://github.com/fotsakir">Fotios Tsakiridis</a> |
+            <a href="https://smartnav.eu">Smartnav</a> |
+            <a href="https://github.com/fotsakir/Claude-AI-developer/blob/main/LICENSE">MIT License</a>
+        </p>
+        <p style="margin-top: 10px; font-size: 0.9rem;">
+            Powered by Claude AI from Anthropic
+        </p>
+    </footer>
+</body>
+</html>
