@@ -12,7 +12,7 @@
 
 ```bash
 cd /root
-unzip fotios-claude-system-2.26.8.zip
+unzip fotios-claude-system-2.26.9.zip
 cd fotios-claude-system
 ```
 
@@ -125,4 +125,4 @@ curl -fsSL https://claude.ai/install.sh | sh
 
 ---
 
-**Version:** 2.26.8
+**Version:** 2.26.9

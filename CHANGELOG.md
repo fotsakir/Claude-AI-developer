@@ -2,6 +2,20 @@
 
 All notable changes to Fotios Claude System will be documented in this file.
 
+## [2.26.9] - 2026-01-08
+
+### Added
+- **Features Documentation**: Comprehensive feature list in README including:
+  - Kill switch commands (/stop, /skip, /done)
+  - Auto backup on ticket open/close
+  - Manual backup & restore
+  - Export project as ZIP
+  - File upload & editor
+  - Search functionality
+  - And more
+
+---
+
 ## [2.26.8] - 2026-01-08
 
 ### Added

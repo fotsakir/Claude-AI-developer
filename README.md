@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-2.26.8-green.svg" alt="Version"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-2.26.9-green.svg" alt="Version"></a>
   <img src="https://img.shields.io/badge/Ubuntu-22.04%20|%2024.04-orange.svg" alt="Ubuntu">
   <a href="https://anthropic.com"><img src="https://img.shields.io/badge/Powered%20by-Claude%20AI-blueviolet.svg" alt="Claude AI"></a>
   <a href="https://github.com/fotsakir/Claude-AI-developer/stargazers"><img src="https://img.shields.io/github/stars/fotsakir/Claude-AI-developer?style=social" alt="Stars"></a>
@@ -62,16 +62,51 @@ This is not science fiction. This is happening now. And this project lets you ex
 
 ## Key Features
 
+### Core AI Features
 - **Autonomous AI Agent** - Claude AI works on tickets independently, writing real code
 - **Multi-Project Management** - Handle multiple projects with isolated databases
 - **Parallel Execution** - Process tickets from different projects simultaneously
 - **Real-Time Console** - Watch Claude write code live in your browser
 - **Interactive Chat** - Guide Claude or ask questions during execution
+
+### Ticket Management
 - **Ticket Workflow** - Structured flow: Open → In Progress → Awaiting Input → Done
+- **Kill Switch Commands** - Control Claude while working:
+  - `/stop` - Pause and wait for correction
+  - `/skip` - Stop and reopen ticket
+  - `/done` - Force complete ticket
+- **Message Queue** - Messages sent during execution are read when Claude finishes
+- **Auto-Close** - Tickets auto-close after 7 days in awaiting input
+- **Search** - Search across tickets, projects, and history
+
+### Backup & Restore
+- **Auto Backup on Open** - Project automatically backed up when ticket starts
+- **Auto Backup on Close** - Project backed up when ticket completes
+- **Manual Backup** - Create backup anytime from project page
+- **Restore** - Restore project to any previous backup point
+- **Export Project** - Download complete project as ZIP
+
+### File Management
+- **File Upload** - Upload files directly to project via web interface
+- **File Editor** - Edit project files in browser with syntax highlighting
+- **File Browser** - Navigate project directory structure
+
+### Project Features
 - **Auto Database Provisioning** - MySQL database auto-created per project
-- **Usage Analytics** - Track token usage, execution time, and costs
-- **Web Dashboard** - Beautiful admin panel with SSL encryption
-- **Self-Hosted** - Complete control over your data and infrastructure
+- **Project Archive/Reopen** - Archive completed projects, reopen when needed
+- **Global Context** - Server environment info shared with all projects
+- **Tech Stack Detection** - Knows installed tools (Node.js, PHP, Java, etc.)
+
+### Monitoring & Analytics
+- **Usage Analytics** - Track token usage and execution time
+- **Session History** - View all Claude sessions with full output
+- **Daemon Status** - Monitor background worker status
+
+### Infrastructure
+- **Web Dashboard** - Beautiful dark-theme admin panel
+- **SSL Encryption** - All traffic encrypted via OpenLiteSpeed
+- **Self-Hosted** - Complete control over your data
+- **CLI Tool** - Manage projects and tickets from terminal
 
 ## Perfect For
 
@@ -95,7 +130,7 @@ This is not science fiction. This is happening now. And this project lets you ex
 ```bash
 # Download, extract, and run
 cd /root
-unzip fotios-claude-system-2.26.8.zip
+unzip fotios-claude-system-2.26.9.zip
 cd fotios-claude-system
 chmod +x setup.sh && ./setup.sh
 

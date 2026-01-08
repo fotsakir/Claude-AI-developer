@@ -1,7 +1,7 @@
 #!/bin/bash
 # =====================================================
 # FOTIOS CLAUDE SYSTEM - Installation Script
-# Version: 2.26.8
+# Version: 2.26.9
 # =====================================================
 # Usage:
 #   sudo ./setup.sh          (from root or with sudo)
@@ -21,7 +21,7 @@ NC='\033[0m'
 echo -e "${GREEN}"
 echo "╔═══════════════════════════════════════════════════════════╗"
 echo "║       FOTIOS CLAUDE SYSTEM - Installation                 ║"
-echo "║              Version 2.26.8                                ║"
+echo "║              Version 2.26.9                                ║"
 echo "╚═══════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 
@@ -402,7 +402,7 @@ cat > ${CONFIG_DIR}/system.conf << CONFEOF
 # =====================================================
 # Fotios Claude System Configuration
 # Generated: $(date)
-# Version: 2.26.8
+# Version: 2.26.9
 # =====================================================
 
 # Database
