@@ -1,0 +1,20 @@
+[Unit]
+Description=Fotios Claude Web Interface
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=claude
+Group=claude
+WorkingDirectory=/opt/fotios-claude
+ExecStart=/usr/bin/python3 /opt/fotios-claude/web/app.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/fotios-claude/web.log
+StandardError=append:/var/log/fotios-claude/web.log
+
+# Environment
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

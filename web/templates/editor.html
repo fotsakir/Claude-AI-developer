@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editor - {{ project.name }} - Fotios Claude</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ace.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #eee; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* Header */
+        .header { background: #16213e; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #0f3460; flex-shrink: 0; }
+        .header h1 { font-size: 1em; color: #00d9ff; display: flex; align-items: center; gap: 10px; }
+        .header .project-name { color: #fff; }
+        .nav { display: flex; gap: 15px; align-items: center; }
+        .nav a { color: #888; text-decoration: none; font-size: 13px; }
+        .nav a:hover { color: #fff; }
+
+        /* Toolbar */
+        .toolbar { background: #0f1a2e; padding: 8px 15px; display: flex; gap: 10px; align-items: center; border-bottom: 1px solid #0f3460; flex-shrink: 0; }
+        .toolbar button { background: #333; border: none; color: #fff; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 5px; }
+        .toolbar button:hover { background: #444; }
+        .toolbar button.primary { background: #00d9ff; color: #000; }
+        .toolbar button.primary:hover { background: #00b8d9; }
+        .toolbar button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .toolbar .separator { width: 1px; height: 20px; background: #333; margin: 0 5px; }
+        .toolbar .file-path { color: #888; font-size: 12px; font-family: monospace; margin-left: auto; }
+        .toolbar .modified { color: #ffaa00; }
+
+        /* Main Container */
+        .main { flex: 1; display: flex; overflow: hidden; }
+
+        /* Sidebar - File Tree */
+        .sidebar { width: 280px; background: #16213e; border-right: 1px solid #0f3460; display: flex; flex-direction: column; flex-shrink: 0; }
+        .sidebar-header { padding: 12px 15px; border-bottom: 1px solid #0f3460; display: flex; justify-content: space-between; align-items: center; }
+        .sidebar-header h3 { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+        .sidebar-header button { background: none; border: none; color: #888; cursor: pointer; font-size: 14px; }
+        .sidebar-header button:hover { color: #00d9ff; }
+
+        .tree-container { flex: 1; overflow-y: auto; padding: 10px 0; }
+
+        .tree-item { display: flex; align-items: center; padding: 5px 15px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+        .tree-item:hover { background: #1e2a4a; }
+        .tree-item.active { background: #0f3460; }
+        .tree-item .icon { margin-right: 8px; font-size: 14px; flex-shrink: 0; }
+        .tree-item .name { overflow: hidden; text-overflow: ellipsis; }
+        .tree-item.dir .name { color: #00d9ff; }
+        .tree-item.file .name { color: #ccc; }
+
+        .tree-children { display: none; }
+        .tree-children.open { display: block; }
+        .tree-children .tree-item { padding-left: 30px; }
+        .tree-children .tree-children .tree-item { padding-left: 45px; }
+        .tree-children .tree-children .tree-children .tree-item { padding-left: 60px; }
+        .tree-children .tree-children .tree-children .tree-children .tree-item { padding-left: 75px; }
+
+        /* Editor Container */
+        .editor-container { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .editor-tabs { background: #0f1a2e; display: flex; border-bottom: 1px solid #0f3460; flex-shrink: 0; overflow-x: auto; }
+        .editor-tab { padding: 8px 15px; font-size: 12px; color: #888; cursor: pointer; border-right: 1px solid #0f3460; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+        .editor-tab:hover { background: #16213e; }
+        .editor-tab.active { background: #1a1a2e; color: #fff; }
+        .editor-tab .close { font-size: 14px; opacity: 0.5; }
+        .editor-tab .close:hover { opacity: 1; color: #ff4444; }
+        .editor-tab .modified-dot { width: 8px; height: 8px; background: #ffaa00; border-radius: 50%; }
+
+        #editor { flex: 1; font-size: 14px; }
+
+        .no-file { flex: 1; display: flex; align-items: center; justify-content: center; color: #666; font-size: 14px; }
+
+        /* Context Menu */
+        .context-menu { position: fixed; background: #16213e; border: 1px solid #0f3460; border-radius: 6px; padding: 5px 0; min-width: 150px; z-index: 1000; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .context-menu.show { display: block; }
+        .context-menu-item { padding: 8px 15px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 10px; }
+        .context-menu-item:hover { background: #0f3460; }
+        .context-menu-item.danger { color: #ff4444; }
+        .context-menu-separator { height: 1px; background: #0f3460; margin: 5px 0; }
+
+        /* Modal */
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; z-index: 1001; }
+        .modal.show { display: flex; }
+        .modal-content { background: #16213e; border-radius: 8px; padding: 20px; min-width: 300px; }
+        .modal-content h3 { color: #00d9ff; margin-bottom: 15px; font-size: 14px; }
+        .modal-content input { width: 100%; padding: 10px; background: #1a1a2e; border: 1px solid #0f3460; color: #fff; border-radius: 4px; font-size: 13px; }
+        .modal-content input:focus { outline: none; border-color: #00d9ff; }
+        .modal-buttons { display: flex; gap: 10px; justify-content: flex-end; margin-top: 15px; }
+        .modal-buttons button { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        .modal-buttons .cancel { background: #333; color: #fff; }
+        .modal-buttons .confirm { background: #00d9ff; color: #000; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>
+            <span style="color:#888">Editor</span>
+            <span style="color:#0f3460">/</span>
+            <span class="project-name">{{ project.name }}</span>
+        </h1>
+        <div class="nav">
+            <a href="/project/{{ project.id }}">← Back to Project</a>
+            <a href="/dashboard">Dashboard</a>
+        </div>
+    </div>
+
+    <div class="toolbar">
+        <button onclick="saveCurrentFile()" id="btnSave" disabled class="primary">
+            <span>💾</span> Save
+        </button>
+        <div class="separator"></div>
+        <button onclick="showNewFileModal()">
+            <span>📄</span> New File
+        </button>
+        <button onclick="showNewFolderModal()">
+            <span>📁</span> New Folder
+        </button>
+        <div class="separator"></div>
+        <button onclick="refreshTree()">
+            <span>🔄</span> Refresh
+        </button>
+        <div class="file-path">
+            <span id="currentPath">No file open</span>
+            <span id="modifiedIndicator" class="modified" style="display:none"> (modified)</span>
+        </div>
+    </div>
+
+    <div class="main">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h3>Files</h3>
+                <button onclick="refreshTree()" title="Refresh">🔄</button>
+            </div>
+            <div class="tree-container" id="fileTree">
+                <div style="padding:20px;color:#888;text-align:center">Loading...</div>
+            </div>
+        </div>
+
+        <div class="editor-container">
+            <div class="editor-tabs" id="editorTabs"></div>
+            <div id="editor"></div>
+            <div class="no-file" id="noFile">
+                <div style="text-align:center">
+                    <div style="font-size:48px;margin-bottom:15px">📝</div>
+                    <div>Select a file from the tree to edit</div>
+                    <div style="margin-top:10px;font-size:12px;color:#444">Ctrl+S to save</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Context Menu -->
+    <div class="context-menu" id="contextMenu">
+        <div class="context-menu-item" onclick="contextNewFile()">📄 New File</div>
+        <div class="context-menu-item" onclick="contextNewFolder()">📁 New Folder</div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" onclick="contextRename()">✏️ Rename</div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item danger" onclick="contextDelete()">🗑️ Delete</div>
+    </div>
+
+    <!-- New File/Folder Modal -->
+    <div class="modal" id="newItemModal">
+        <div class="modal-content">
+            <h3 id="modalTitle">New File</h3>
+            <input type="text" id="newItemName" placeholder="filename.ext" onkeydown="if(event.key==='Enter')confirmNewItem()">
+            <div class="modal-buttons">
+                <button class="cancel" onclick="hideModal()">Cancel</button>
+                <button class="confirm" onclick="confirmNewItem()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rename Modal -->
+    <div class="modal" id="renameModal">
+        <div class="modal-content">
+            <h3>Rename</h3>
+            <input type="text" id="renameInput" placeholder="new name" onkeydown="if(event.key==='Enter')confirmRename()">
+            <div class="modal-buttons">
+                <button class="cancel" onclick="hideRenameModal()">Cancel</button>
+                <button class="confirm" onclick="confirmRename()">Rename</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const projectId = {{ project.id }};
+        const basePath = '{{ project.web_path or project.app_path or "" }}';
+
+        // Editor setup
+        let editor = null;
+        let openFiles = {}; // {path: {content, modified, mode}}
+        let currentFile = null;
+        let contextTarget = null;
+        let newItemType = 'file';
+        let newItemParent = '';
+
+        // Initialize Ace Editor
+        function initEditor() {
+            editor = ace.edit("editor");
+            editor.setTheme("ace/theme/tomorrow_night");
+            editor.setOptions({
+                fontSize: "14px",
+                showPrintMargin: false,
+                enableBasicAutocompletion: true,
+                tabSize: 4,
+                useSoftTabs: true
+            });
+
+            editor.on('change', () => {
+                if (currentFile && openFiles[currentFile]) {
+                    openFiles[currentFile].modified = true;
+                    updateTabModified(currentFile);
+                    updateToolbar();
+                }
+            });
+
+            // Hide editor initially
+            document.getElementById('editor').style.display = 'none';
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                saveCurrentFile();
+            }
+        });
+
+        // File tree
+        async function loadTree() {
+            const container = document.getElementById('fileTree');
+            container.innerHTML = '<div style="padding:20px;color:#888;text-align:center">Loading...</div>';
+
+            try {
+                const resp = await fetch(`/api/project/${projectId}/editor/tree`);
+                const result = await resp.json();
+
+                if (!result.success) {
+                    container.innerHTML = `<div style="padding:20px;color:#ff4444;text-align:center">${result.message}</div>`;
+                    return;
+                }
+
+                container.innerHTML = renderTree(result.tree);
+            } catch (err) {
+                container.innerHTML = `<div style="padding:20px;color:#ff4444;text-align:center">Error loading files</div>`;
+            }
+        }
+
+        function renderTree(items, level = 0) {
+            if (!items || items.length === 0) return '';
+
+            let html = '';
+            for (const item of items) {
+                if (item.type === 'dir') {
+                    html += `
+                        <div class="tree-item dir" onclick="toggleDir(this, event)" oncontextmenu="showContextMenu(event, '${item.path}', 'dir')">
+                            <span class="icon">📁</span>
+                            <span class="name">${item.name}</span>
+                        </div>
+                        <div class="tree-children" data-path="${item.path}">
+                            ${renderTree(item.children, level + 1)}
+                        </div>
+                    `;
+                } else {
+                    const icon = getFileIcon(item.name);
+                    html += `
+                        <div class="tree-item file" onclick="openFile('${item.path}')" oncontextmenu="showContextMenu(event, '${item.path}', 'file')">
+                            <span class="icon">${icon}</span>
+                            <span class="name">${item.name}</span>
+                        </div>
+                    `;
+                }
+            }
+            return html;
+        }
+
+        function getFileIcon(name) {
+            const ext = name.split('.').pop().toLowerCase();
+            const icons = {
+                'php': '🐘', 'js': '📜', 'ts': '📘', 'css': '🎨', 'scss': '🎨', 'less': '🎨',
+                'html': '🌐', 'htm': '🌐', 'vue': '💚', 'jsx': '⚛️', 'tsx': '⚛️',
+                'json': '📋', 'xml': '📋', 'yaml': '📋', 'yml': '📋',
+                'sql': '🗄️', 'md': '📝', 'txt': '📄', 'log': '📄',
+                'py': '🐍', 'rb': '💎', 'java': '☕', 'go': '🔵', 'rs': '🦀',
+                'sh': '⚙️', 'bash': '⚙️', 'zsh': '⚙️',
+                'png': '🖼️', 'jpg': '🖼️', 'jpeg': '🖼️', 'gif': '🖼️', 'svg': '🖼️',
+                'pdf': '📕', 'zip': '📦', 'tar': '📦', 'gz': '📦'
+            };
+            return icons[ext] || '📄';
+        }
+
+        function toggleDir(el, event) {
+            event.stopPropagation();
+            const children = el.nextElementSibling;
+            if (children && children.classList.contains('tree-children')) {
+                children.classList.toggle('open');
+                const icon = el.querySelector('.icon');
+                icon.textContent = children.classList.contains('open') ? '📂' : '📁';
+            }
+        }
+
+        async function openFile(path) {
+            // Check if already open
+            if (openFiles[path]) {
+                switchToFile(path);
+                return;
+            }
+
+            try {
+                const resp = await fetch(`/api/project/${projectId}/editor/file?path=${encodeURIComponent(path)}`);
+                const result = await resp.json();
+
+                if (!result.success) {
+                    alert('Error: ' + result.message);
+                    return;
+                }
+
+                // Determine mode from extension
+                const mode = getModeForFile(path);
+
+                openFiles[path] = {
+                    content: result.content,
+                    originalContent: result.content,
+                    modified: false,
+                    mode: mode
+                };
+
+                addTab(path);
+                switchToFile(path);
+
+            } catch (err) {
+                alert('Error opening file: ' + err.message);
+            }
+        }
+
+        function getModeForFile(path) {
+            const ext = path.split('.').pop().toLowerCase();
+            const modes = {
+                'js': 'javascript', 'jsx': 'jsx', 'ts': 'typescript', 'tsx': 'tsx',
+                'php': 'php', 'py': 'python', 'rb': 'ruby', 'java': 'java',
+                'html': 'html', 'htm': 'html', 'vue': 'html',
+                'css': 'css', 'scss': 'scss', 'less': 'less',
+                'json': 'json', 'xml': 'xml', 'yaml': 'yaml', 'yml': 'yaml',
+                'sql': 'sql', 'md': 'markdown', 'sh': 'sh', 'bash': 'sh',
+                'go': 'golang', 'rs': 'rust', 'c': 'c_cpp', 'cpp': 'c_cpp', 'h': 'c_cpp'
+            };
+            return modes[ext] || 'text';
+        }
+
+        function addTab(path) {
+            const tabs = document.getElementById('editorTabs');
+            const fileName = path.split('/').pop();
+
+            const tab = document.createElement('div');
+            tab.className = 'editor-tab';
+            tab.dataset.path = path;
+            tab.innerHTML = `
+                <span class="modified-dot" style="display:none"></span>
+                <span class="name">${fileName}</span>
+                <span class="close" onclick="closeTab(event, '${path}')">&times;</span>
+            `;
+            tab.onclick = (e) => {
+                if (!e.target.classList.contains('close')) {
+                    switchToFile(path);
+                }
+            };
+
+            tabs.appendChild(tab);
+        }
+
+        function switchToFile(path) {
+            currentFile = path;
+
+            // Update tabs
+            document.querySelectorAll('.editor-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.path === path);
+            });
+
+            // Update tree
+            document.querySelectorAll('.tree-item').forEach(item => {
+                item.classList.remove('active');
+            });
+
+            // Show editor
+            document.getElementById('editor').style.display = 'block';
+            document.getElementById('noFile').style.display = 'none';
+
+            // Set editor content and mode
+            const file = openFiles[path];
+            editor.setValue(file.content, -1);
+            editor.session.setMode(`ace/mode/${file.mode}`);
+
+            // Update toolbar
+            updateToolbar();
+        }
+
+        function closeTab(event, path) {
+            event.stopPropagation();
+
+            const file = openFiles[path];
+            if (file && file.modified) {
+                if (!confirm('Discard unsaved changes?')) {
+                    return;
+                }
+            }
+
+            // Remove tab
+            const tab = document.querySelector(`.editor-tab[data-path="${path}"]`);
+            if (tab) tab.remove();
+
+            // Remove from open files
+            delete openFiles[path];
+
+            // Switch to another file or show no-file
+            const remainingPaths = Object.keys(openFiles);
+            if (remainingPaths.length > 0) {
+                switchToFile(remainingPaths[remainingPaths.length - 1]);
+            } else {
+                currentFile = null;
+                document.getElementById('editor').style.display = 'none';
+                document.getElementById('noFile').style.display = 'flex';
+                updateToolbar();
+            }
+        }
+
+        function updateTabModified(path) {
+            const tab = document.querySelector(`.editor-tab[data-path="${path}"]`);
+            if (tab) {
+                const dot = tab.querySelector('.modified-dot');
+                const file = openFiles[path];
+                dot.style.display = file && file.modified ? 'block' : 'none';
+            }
+        }
+
+        function updateToolbar() {
+            const btnSave = document.getElementById('btnSave');
+            const pathEl = document.getElementById('currentPath');
+            const modifiedEl = document.getElementById('modifiedIndicator');
+
+            if (currentFile) {
+                pathEl.textContent = currentFile;
+                const file = openFiles[currentFile];
+                const isModified = file && file.modified;
+                btnSave.disabled = !isModified;
+                modifiedEl.style.display = isModified ? 'inline' : 'none';
+            } else {
+                pathEl.textContent = 'No file open';
+                btnSave.disabled = true;
+                modifiedEl.style.display = 'none';
+            }
+        }
+
+        async function saveCurrentFile() {
+            if (!currentFile || !openFiles[currentFile]) return;
+
+            const file = openFiles[currentFile];
+            const content = editor.getValue();
+
+            try {
+                const resp = await fetch(`/api/project/${projectId}/editor/file`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({path: currentFile, content: content})
+                });
+                const result = await resp.json();
+
+                if (result.success) {
+                    file.content = content;
+                    file.originalContent = content;
+                    file.modified = false;
+                    updateTabModified(currentFile);
+                    updateToolbar();
+                } else {
+                    alert('Error saving: ' + result.message);
+                }
+            } catch (err) {
+                alert('Error saving: ' + err.message);
+            }
+        }
+
+        function refreshTree() {
+            loadTree();
+        }
+
+        // Context menu
+        function showContextMenu(event, path, type) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            contextTarget = {path, type};
+
+            const menu = document.getElementById('contextMenu');
+            menu.style.left = event.pageX + 'px';
+            menu.style.top = event.pageY + 'px';
+            menu.classList.add('show');
+        }
+
+        document.addEventListener('click', () => {
+            document.getElementById('contextMenu').classList.remove('show');
+        });
+
+        function contextNewFile() {
+            newItemType = 'file';
+            newItemParent = contextTarget.type === 'dir' ? contextTarget.path : contextTarget.path.split('/').slice(0, -1).join('/');
+            document.getElementById('modalTitle').textContent = 'New File';
+            document.getElementById('newItemName').placeholder = 'filename.ext';
+            document.getElementById('newItemName').value = '';
+            document.getElementById('newItemModal').classList.add('show');
+            document.getElementById('newItemName').focus();
+        }
+
+        function contextNewFolder() {
+            newItemType = 'dir';
+            newItemParent = contextTarget.type === 'dir' ? contextTarget.path : contextTarget.path.split('/').slice(0, -1).join('/');
+            document.getElementById('modalTitle').textContent = 'New Folder';
+            document.getElementById('newItemName').placeholder = 'folder-name';
+            document.getElementById('newItemName').value = '';
+            document.getElementById('newItemModal').classList.add('show');
+            document.getElementById('newItemName').focus();
+        }
+
+        function showNewFileModal() {
+            newItemType = 'file';
+            newItemParent = '';
+            document.getElementById('modalTitle').textContent = 'New File';
+            document.getElementById('newItemName').placeholder = 'filename.ext';
+            document.getElementById('newItemName').value = '';
+            document.getElementById('newItemModal').classList.add('show');
+            document.getElementById('newItemName').focus();
+        }
+
+        function showNewFolderModal() {
+            newItemType = 'dir';
+            newItemParent = '';
+            document.getElementById('modalTitle').textContent = 'New Folder';
+            document.getElementById('newItemName').placeholder = 'folder-name';
+            document.getElementById('newItemName').value = '';
+            document.getElementById('newItemModal').classList.add('show');
+            document.getElementById('newItemName').focus();
+        }
+
+        function hideModal() {
+            document.getElementById('newItemModal').classList.remove('show');
+        }
+
+        async function confirmNewItem() {
+            const name = document.getElementById('newItemName').value.trim();
+            if (!name) return;
+
+            const path = newItemParent ? `${newItemParent}/${name}` : name;
+
+            try {
+                const resp = await fetch(`/api/project/${projectId}/editor/create`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({path: path, type: newItemType})
+                });
+                const result = await resp.json();
+
+                if (result.success) {
+                    hideModal();
+                    refreshTree();
+                    if (newItemType === 'file') {
+                        setTimeout(() => openFile(path), 300);
+                    }
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        function contextRename() {
+            document.getElementById('renameInput').value = contextTarget.path.split('/').pop();
+            document.getElementById('renameModal').classList.add('show');
+            document.getElementById('renameInput').focus();
+            document.getElementById('renameInput').select();
+        }
+
+        function hideRenameModal() {
+            document.getElementById('renameModal').classList.remove('show');
+        }
+
+        async function confirmRename() {
+            const newName = document.getElementById('renameInput').value.trim();
+            if (!newName) return;
+
+            const oldPath = contextTarget.path;
+            const parentPath = oldPath.split('/').slice(0, -1).join('/');
+            const newPath = parentPath ? `${parentPath}/${newName}` : newName;
+
+            try {
+                const resp = await fetch(`/api/project/${projectId}/editor/rename`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({old_path: oldPath, new_path: newPath})
+                });
+                const result = await resp.json();
+
+                if (result.success) {
+                    hideRenameModal();
+
+                    // Update open file if renamed
+                    if (openFiles[oldPath]) {
+                        openFiles[newPath] = openFiles[oldPath];
+                        delete openFiles[oldPath];
+
+                        const tab = document.querySelector(`.editor-tab[data-path="${oldPath}"]`);
+                        if (tab) {
+                            tab.dataset.path = newPath;
+                            tab.querySelector('.name').textContent = newName;
+                        }
+
+                        if (currentFile === oldPath) {
+                            currentFile = newPath;
+                            updateToolbar();
+                        }
+                    }
+
+                    refreshTree();
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        async function contextDelete() {
+            const path = contextTarget.path;
+            const type = contextTarget.type;
+
+            if (!confirm(`Delete ${type === 'dir' ? 'folder' : 'file'} "${path}"?`)) {
+                return;
+            }
+
+            try {
+                const resp = await fetch(`/api/project/${projectId}/files/delete`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({path: path})
+                });
+                const result = await resp.json();
+
+                if (result.success) {
+                    // Close tab if file was open
+                    if (openFiles[path]) {
+                        closeTab({stopPropagation: () => {}}, path);
+                    }
+                    refreshTree();
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        // Initialize
+        initEditor();
+        loadTree();
+    </script>
+</body>
+</html>

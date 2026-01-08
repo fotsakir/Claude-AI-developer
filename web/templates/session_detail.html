@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session Details - Fotios Claude</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace; background: #1a1a2e; color: #eee; }
+        .header { background: #16213e; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #0f3460; }
+        .header h1 { font-size: 1.2em; color: #00d9ff; }
+        .header a { color: #888; text-decoration: none; margin-left: 20px; }
+        .header a:hover { color: #fff; }
+        .nav { display: flex; gap: 20px; }
+        
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        
+        .session-header { background: #16213e; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+        .session-header h2 { color: #00d9ff; margin-bottom: 10px; }
+        .session-header .title { color: #fff; font-size: 18px; margin-bottom: 15px; }
+        .session-header .description { color: #aaa; font-size: 14px; line-height: 1.6; margin-bottom: 15px; }
+        .session-meta { display: flex; gap: 30px; color: #888; font-size: 13px; }
+        .status-badge { display: inline-block; padding: 5px 12px; border-radius: 15px; font-size: 12px; font-weight: bold; text-transform: uppercase; margin-left: 15px; }
+        .status-badge.completed { background: #00ff88; color: #000; }
+        .status-badge.failed { background: #ff4444; color: #fff; }
+        .status-badge.stuck { background: #ffaa00; color: #000; }
+        .status-badge.running { background: #00d9ff; color: #000; }
+        
+        .logs-container { background: #0d0d1a; border-radius: 8px; padding: 15px; max-height: 70vh; overflow-y: auto; }
+        .log-entry { margin-bottom: 8px; padding: 8px 12px; border-radius: 4px; font-size: 13px; line-height: 1.5; }
+        .log-entry.output { background: #1e1e3f; border-left: 3px solid #00d9ff; }
+        .log-entry.error { background: #3f1e1e; border-left: 3px solid #ff4444; }
+        .log-entry.warning { background: #3f3f1e; border-left: 3px solid #ffaa00; }
+        .log-entry.info { background: #1e3f1e; border-left: 3px solid #00ff88; }
+        .log-entry.user_input { background: #3f1e3f; border-left: 3px solid #ff00ff; }
+        .log-entry.system { background: #2a2a4a; border-left: 3px solid #888; }
+        .log-entry.user { background: #1e3f3f; border-left: 3px solid #00ffff; }
+        
+        .log-time { color: #666; font-size: 11px; margin-right: 15px; }
+        .log-type { color: #00d9ff; font-weight: bold; margin-right: 10px; text-transform: uppercase; font-size: 10px; min-width: 60px; display: inline-block; }
+        .log-message { white-space: pre-wrap; word-break: break-word; }
+        
+        .empty { text-align: center; padding: 50px; color: #888; }
+        
+        .back-link { display: inline-block; margin-bottom: 20px; color: #00d9ff; text-decoration: none; }
+        .back-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📋 Session Details</h1>
+        <div class="nav">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/console">Console</a>
+            <a href="/history">History</a>
+            <a href="/logout">Logout</a>
+        </div>
+    </div>
+    
+    <div class="container">
+        <a href="/history" class="back-link">← Back to History</a>
+        
+        {% if session %}
+        <div class="session-header">
+            <h2>
+                {{ session.ticket_number or 'Session' }}
+                <span class="status-badge {{ session.status }}">{{ session.status }}</span>
+            </h2>
+            <div class="title">{{ session.title or 'No title' }}</div>
+            {% if session.description %}
+            <div class="description">{{ session.description }}</div>
+            {% endif %}
+            <div class="session-meta">
+                <span>🕐 Started: {{ session.started_at.strftime('%Y-%m-%d %H:%M:%S') if session.started_at else 'N/A' }}</span>
+                <span>🏁 Ended: {{ session.ended_at.strftime('%Y-%m-%d %H:%M:%S') if session.ended_at else 'Still running' }}</span>
+                <span>🎫 Tokens: {{ session.tokens_used or 0 }}</span>
+                <span>📁 Project: {{ session.project_name or 'N/A' }}</span>
+            </div>
+            <div style="margin-top:15px">
+                <a href="/ticket/{{ session.ticket_id }}" style="color:#00d9ff;text-decoration:none;background:#0f3460;padding:8px 16px;border-radius:6px">View Ticket →</a>
+            </div>
+        </div>
+        {% endif %}
+        
+        <h3 style="color: #00d9ff; margin-bottom: 15px;">Execution Logs</h3>
+        
+        <div class="logs-container">
+            {% if logs %}
+                {% for log in logs %}
+                <div class="log-entry {{ log.log_type }}">
+                    <span class="log-time">{{ log.created_at.strftime('%H:%M:%S') if log.created_at else '' }}</span>
+                    <span class="log-type">{{ log.log_type }}</span>
+                    <span class="log-message">{{ log.message }}</span>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty">No logs available for this session.</div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

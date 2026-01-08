@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>History - Fotios Claude</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #07070d;
+            --bg-secondary: #0d0d16;
+            --bg-card: rgba(18, 18, 32, 0.7);
+            --bg-card-hover: rgba(25, 25, 45, 0.8);
+            --border-subtle: rgba(99, 102, 241, 0.15);
+            --border-glow: rgba(99, 102, 241, 0.4);
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-primary: #6366f1;
+            --accent-secondary: #8b5cf6;
+            --accent-cyan: #22d3ee;
+            --accent-green: #10b981;
+            --accent-orange: #f59e0b;
+            --accent-red: #ef4444;
+            --glow-primary: 0 0 20px rgba(99, 102, 241, 0.3);
+            --glow-cyan: 0 0 20px rgba(34, 211, 238, 0.3);
+            --glow-green: 0 0 20px rgba(16, 185, 129, 0.3);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* Aurora Background */
+        .aurora-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+            background: var(--bg-primary);
+            overflow: hidden;
+        }
+
+        .aurora-blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.5;
+            animation: float 20s ease-in-out infinite;
+        }
+
+        .aurora-blob:nth-child(1) {
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.4) 0%, transparent 70%);
+            top: -200px;
+            left: -100px;
+        }
+
+        .aurora-blob:nth-child(2) {
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(139, 92, 246, 0.3) 0%, transparent 70%);
+            top: 50%;
+            right: -150px;
+            animation-delay: -5s;
+            animation-duration: 25s;
+        }
+
+        .aurora-blob:nth-child(3) {
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(34, 211, 238, 0.25) 0%, transparent 70%);
+            bottom: -100px;
+            left: 30%;
+            animation-delay: -10s;
+            animation-duration: 30s;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            25% { transform: translate(50px, -30px) scale(1.05); }
+            50% { transform: translate(-30px, 50px) scale(0.95); }
+            75% { transform: translate(-50px, -20px) scale(1.02); }
+        }
+
+        .noise {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.03;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+        }
+
+        .header {
+            background: rgba(13, 13, 22, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header h1 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .nav { display: flex; gap: 8px; }
+        .nav a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        .nav a:hover {
+            color: var(--text-primary);
+            background: var(--bg-card);
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .toolbar h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .search-box input {
+            padding: 10px 20px;
+            border: 1px solid var(--border-subtle);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border-radius: 20px;
+            font-size: 13px;
+            width: 280px;
+            transition: all 0.2s ease;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+
+        .search-box input::placeholder { color: var(--text-muted); }
+
+        .session-list { display: flex; flex-direction: column; gap: 12px; }
+
+        .session-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-subtle);
+            border-radius: 14px;
+            padding: 18px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 4px solid var(--border-subtle);
+            transition: all 0.2s ease;
+        }
+
+        .session-card:hover {
+            background: var(--bg-card-hover);
+            transform: translateX(4px);
+        }
+
+        .session-card.completed { border-left-color: var(--accent-green); }
+        .session-card.done { border-left-color: var(--accent-green); }
+        .session-card.failed { border-left-color: var(--accent-red); }
+        .session-card.stuck { border-left-color: var(--accent-orange); }
+        .session-card.in_progress { border-left-color: var(--accent-cyan); }
+        .session-card.running { border-left-color: var(--accent-cyan); }
+
+        .session-info { flex: 1; }
+
+        .session-ticket {
+            color: var(--accent-cyan);
+            font-weight: 600;
+            font-size: 14px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .session-title {
+            color: var(--text-primary);
+            margin-top: 6px;
+            font-size: 14px;
+        }
+
+        .session-meta {
+            color: var(--text-muted);
+            font-size: 12px;
+            margin-top: 10px;
+            display: flex;
+            gap: 24px;
+        }
+
+        .session-meta span {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .session-status { text-align: right; min-width: 120px; }
+
+        .status-badge {
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: inline-block;
+        }
+
+        .status-badge.completed, .status-badge.done {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-green);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .status-badge.failed {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--accent-red);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .status-badge.stuck {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--accent-orange);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .status-badge.running, .status-badge.in_progress {
+            background: rgba(34, 211, 238, 0.15);
+            color: var(--accent-cyan);
+            border: 1px solid rgba(34, 211, 238, 0.3);
+        }
+
+        .view-btn {
+            display: inline-block;
+            margin-top: 12px;
+            color: var(--accent-cyan);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .view-btn:hover {
+            color: var(--accent-primary);
+        }
+
+        .empty {
+            text-align: center;
+            padding: 60px 24px;
+            color: var(--text-muted);
+        }
+
+        .empty h3 {
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="aurora-bg">
+        <div class="aurora-blob"></div>
+        <div class="aurora-blob"></div>
+        <div class="aurora-blob"></div>
+    </div>
+    <div class="noise"></div>
+
+    <div class="header">
+        <h1>Execution History</h1>
+        <div class="nav">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/projects">Projects</a>
+            <a href="/console">Console</a>
+            <a href="/logout">Logout</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="toolbar">
+            <h2>Recent Sessions</h2>
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search sessions..." oninput="filterSessions()">
+            </div>
+        </div>
+
+        <div class="session-list">
+            {% if sessions %}
+                {% for s in sessions %}
+                <div class="session-card {{ s.status }}">
+                    <div class="session-info">
+                        <div class="session-ticket">{{ s.ticket_number or 'Unknown' }}</div>
+                        <div class="session-title">{{ s.title or 'No title' }}</div>
+                        <div class="session-meta">
+                            <span>Started: {{ s.started_at.strftime('%Y-%m-%d %H:%M') if s.started_at else 'N/A' }}</span>
+                            <span>Duration: {{ s.duration_minutes or 0 }} min</span>
+                            <span>Tokens: {{ s.tokens_used or 0 }}</span>
+                        </div>
+                        <a href="/session/{{ s.id }}" class="view-btn">View Details</a>
+                    </div>
+                    <div class="session-status">
+                        <span class="status-badge {{ s.status }}">{{ s.status }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty">
+                    <h3>No execution sessions yet</h3>
+                    <p>Start the daemon to begin processing tickets.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        function filterSessions() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            document.querySelectorAll('.session-card').forEach(card => {
+                const ticket = card.querySelector('.session-ticket')?.textContent.toLowerCase() || '';
+                const title = card.querySelector('.session-title')?.textContent.toLowerCase() || '';
+                const matches = !query || ticket.includes(query) || title.includes(query);
+                card.style.display = matches ? 'flex' : 'none';
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+[Unit]
+Description=Fotios Claude Web Panel (Flask)
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/fotios-claude/web
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /opt/fotios-claude/web/app.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

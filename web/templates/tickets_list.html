@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - Fotios Claude</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #eee; }
+        .header { background: #16213e; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #0f3460; }
+        .header h1 { font-size: 1.4em; color: #00d9ff; }
+        .nav a { color: #888; text-decoration: none; margin-left: 20px; font-size: 14px; }
+        .nav a:hover { color: #fff; }
+
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .toolbar h2 { color: #00d9ff; }
+        .back-link { color: #888; text-decoration: none; }
+        .back-link:hover { color: #fff; }
+
+        .filters { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+        .filter-btn { padding: 8px 16px; border: 1px solid #0f3460; background: transparent; color: #888; border-radius: 20px; cursor: pointer; text-decoration: none; font-size: 13px; }
+        .filter-btn:hover { border-color: #00d9ff; color: #00d9ff; }
+        .filter-btn.active { background: #00d9ff; color: #000; border-color: #00d9ff; }
+
+        .search-box { margin-left: auto; }
+        .search-box input { padding: 8px 15px; border: 1px solid #0f3460; background: #1a1a2e; color: #fff; border-radius: 20px; font-size: 13px; width: 250px; }
+        .search-box input:focus { outline: none; border-color: #00d9ff; }
+        .search-box input::placeholder { color: #666; }
+
+        .ticket-list { display: flex; flex-direction: column; gap: 10px; }
+        .ticket-row { background: #16213e; border-radius: 8px; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; text-decoration: none; color: inherit; border-left: 4px solid #0f3460; }
+        .ticket-row:hover { background: #1e2a4a; }
+        .ticket-row.awaiting_input { border-left-color: #9b59b6; }
+        .ticket-row.in_progress { border-left-color: #00d9ff; }
+        .ticket-row.open, .ticket-row.new { border-left-color: #ffaa00; }
+        .ticket-row.done { border-left-color: #00ff88; }
+        .ticket-row.failed { border-left-color: #ff4444; }
+
+        .ticket-info { flex: 1; }
+        .ticket-number { color: #00d9ff; font-weight: bold; font-size: 14px; }
+        .ticket-title { color: #fff; margin-top: 5px; }
+        .ticket-meta { color: #888; font-size: 12px; margin-top: 8px; display: flex; gap: 20px; }
+
+        .ticket-status { text-align: right; min-width: 120px; }
+        .status-badge { padding: 5px 12px; border-radius: 15px; font-size: 12px; font-weight: bold; text-transform: uppercase; }
+        .status-badge.awaiting_input { background: #9b59b6; color: #fff; }
+        .status-badge.in_progress { background: #00d9ff; color: #000; }
+        .status-badge.open, .status-badge.new, .status-badge.pending { background: #ffaa00; color: #000; }
+        .status-badge.done { background: #00ff88; color: #000; }
+        .status-badge.failed { background: #ff4444; color: #fff; }
+        .status-badge.skipped { background: #888; color: #fff; }
+
+        .empty { text-align: center; padding: 50px; color: #888; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{{ title }}</h1>
+        <div class="nav">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/projects">Projects</a>
+            <a href="/console">Console</a>
+            <a href="/history">History</a>
+            <a href="/logout">Logout</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="toolbar">
+            <a href="/dashboard" class="back-link">← Back to Dashboard</a>
+            <span style="color:#888">{{ tickets|length }} ticket(s)</span>
+        </div>
+
+        <div class="filters">
+            <a href="/tickets{% if search_query %}?q={{ search_query }}{% endif %}" class="filter-btn {{ 'active' if not status_filter else '' }}">All</a>
+            <a href="/tickets?status=open{% if search_query %}&q={{ search_query }}{% endif %}" class="filter-btn {{ 'active' if status_filter == 'open' else '' }}">Open</a>
+            <a href="/tickets?status=in_progress{% if search_query %}&q={{ search_query }}{% endif %}" class="filter-btn {{ 'active' if status_filter == 'in_progress' else '' }}">In Progress</a>
+            <a href="/tickets?status=awaiting_input{% if search_query %}&q={{ search_query }}{% endif %}" class="filter-btn {{ 'active' if status_filter == 'awaiting_input' else '' }}">Awaiting Input</a>
+            <a href="/tickets?status=done{% if search_query %}&q={{ search_query }}{% endif %}" class="filter-btn {{ 'active' if status_filter == 'done' else '' }}">Done</a>
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search tickets..." value="{{ search_query or '' }}" onkeyup="handleSearch(event)">
+            </div>
+        </div>
+
+        <div class="ticket-list">
+            {% if tickets %}
+                {% for t in tickets %}
+                <a href="/ticket/{{ t.id }}" class="ticket-row {{ t.status }}">
+                    <div class="ticket-info">
+                        <div class="ticket-number">{{ t.ticket_number }}</div>
+                        <div class="ticket-title">{{ t.title }}</div>
+                        <div class="ticket-meta">
+                            <span>{{ t.project_name }}</span>
+                            <span>Priority: {{ t.priority or 'medium' }}</span>
+                            <span>Updated: {{ t.updated_at.strftime('%Y-%m-%d %H:%M') if t.updated_at else 'N/A' }}</span>
+                        </div>
+                    </div>
+                    <div class="ticket-status">
+                        <span class="status-badge {{ t.status }}">{{ t.status.replace('_', ' ') }}</span>
+                    </div>
+                </a>
+                {% endfor %}
+            {% else %}
+                <div class="empty">
+                    <p>No tickets found.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        function handleSearch(event) {
+            if (event.key === 'Enter') {
+                const query = document.getElementById('searchInput').value.trim();
+                const status = '{{ status_filter or "" }}';
+                let url = '/tickets';
+                const params = [];
+                if (status) params.push('status=' + status);
+                if (query) params.push('q=' + encodeURIComponent(query));
+                if (params.length > 0) url += '?' + params.join('&');
+                window.location.href = url;
+            }
+        }
+    </script>
+</body>
+</html>

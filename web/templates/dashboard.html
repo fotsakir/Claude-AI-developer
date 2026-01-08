@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Fotios Claude</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-primary: #07070d;
+            --bg-secondary: #0d0d16;
+            --bg-card: rgba(18, 18, 32, 0.7);
+            --bg-card-hover: rgba(25, 25, 45, 0.8);
+            --border-subtle: rgba(99, 102, 241, 0.15);
+            --border-glow: rgba(99, 102, 241, 0.4);
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-primary: #6366f1;
+            --accent-secondary: #8b5cf6;
+            --accent-cyan: #22d3ee;
+            --accent-green: #10b981;
+            --accent-orange: #f59e0b;
+            --accent-red: #ef4444;
+            --glow-primary: 0 0 20px rgba(99, 102, 241, 0.3);
+            --glow-cyan: 0 0 20px rgba(34, 211, 238, 0.3);
+            --glow-green: 0 0 20px rgba(16, 185, 129, 0.3);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Aurora Background */
+        .aurora-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+            background: var(--bg-primary);
+            overflow: hidden;
+        }
+
+        .aurora-blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.5;
+            animation: float 20s ease-in-out infinite;
+        }
+
+        .aurora-blob:nth-child(1) {
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.4) 0%, transparent 70%);
+            top: -200px;
+            left: -100px;
+            animation-delay: 0s;
+        }
+
+        .aurora-blob:nth-child(2) {
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(139, 92, 246, 0.3) 0%, transparent 70%);
+            top: 50%;
+            right: -150px;
+            animation-delay: -5s;
+            animation-duration: 25s;
+        }
+
+        .aurora-blob:nth-child(3) {
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(34, 211, 238, 0.25) 0%, transparent 70%);
+            bottom: -100px;
+            left: 30%;
+            animation-delay: -10s;
+            animation-duration: 30s;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            25% { transform: translate(50px, -30px) scale(1.05); }
+            50% { transform: translate(-30px, 50px) scale(0.95); }
+            75% { transform: translate(-50px, -20px) scale(1.02); }
+        }
+
+        /* Code Rain Effect */
+        .code-rain {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 0;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.8s ease;
+            overflow: hidden;
+        }
+
+        .code-rain.active {
+            opacity: 1;
+        }
+
+        .code-column {
+            position: absolute;
+            top: -100%;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            color: var(--accent-green);
+            text-shadow: 0 0 8px var(--accent-green);
+            opacity: 0.4;
+            filter: blur(0.5px);
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            animation: rain linear infinite;
+            white-space: nowrap;
+            letter-spacing: 2px;
+        }
+
+        .code-column:nth-child(odd) {
+            color: var(--accent-cyan);
+            text-shadow: 0 0 8px var(--accent-cyan);
+            opacity: 0.3;
+        }
+
+        .code-column:nth-child(3n) {
+            color: var(--accent-primary);
+            text-shadow: 0 0 8px var(--accent-primary);
+            opacity: 0.25;
+            filter: blur(1px);
+        }
+
+        @keyframes rain {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(calc(200vh + 100%)); }
+        }
+
+        /* Noise Texture */
+        .noise {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.03;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+        }
+
+        /* Header */
+        .header {
+            background: rgba(13, 13, 22, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header h1 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .nav { display: flex; gap: 8px; }
+        .nav a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        .nav a:hover {
+            color: var(--text-primary);
+            background: var(--bg-card);
+        }
+
+        /* Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* Stats Cards */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent-primary), transparent);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .stat-card:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--border-glow);
+            transform: translateY(-2px);
+            box-shadow: var(--glow-primary);
+        }
+
+        .stat-card:hover::before { opacity: 1; }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .stat-card.warning .stat-value {
+            background: linear-gradient(135deg, var(--accent-orange), #fbbf24);
+            -webkit-background-clip: text;
+            background-clip: text;
+        }
+
+        .stat-card.running .stat-value {
+            background: linear-gradient(135deg, var(--accent-green), var(--accent-cyan));
+            -webkit-background-clip: text;
+            background-clip: text;
+        }
+
+        .stat-card.purple .stat-value {
+            background: linear-gradient(135deg, var(--accent-secondary), #c084fc);
+            -webkit-background-clip: text;
+            background-clip: text;
+        }
+
+        .stat-label {
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 8px;
+        }
+
+        /* Daemon Panel */
+        .daemon-panel {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .daemon-panel.active {
+            border-color: var(--accent-green);
+            box-shadow: var(--glow-green);
+        }
+
+        .daemon-panel.active::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 200%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent-green), transparent);
+            animation: scan 3s linear infinite;
+        }
+
+        @keyframes scan {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+
+        .daemon-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .daemon-status {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .daemon-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            position: relative;
+        }
+
+        .daemon-dot.running {
+            background: var(--accent-green);
+            box-shadow: 0 0 12px var(--accent-green);
+        }
+
+        .daemon-dot.running::after {
+            content: '';
+            position: absolute;
+            top: -4px;
+            left: -4px;
+            right: -4px;
+            bottom: -4px;
+            border-radius: 50%;
+            border: 2px solid var(--accent-green);
+            animation: pulse-ring 1.5s ease-out infinite;
+        }
+
+        @keyframes pulse-ring {
+            0% { transform: scale(1); opacity: 0.8; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+
+        .daemon-dot.stopped {
+            background: var(--accent-red);
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+        }
+
+        .daemon-header h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .daemon-header .subtitle {
+            color: var(--text-muted);
+            font-size: 13px;
+            margin-left: 12px;
+        }
+
+        .daemon-actions { display: flex; gap: 10px; }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+
+        .btn-start {
+            background: linear-gradient(135deg, var(--accent-green), #059669);
+            color: white;
+        }
+        .btn-start:hover {
+            box-shadow: var(--glow-green);
+            transform: translateY(-1px);
+        }
+
+        .btn-stop {
+            background: linear-gradient(135deg, var(--accent-red), #dc2626);
+            color: white;
+        }
+
+        .btn-console {
+            background: var(--bg-card-hover);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+        }
+        .btn-console:hover {
+            border-color: var(--accent-primary);
+            box-shadow: var(--glow-primary);
+        }
+
+        /* Workers Grid */
+        .workers-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 12px;
+        }
+
+        .worker-card {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            border-radius: 12px;
+            padding: 16px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .worker-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 3px;
+            height: 100%;
+            background: var(--accent-green);
+            box-shadow: 0 0 10px var(--accent-green);
+        }
+
+        .worker-card.idle {
+            background: var(--bg-card-hover);
+            border-color: var(--border-subtle);
+        }
+
+        .worker-card.idle::before {
+            background: var(--text-muted);
+            box-shadow: none;
+        }
+
+        .worker-card .project {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .worker-card .ticket {
+            color: var(--accent-cyan);
+            font-size: 13px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .worker-card .status {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .worker-card .status::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            background: var(--accent-green);
+            border-radius: 50%;
+            animation: blink 1s ease-in-out infinite;
+        }
+
+        .worker-card.idle .status::before { display: none; }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        /* Usage Section */
+        .usage-section { margin-bottom: 24px; }
+
+        .usage-section h2 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .usage-cards {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .usage-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .usage-card:hover {
+            border-color: var(--border-glow);
+            transform: translateY(-2px);
+        }
+
+        .usage-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            border-radius: 16px 16px 0 0;
+        }
+
+        .usage-card.today::before { background: linear-gradient(90deg, var(--accent-primary), var(--accent-cyan)); }
+        .usage-card.week::before { background: linear-gradient(90deg, var(--accent-green), var(--accent-cyan)); }
+        .usage-card.month::before { background: linear-gradient(90deg, var(--accent-orange), #fbbf24); }
+        .usage-card.alltime::before { background: linear-gradient(90deg, var(--accent-secondary), #c084fc); }
+
+        .usage-card .period {
+            color: var(--text-muted);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+
+        .usage-card .tokens {
+            font-size: 1.75rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .usage-card .tokens .unit {
+            font-size: 0.5em;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .usage-card .details {
+            display: flex;
+            gap: 16px;
+            margin-top: 12px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .usage-card .details span.duration {
+            color: #10b981 !important;
+            font-weight: 600;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Chart Row */
+        .chart-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .chart-panel {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 20px;
+        }
+
+        .chart-panel h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+        }
+
+        .chart-container { position: relative; height: 250px; }
+
+        /* Top Projects */
+        .top-project-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            margin-bottom: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .top-project-item:hover {
+            background: var(--bg-card-hover);
+        }
+
+        .top-project-item .name {
+            color: var(--text-primary);
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .top-project-item .stats {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .top-project-item .tokens { color: var(--accent-cyan); }
+        .top-project-item .duration { color: var(--accent-green); }
+
+        .progress-bar {
+            height: 3px;
+            background: var(--bg-primary);
+            border-radius: 2px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+
+        .progress-bar .fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-primary), var(--accent-cyan));
+            border-radius: 2px;
+            transition: width 0.5s ease;
+        }
+
+        /* Grid Panels */
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .panel {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 20px;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .panel-header h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .panel-header a {
+            color: var(--text-muted);
+            font-size: 12px;
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .panel-header a:hover { color: var(--accent-cyan); }
+
+        .list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            margin-bottom: 8px;
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.2s ease;
+        }
+
+        .list-item:hover {
+            background: var(--bg-card-hover);
+            transform: translateX(4px);
+        }
+
+        .list-item .title { color: var(--text-primary); font-weight: 500; }
+        .list-item .meta { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+        .list-item .number {
+            color: var(--accent-cyan);
+            font-weight: 600;
+            font-family: 'JetBrains Mono', monospace;
+            margin-right: 8px;
+        }
+
+        /* Status Badges */
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-badge.in_progress {
+            background: rgba(34, 211, 238, 0.15);
+            color: var(--accent-cyan);
+            border: 1px solid rgba(34, 211, 238, 0.3);
+        }
+
+        .status-badge.open, .status-badge.new {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--accent-orange);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .status-badge.done {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-green);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .status-badge.active {
+            background: rgba(99, 102, 241, 0.15);
+            color: var(--accent-primary);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+        }
+
+        .status-badge.awaiting_input {
+            background: rgba(139, 92, 246, 0.15);
+            color: var(--accent-secondary);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+        }
+
+        .empty {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+            display: inline-block;
+            margin-top: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary:hover {
+            box-shadow: var(--glow-primary);
+            transform: translateY(-2px);
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .usage-cards { grid-template-columns: repeat(2, 1fr); }
+            .chart-row { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 768px) {
+            .stats { grid-template-columns: repeat(2, 1fr); }
+            .usage-cards { grid-template-columns: 1fr; }
+            .grid { grid-template-columns: 1fr; }
+            .daemon-header { flex-direction: column; gap: 16px; align-items: flex-start; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Aurora Background -->
+    <div class="aurora-bg">
+        <div class="aurora-blob"></div>
+        <div class="aurora-blob"></div>
+        <div class="aurora-blob"></div>
+    </div>
+
+    <!-- Code Rain (activated when daemon is running) -->
+    <div class="code-rain" id="codeRain"></div>
+
+    <!-- Noise Texture -->
+    <div class="noise"></div>
+
+    <div class="header">
+        <h1>Fotios Claude</h1>
+        <div class="nav">
+            <a href="/projects">Projects</a>
+            <a href="/console">Console</a>
+            <a href="/history">History</a>
+            <a href="/logout">Logout ({{ user }})</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Ticket Stats -->
+        <div class="stats">
+            <a href="/projects" class="stat-card">
+                <div class="stat-value">{{ stats.projects }}</div>
+                <div class="stat-label">Projects</div>
+            </a>
+            <a href="/tickets?status=open" class="stat-card warning">
+                <div class="stat-value">{{ stats.open_tickets }}</div>
+                <div class="stat-label">Open Tickets</div>
+            </a>
+            <a href="/tickets?status=in_progress" class="stat-card running">
+                <div class="stat-value">{{ stats.in_progress }}</div>
+                <div class="stat-label">In Progress</div>
+            </a>
+            <a href="/tickets?status=awaiting_input" class="stat-card purple">
+                <div class="stat-value">{{ stats.awaiting_input }}</div>
+                <div class="stat-label">Awaiting Input</div>
+            </a>
+            <a href="/tickets?status=done&today=1" class="stat-card">
+                <div class="stat-value">{{ stats.completed_today }}</div>
+                <div class="stat-label">Completed Today</div>
+            </a>
+        </div>
+
+        <!-- Daemon Panel -->
+        <div class="daemon-panel {{ 'active' if stats.daemon_status == 'running' else '' }}" id="daemonPanel">
+            <div class="daemon-header">
+                <div class="daemon-status">
+                    <div class="daemon-dot {{ stats.daemon_status }}"></div>
+                    <h3>Claude Daemon</h3>
+                    <span class="subtitle">Max {{ stats.max_workers or 3 }} parallel workers</span>
+                </div>
+                <div class="daemon-actions">
+                    <button class="btn btn-console" onclick="location.href='/console'">Console</button>
+                    {% if stats.daemon_status != 'running' %}
+                    <button class="btn btn-start" onclick="startDaemon()">Start</button>
+                    {% else %}
+                    <button class="btn btn-stop" onclick="stopDaemon()">Stop</button>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="workers-grid" id="workers-grid">
+                {% if stats.active_workers %}
+                    {% for w in stats.active_workers %}
+                    <div class="worker-card">
+                        <div class="project">{{ w.project_name }}</div>
+                        <div class="ticket">{{ w.ticket_number or 'Starting...' }}</div>
+                        <div class="status">Processing</div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="worker-card idle">
+                        <div class="project">No active workers</div>
+                        <div class="status">{{ 'Start daemon to begin' if stats.daemon_status != 'running' else 'Waiting for tickets...' }}</div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Usage Statistics Section -->
+        <div class="usage-section">
+            <h2>Usage Statistics</h2>
+
+            <div class="usage-cards">
+                <div class="usage-card today">
+                    <div class="period">Today</div>
+                    <div class="tokens"><span id="today-tokens">-</span> <span class="unit">tokens</span></div>
+                    <div class="details">
+                        <span class="duration" id="today-duration">-</span>
+                        <span><span id="today-tickets">0</span> tickets</span>
+                    </div>
+                </div>
+                <div class="usage-card week">
+                    <div class="period">Last 7 Days</div>
+                    <div class="tokens"><span id="week-tokens">-</span> <span class="unit">tokens</span></div>
+                    <div class="details">
+                        <span class="duration" id="week-duration">-</span>
+                        <span><span id="week-tickets">0</span> tickets</span>
+                    </div>
+                </div>
+                <div class="usage-card month">
+                    <div class="period">This Month</div>
+                    <div class="tokens"><span id="month-tokens">-</span> <span class="unit">tokens</span></div>
+                    <div class="details">
+                        <span class="duration" id="month-duration">-</span>
+                        <span><span id="month-tickets">0</span> tickets</span>
+                    </div>
+                </div>
+                <div class="usage-card alltime">
+                    <div class="period">All Time</div>
+                    <div class="tokens"><span id="alltime-tokens">-</span> <span class="unit">tokens</span></div>
+                    <div class="details">
+                        <span class="duration" id="alltime-duration">-</span>
+                        <span><span id="alltime-tickets">0</span> tickets</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chart-row">
+                <div class="chart-panel">
+                    <h3>Daily Token Usage</h3>
+                    <div class="chart-container">
+                        <canvas id="usageChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-panel">
+                    <h3>Top Projects</h3>
+                    <div id="top-projects-list">
+                        <div class="empty">Loading...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Projects and Tickets Grid -->
+        <div class="grid">
+            <div class="panel">
+                <div class="panel-header">
+                    <h3>Projects</h3>
+                    <a href="/projects">View All</a>
+                </div>
+                {% if projects %}
+                    {% for p in projects[:5] %}
+                    <a href="/project/{{ p.id }}" class="list-item">
+                        <div>
+                            <div class="title">{{ p.name }}</div>
+                            <div class="meta">{{ p.code }}</div>
+                        </div>
+                        <span class="status-badge {{ p.status }}">{{ p.status }}</span>
+                    </a>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty">
+                        <p>No projects yet</p>
+                        <a href="/projects" class="btn-primary">Create Project</a>
+                    </div>
+                {% endif %}
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <h3>Recent Tickets</h3>
+                </div>
+                {% if recent_tickets %}
+                    {% for t in recent_tickets[:7] %}
+                    <a href="/ticket/{{ t.id }}" class="list-item">
+                        <div>
+                            <span class="number">{{ t.ticket_number }}</span>
+                            <span class="title">{{ t.title[:30] }}{{ '...' if t.title|length > 30 else '' }}</span>
+                            <div class="meta">{{ t.project_name }}</div>
+                        </div>
+                        <span class="status-badge {{ t.status }}">{{ t.status }}</span>
+                    </a>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty">No tickets yet</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Code snippets for the rain effect
+        const codeSnippets = [
+            'const data = await fetch(url);',
+            'function process(input) {',
+            'if (status === "complete")',
+            'return response.json();',
+            'async function main() {',
+            'for (let i = 0; i < n; i++)',
+            'const result = [];',
+            'export default class',
+            'import { useState }',
+            'try { await run(); }',
+            '.then(res => res.data)',
+            'catch (err) { log(err) }',
+            'while (running) {',
+            'switch (action.type)',
+            'case "UPDATE":',
+            'SELECT * FROM',
+            'INSERT INTO',
+            'CREATE TABLE',
+            'def __init__(self):',
+            'class Worker:',
+            'npm install',
+            'git commit -m',
+            'docker build',
+            'kubectl apply',
+            '#!/bin/bash',
+            'chmod +x',
+            'sudo systemctl',
+            'python3 main.py',
+        ];
+
+        // Initialize code rain
+        function initCodeRain() {
+            const container = document.getElementById('codeRain');
+            const columns = Math.floor(window.innerWidth / 60); // More columns
+
+            for (let i = 0; i < columns; i++) {
+                const column = document.createElement('div');
+                column.className = 'code-column';
+                column.style.left = `${(i / columns) * 100}%`;
+                column.style.animationDuration = `${12 + Math.random() * 15}s`;
+                column.style.animationDelay = `${-Math.random() * 15}s`;
+
+                // Generate code content
+                let content = '';
+                for (let j = 0; j < 40; j++) {
+                    content += codeSnippets[Math.floor(Math.random() * codeSnippets.length)] + '\n';
+                }
+                column.textContent = content;
+
+                container.appendChild(column);
+            }
+        }
+
+        // Update code rain state based on daemon status
+        function updateCodeRain(isRunning) {
+            const codeRain = document.getElementById('codeRain');
+            if (isRunning) {
+                codeRain.classList.add('active');
+            } else {
+                codeRain.classList.remove('active');
+            }
+        }
+
+        // Initialize
+        initCodeRain();
+
+        // Check daemon status and update effects
+        const isDaemonRunning = '{{ stats.daemon_status }}' === 'running';
+        updateCodeRain(isDaemonRunning);
+
+        let usageChart = null;
+
+        function formatNumber(num) {
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            return num.toString();
+        }
+
+        function animateValue(elementId, value, prefix = '', suffix = '') {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+            if (typeof value === 'number') {
+                if (value >= 1000) {
+                    el.textContent = prefix + formatNumber(value) + suffix;
+                } else {
+                    el.textContent = prefix + value.toFixed(value < 10 ? 2 : 0) + suffix;
+                }
+            } else {
+                el.textContent = prefix + value + suffix;
+            }
+        }
+
+        async function loadUsageStats() {
+            try {
+                const response = await fetch('/api/stats/dashboard');
+                const data = await response.json();
+
+                if (data.error) {
+                    console.error('Stats error:', data.error);
+                    return;
+                }
+
+                // Update cards
+                animateValue('today-tokens', data.today?.total_tokens || 0);
+                animateValue('today-duration', data.today?.duration_formatted || '0s');
+                animateValue('today-tickets', data.today?.tickets_worked || 0);
+
+                animateValue('week-tokens', data.week?.total_tokens || 0);
+                animateValue('week-duration', data.week?.duration_formatted || '0s');
+                animateValue('week-tickets', data.week?.tickets_worked || 0);
+
+                animateValue('month-tokens', data.month?.total_tokens || 0);
+                animateValue('month-duration', data.month?.duration_formatted || '0s');
+                animateValue('month-tickets', data.month?.tickets_worked || 0);
+
+                animateValue('alltime-tokens', data.all_time?.total_tokens || 0);
+                animateValue('alltime-duration', data.all_time?.duration_formatted || '0s');
+                animateValue('alltime-tickets', data.all_time?.tickets_worked || 0);
+
+                updateChart(data.daily_chart || []);
+                updateTopProjects(data.top_projects || []);
+
+            } catch (error) {
+                console.error('Failed to load usage stats:', error);
+            }
+        }
+
+        function updateChart(dailyData) {
+            const ctx = document.getElementById('usageChart').getContext('2d');
+
+            const labels = dailyData.map(d => {
+                const date = new Date(d.date);
+                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            });
+            const tokens = dailyData.map(d => d.tokens);
+
+            if (usageChart) {
+                usageChart.destroy();
+            }
+
+            usageChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Tokens',
+                        data: tokens,
+                        backgroundColor: 'rgba(99, 102, 241, 0.6)',
+                        borderColor: 'rgba(99, 102, 241, 1)',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255,255,255,0.03)' },
+                            ticks: { color: '#64748b', font: { family: 'Inter', size: 11 } }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255,255,255,0.03)' },
+                            ticks: {
+                                color: '#6366f1',
+                                font: { family: 'JetBrains Mono', size: 11 },
+                                callback: function(value) { return formatNumber(value); }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateTopProjects(projects) {
+            const container = document.getElementById('top-projects-list');
+
+            if (!projects || projects.length === 0) {
+                container.innerHTML = '<div class="empty">No data yet</div>';
+                return;
+            }
+
+            const maxTokens = Math.max(...projects.map(p => p.tokens));
+
+            container.innerHTML = projects.slice(0, 5).map(p => `
+                <div class="top-project-item">
+                    <div style="flex:1">
+                        <div class="name">${p.name}</div>
+                        <div class="progress-bar">
+                            <div class="fill" style="width: ${(p.tokens / maxTokens * 100).toFixed(1)}%"></div>
+                        </div>
+                    </div>
+                    <div class="stats">
+                        <span class="tokens">${formatNumber(p.tokens)}</span>
+                        <span class="duration">${p.duration_formatted}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function startDaemon() {
+            fetch('/api/daemon/start', {method: 'POST'})
+                .then(r => r.json())
+                .then(data => { location.reload(); });
+        }
+
+        function stopDaemon() {
+            if (confirm('Stop the daemon?')) {
+                fetch('/api/daemon/stop', {method: 'POST'})
+                    .then(r => r.json())
+                    .then(data => { location.reload(); });
+            }
+        }
+
+        // Load stats on page load
+        loadUsageStats();
+
+        // Auto-refresh stats every 30 seconds
+        setInterval(loadUsageStats, 30000);
+
+        // Full page refresh every 60 seconds
+        setTimeout(() => location.reload(), 60000);
+    </script>
+</body>
+</html>

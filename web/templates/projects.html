@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Projects - Fotios Claude</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #07070d;
+            --bg-secondary: #0d0d16;
+            --bg-card: rgba(18, 18, 32, 0.7);
+            --bg-card-hover: rgba(25, 25, 45, 0.8);
+            --border-subtle: rgba(99, 102, 241, 0.15);
+            --border-glow: rgba(99, 102, 241, 0.4);
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-primary: #6366f1;
+            --accent-secondary: #8b5cf6;
+            --accent-cyan: #22d3ee;
+            --accent-green: #10b981;
+            --accent-orange: #f59e0b;
+            --accent-red: #ef4444;
+            --glow-primary: 0 0 20px rgba(99, 102, 241, 0.3);
+            --glow-cyan: 0 0 20px rgba(34, 211, 238, 0.3);
+            --glow-green: 0 0 20px rgba(16, 185, 129, 0.3);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* Aurora Background */
+        .aurora-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+            background: var(--bg-primary);
+            overflow: hidden;
+        }
+
+        .aurora-blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.5;
+            animation: float 20s ease-in-out infinite;
+        }
+
+        .aurora-blob:nth-child(1) {
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.4) 0%, transparent 70%);
+            top: -200px;
+            left: -100px;
+        }
+
+        .aurora-blob:nth-child(2) {
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(139, 92, 246, 0.3) 0%, transparent 70%);
+            top: 50%;
+            right: -150px;
+            animation-delay: -5s;
+            animation-duration: 25s;
+        }
+
+        .aurora-blob:nth-child(3) {
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(34, 211, 238, 0.25) 0%, transparent 70%);
+            bottom: -100px;
+            left: 30%;
+            animation-delay: -10s;
+            animation-duration: 30s;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            25% { transform: translate(50px, -30px) scale(1.05); }
+            50% { transform: translate(-30px, 50px) scale(0.95); }
+            75% { transform: translate(-50px, -20px) scale(1.02); }
+        }
+
+        /* Noise Texture */
+        .noise {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.03;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+        }
+
+        /* Header */
+        .header {
+            background: rgba(13, 13, 22, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header h1 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .nav { display: flex; gap: 8px; }
+        .nav a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        .nav a:hover, .nav a.active {
+            color: var(--text-primary);
+            background: var(--bg-card);
+        }
+
+        .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .toolbar h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .toolbar-actions {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .search-box input {
+            padding: 10px 16px;
+            border: 1px solid var(--border-subtle);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border-radius: 10px;
+            font-size: 14px;
+            width: 220px;
+            transition: all 0.2s ease;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: var(--glow-primary);
+        }
+
+        .search-box input::placeholder { color: var(--text-muted); }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-muted);
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .checkbox-label input {
+            accent-color: var(--accent-primary);
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.2s ease;
+            font-family: inherit;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
+        }
+
+        .btn-primary:hover {
+            box-shadow: var(--glow-primary);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+        }
+
+        /* Grid */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            gap: 20px;
+        }
+
+        /* Card */
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 24px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent-primary), var(--accent-cyan));
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .card:hover {
+            border-color: var(--border-glow);
+            transform: translateY(-4px);
+            box-shadow: var(--glow-primary);
+        }
+
+        .card:hover::before { opacity: 1; }
+
+        .card.archived {
+            opacity: 0.5;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .card-badges { display: flex; gap: 6px; }
+
+        .badge {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .badge-code {
+            background: rgba(34, 211, 238, 0.15);
+            color: var(--accent-cyan);
+            border: 1px solid rgba(34, 211, 238, 0.3);
+        }
+
+        .badge-type {
+            background: rgba(139, 92, 246, 0.15);
+            color: var(--accent-secondary);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+        }
+
+        .badge-archived {
+            background: rgba(100, 116, 139, 0.15);
+            color: var(--text-muted);
+            border: 1px solid rgba(100, 116, 139, 0.3);
+        }
+
+        .card-desc {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-bottom: 12px;
+            line-height: 1.5;
+        }
+
+        .card-meta {
+            color: var(--text-muted);
+            font-size: 13px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .card-db {
+            margin-top: 12px;
+            padding: 12px;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            border-radius: 10px;
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .card-db-title {
+            color: var(--accent-green);
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .card-db code {
+            background: var(--bg-primary);
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: var(--accent-cyan);
+        }
+
+        .card-context {
+            margin-top: 12px;
+            padding: 12px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            font-size: 12px;
+            color: var(--text-muted);
+            max-height: 60px;
+            overflow: hidden;
+        }
+
+        .card-actions {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border-subtle);
+            display: flex;
+            gap: 16px;
+        }
+
+        .card-actions a, .card-actions button {
+            color: var(--accent-cyan);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+            transition: color 0.2s ease;
+        }
+
+        .card-actions a:hover, .card-actions button:hover {
+            color: var(--accent-primary);
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 32px;
+            width: 100%;
+            max-width: 700px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .modal-header h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 24px;
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+
+        .modal-close:hover { color: var(--text-primary); }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.2s ease;
+        }
+
+        .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+            border-color: var(--accent-primary);
+            outline: none;
+            box-shadow: var(--glow-primary);
+        }
+
+        .form-group small {
+            color: var(--text-muted);
+            font-size: 11px;
+            display: block;
+            margin-top: 6px;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-group textarea.large {
+            min-height: 150px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .form-section {
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .form-section h4 {
+            color: var(--accent-cyan);
+            margin-bottom: 16px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            accent-color: var(--accent-primary);
+        }
+
+        .checkbox-group label {
+            color: var(--text-secondary);
+            font-size: 13px;
+            margin: 0;
+        }
+
+        .form-actions {
+            margin-top: 24px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .empty {
+            text-align: center;
+            padding: 60px;
+            color: var(--text-muted);
+            grid-column: 1/-1;
+        }
+
+        @media (max-width: 768px) {
+            .toolbar { flex-direction: column; gap: 16px; align-items: stretch; }
+            .toolbar-actions { flex-wrap: wrap; }
+            .grid { grid-template-columns: 1fr; }
+            .form-row { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Aurora Background -->
+    <div class="aurora-bg">
+        <div class="aurora-blob"></div>
+        <div class="aurora-blob"></div>
+        <div class="aurora-blob"></div>
+    </div>
+    <div class="noise"></div>
+
+    <div class="header">
+        <h1>Fotios Claude</h1>
+        <div class="nav">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/projects" class="active">Projects</a>
+            <a href="/console">Console</a>
+            <a href="/history">History</a>
+            <a href="/logout">Logout</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="toolbar">
+            <h2>Projects</h2>
+            <div class="toolbar-actions">
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="Search projects..." oninput="filterProjects()">
+                </div>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="showArchived" onchange="toggleArchived()">
+                    Show Archived
+                </label>
+                <button class="btn btn-primary" onclick="openModal()">+ New Project</button>
+            </div>
+        </div>
+
+        <div class="grid">
+            {% if projects %}
+                {% for p in projects %}
+                <div class="card {% if p.status == 'archived' %}archived{% endif %}" data-status="{{ p.status or 'active' }}" style="{% if p.status == 'archived' %}display:none{% endif %}">
+                    <div class="card-header">
+                        <div class="card-title">
+                            {{ p.name }}
+                        </div>
+                        <div class="card-badges">
+                            <span class="badge badge-code">{{ p.code }}</span>
+                            <span class="badge badge-type">{{ p.project_type or 'web' }}</span>
+                            {% if p.status == 'archived' %}
+                            <span class="badge badge-archived">ARCHIVED</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="card-desc">{{ p.description or 'No description' }}</div>
+                    <div class="card-meta">
+                        <span>{{ p.ticket_count or 0 }} tickets</span>
+                        {% if p.web_path %}<span>{{ p.web_path }}</span>{% endif %}
+                    </div>
+                    {% if p.db_name %}
+                    <div class="card-db">
+                        <div class="card-db-title">Database</div>
+                        <div>Host: <code>{{ p.db_host or 'localhost' }}</code> DB: <code>{{ p.db_name }}</code></div>
+                    </div>
+                    {% endif %}
+                    {% if p.context %}
+                    <div class="card-context">{{ p.context[:100] }}{{ '...' if p.context|length > 100 else '' }}</div>
+                    {% endif %}
+                    <div class="card-actions">
+                        <a href="/project/{{ p.id }}">View Details</a>
+                        <button onclick="editProject({{ p.id }})">Edit</button>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty">
+                    <p>No projects yet. Create your first project!</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Create Project Modal -->
+    <div class="modal" id="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Create New Project</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <form id="projectForm" onsubmit="createProject(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Project Name *</label>
+                        <input type="text" name="name" required placeholder="E-Commerce Platform">
+                    </div>
+                    <div class="form-group">
+                        <label>Code *</label>
+                        <input type="text" name="code" required placeholder="ECOM" maxlength="10" style="text-transform:uppercase">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Type</label>
+                        <select name="project_type">
+                            <option value="web">Web (PHP, HTML)</option>
+                            <option value="app">App (Java, Node, Python)</option>
+                            <option value="hybrid">Hybrid (Web + App)</option>
+                            <option value="api">API Only</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Tech Stack</label>
+                        <input type="text" name="tech_stack" placeholder="PHP, MySQL, Redis">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea name="description" rows="2" placeholder="Brief project description"></textarea>
+                </div>
+
+                <div class="form-section">
+                    <h4>Paths</h4>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Web Path</label>
+                            <input type="text" name="web_path" placeholder="/var/www/projects/ecom">
+                            <small>For PHP, HTML, web files</small>
+                        </div>
+                        <div class="form-group">
+                            <label>App Path</label>
+                            <input type="text" name="app_path" placeholder="/opt/apps/ecom">
+                            <small>For Java, Node, Python apps</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h4>Database</h4>
+                    <div class="checkbox-group">
+                        <input type="checkbox" name="skip_database" id="skip_database">
+                        <label for="skip_database">Skip auto-create database</label>
+                    </div>
+                    <small style="color:var(--text-muted);display:block;margin-top:8px">By default, a MySQL database and user will be created automatically</small>
+                </div>
+
+                <div class="form-section">
+                    <h4>Project Context</h4>
+                    <div class="form-group">
+                        <label>Context for Claude</label>
+                        <textarea name="context" class="large" placeholder="APIs, webservices, environment info..."></textarea>
+                        <small>Database credentials are passed automatically</small>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Project</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Project Modal -->
+    <div class="modal" id="editModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Edit Project</h3>
+                <button class="modal-close" onclick="closeEditModal()">&times;</button>
+            </div>
+            <form id="editForm" onsubmit="saveProject(event)">
+                <input type="hidden" name="id" id="edit_id">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Project Name *</label>
+                        <input type="text" name="name" id="edit_name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Code (read-only)</label>
+                        <input type="text" id="edit_code" disabled style="opacity:0.5">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Type</label>
+                        <select name="project_type" id="edit_project_type">
+                            <option value="web">Web (PHP, HTML)</option>
+                            <option value="app">App (Java, Node, Python)</option>
+                            <option value="hybrid">Hybrid (Web + App)</option>
+                            <option value="api">API Only</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Tech Stack</label>
+                        <input type="text" name="tech_stack" id="edit_tech_stack">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea name="description" id="edit_description" rows="2"></textarea>
+                </div>
+
+                <div class="form-section">
+                    <h4>Paths</h4>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Web Path</label>
+                            <input type="text" name="web_path" id="edit_web_path">
+                        </div>
+                        <div class="form-group">
+                            <label>App Path</label>
+                            <input type="text" name="app_path" id="edit_app_path">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h4>Database Credentials</h4>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Host</label>
+                            <input type="text" name="db_host" id="edit_db_host" placeholder="localhost">
+                        </div>
+                        <div class="form-group">
+                            <label>Database Name</label>
+                            <input type="text" name="db_name" id="edit_db_name">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Username</label>
+                            <input type="text" name="db_user" id="edit_db_user">
+                        </div>
+                        <div class="form-group">
+                            <label>Password</label>
+                            <input type="text" name="db_password" id="edit_db_password">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h4>Project Context</h4>
+                    <div class="form-group">
+                        <label>Context for Claude</label>
+                        <textarea name="context" id="edit_context" class="large"></textarea>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function openModal() { document.getElementById('modal').classList.add('active'); }
+        function closeModal() { document.getElementById('modal').classList.remove('active'); }
+        function closeEditModal() { document.getElementById('editModal').classList.remove('active'); }
+
+        async function createProject(e) {
+            e.preventDefault();
+            const form = e.target;
+            const data = {
+                name: form.name.value,
+                code: form.code.value.toUpperCase(),
+                project_type: form.project_type.value,
+                tech_stack: form.tech_stack.value,
+                description: form.description.value,
+                web_path: form.web_path.value,
+                app_path: form.app_path.value,
+                context: form.context.value,
+                skip_database: form.skip_database.checked
+            };
+
+            try {
+                const res = await fetch('/api/projects', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                if (result.success) {
+                    location.reload();
+                } else {
+                    alert(result.message || 'Error creating project');
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        async function editProject(projectId) {
+            try {
+                const res = await fetch(`/api/project/${projectId}`);
+                const p = await res.json();
+
+                document.getElementById('edit_id').value = p.id;
+                document.getElementById('edit_name').value = p.name || '';
+                document.getElementById('edit_code').value = p.code || '';
+                document.getElementById('edit_project_type').value = p.project_type || 'web';
+                document.getElementById('edit_tech_stack').value = p.tech_stack || '';
+                document.getElementById('edit_description').value = p.description || '';
+                document.getElementById('edit_web_path').value = p.web_path || '';
+                document.getElementById('edit_app_path').value = p.app_path || '';
+                document.getElementById('edit_db_host').value = p.db_host || 'localhost';
+                document.getElementById('edit_db_name').value = p.db_name || '';
+                document.getElementById('edit_db_user').value = p.db_user || '';
+                document.getElementById('edit_db_password').value = p.db_password || '';
+                document.getElementById('edit_context').value = p.context || '';
+
+                document.getElementById('editModal').classList.add('active');
+            } catch (err) {
+                alert('Error loading project: ' + err.message);
+            }
+        }
+
+        async function saveProject(e) {
+            e.preventDefault();
+            const form = e.target;
+            const projectId = form.id.value;
+            const data = {
+                name: form.name.value,
+                project_type: form.project_type.value,
+                tech_stack: form.tech_stack.value,
+                description: form.description.value,
+                web_path: form.web_path.value,
+                app_path: form.app_path.value,
+                db_host: form.db_host.value,
+                db_name: form.db_name.value,
+                db_user: form.db_user.value,
+                db_password: form.db_password.value,
+                context: form.context.value
+            };
+
+            try {
+                const res = await fetch(`/api/project/${projectId}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                if (result.success) {
+                    location.reload();
+                } else {
+                    alert(result.message || 'Error saving project');
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        document.getElementById('modal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+        });
+        document.getElementById('editModal').addEventListener('click', function(e) {
+            if (e.target === this) closeEditModal();
+        });
+
+        function toggleArchived() {
+            const show = document.getElementById('showArchived').checked;
+            document.querySelectorAll('.card.archived').forEach(card => {
+                card.style.display = show ? 'block' : 'none';
+            });
+            filterProjects();
+        }
+
+        function filterProjects() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const showArchived = document.getElementById('showArchived').checked;
+            document.querySelectorAll('.card').forEach(card => {
+                const name = card.querySelector('.card-title')?.textContent.toLowerCase() || '';
+                const code = card.querySelector('.badge-code')?.textContent.toLowerCase() || '';
+                const desc = card.querySelector('.card-desc')?.textContent.toLowerCase() || '';
+                const isArchived = card.classList.contains('archived');
+                const matchesSearch = !query || name.includes(query) || code.includes(query) || desc.includes(query);
+                const matchesArchived = showArchived || !isArchived;
+                card.style.display = (matchesSearch && matchesArchived) ? 'block' : 'none';
+            });
+        }
+    </script>
+</body>
+</html>

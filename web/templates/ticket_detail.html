@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ ticket.ticket_number if ticket else 'Ticket' }} - Fotios Claude</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #07070d;
+            --bg-secondary: #0d0d16;
+            --bg-card: rgba(18, 18, 32, 0.7);
+            --bg-card-hover: rgba(25, 25, 45, 0.8);
+            --border-subtle: rgba(99, 102, 241, 0.15);
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-primary: #6366f1;
+            --accent-secondary: #8b5cf6;
+            --accent-cyan: #22d3ee;
+            --accent-green: #10b981;
+            --accent-orange: #f59e0b;
+            --accent-red: #ef4444;
+            --glow-primary: 0 0 20px rgba(99, 102, 241, 0.3);
+            --glow-cyan: 0 0 20px rgba(34, 211, 238, 0.3);
+            --glow-green: 0 0 20px rgba(16, 185, 129, 0.3);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Aurora Background */
+        .aurora-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+            background: var(--bg-primary);
+            overflow: hidden;
+        }
+
+        .aurora-blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.4;
+            animation: float 20s ease-in-out infinite;
+        }
+
+        .aurora-blob:nth-child(1) {
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.4) 0%, transparent 70%);
+            top: -200px;
+            left: -100px;
+        }
+
+        .aurora-blob:nth-child(2) {
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(139, 92, 246, 0.3) 0%, transparent 70%);
+            top: 50%;
+            right: -150px;
+            animation-delay: -5s;
+            animation-duration: 25s;
+        }
+
+        .aurora-blob:nth-child(3) {
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(34, 211, 238, 0.25) 0%, transparent 70%);
+            bottom: -100px;
+            left: 30%;
+            animation-delay: -10s;
+            animation-duration: 30s;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            25% { transform: translate(50px, -30px) scale(1.05); }
+            50% { transform: translate(-30px, 50px) scale(0.95); }
+            75% { transform: translate(-50px, -20px) scale(1.02); }
+        }
+
+        .noise {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.03;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+        }
+
+        .header {
+            background: rgba(13, 13, 22, 0.9);
+            backdrop-filter: blur(20px);
+            padding: 14px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-subtle);
+            z-index: 100;
+        }
+        .header h1 {
+            font-size: 1.1em;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 600;
+        }
+        .header .ticket-num {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-cyan));
+            color: white;
+            padding: 4px 12px;
+            border-radius: 16px;
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .header .status-badge {
+            padding: 5px 14px;
+            border-radius: 16px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .status-badge.in_progress { background: rgba(34, 211, 238, 0.15); color: var(--accent-cyan); border: 1px solid rgba(34, 211, 238, 0.3); }
+        .status-badge.open, .status-badge.new { background: rgba(245, 158, 11, 0.15); color: var(--accent-orange); border: 1px solid rgba(245, 158, 11, 0.3); }
+        .status-badge.done { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border: 1px solid rgba(16, 185, 129, 0.3); }
+        .status-badge.failed { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); border: 1px solid rgba(239, 68, 68, 0.3); }
+        .status-badge.awaiting_input { background: rgba(139, 92, 246, 0.15); color: var(--accent-secondary); border: 1px solid rgba(139, 92, 246, 0.3); }
+        .status-badge.skipped { background: rgba(100, 116, 139, 0.15); color: var(--text-muted); border: 1px solid rgba(100, 116, 139, 0.3); }
+        .nav a { color: var(--text-muted); text-decoration: none; margin-left: 20px; font-size: 13px; transition: color 0.2s; }
+        .nav a:hover { color: var(--text-primary); }
+
+        .main { flex: 1; display: flex; overflow: hidden; }
+
+        .chat-panel { flex: 1; display: flex; flex-direction: column; }
+        .sidebar {
+            width: 320px;
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border-left: 1px solid var(--border-subtle);
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .conversation { flex: 1; overflow-y: auto; padding: 20px; }
+
+        .message { margin-bottom: 16px; max-width: 85%; }
+        .message.user { margin-left: auto; }
+        .message.assistant { margin-right: auto; }
+        .message.tool_use, .message.tool_result { margin-right: auto; max-width: 90%; }
+        .message.system { margin: 12px auto; max-width: 90%; text-align: center; }
+
+        .message-header { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+        .role { font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .role.user { color: var(--accent-cyan); }
+        .role.assistant { color: var(--accent-green); }
+        .role.tool_use, .role.tool_result { color: var(--accent-orange); }
+
+        .message-content { padding: 14px 18px; border-radius: 14px; line-height: 1.6; }
+        .message.user .message-content {
+            background: rgba(99, 102, 241, 0.12);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-bottom-right-radius: 4px;
+        }
+        .message.assistant .message-content {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.15);
+            border-bottom-left-radius: 4px;
+        }
+        .message.tool_use .message-content, .message.tool_result .message-content {
+            background: rgba(245, 158, 11, 0.08);
+            border-left: 3px solid var(--accent-orange);
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+        }
+        .message.system .message-content {
+            background: var(--bg-card);
+            font-size: 13px;
+            color: var(--text-muted);
+            display: inline-block;
+            padding: 10px 18px;
+        }
+
+        .tool-name { color: var(--accent-orange); font-weight: 600; margin-bottom: 10px; font-size: 14px; cursor: pointer; }
+        .tool-name:hover { opacity: 0.8; }
+        .tool-name::before { content: '▼ '; font-size: 10px; }
+        .tool-name.collapsed::before { content: '▶ '; }
+        .tool-body.collapsed { display: none; }
+        .tool-input { background: var(--bg-primary); padding: 12px; border-radius: 8px; font-size: 12px; max-height: 300px; overflow-y: auto; }
+        .tool-result-text { color: var(--accent-green); font-size: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-subtle); max-height: 200px; overflow-y: auto; white-space: pre-wrap; }
+
+        .json-key { color: var(--accent-cyan); }
+        .json-string { color: #98c379; }
+        .json-number { color: #d19a66; }
+        .json-boolean { color: #c678dd; }
+        .json-null { color: var(--text-muted); }
+
+        .tool-param { margin: 8px 0; }
+        .tool-param-label { color: var(--text-muted); font-size: 11px; text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.5px; }
+        .tool-param-value { background: var(--bg-secondary); padding: 10px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; max-height: 250px; overflow-y: auto; }
+        .tool-param-value.command { color: var(--accent-green); font-family: 'JetBrains Mono', monospace; }
+        .tool-param-value.filepath { color: var(--accent-cyan); }
+        .tool-param-value.code { color: var(--text-secondary); line-height: 1.5; }
+        .tool-param-value.diff-old { background: rgba(239, 68, 68, 0.1); border-left: 3px solid var(--accent-red); }
+        .tool-param-value.diff-new { background: rgba(16, 185, 129, 0.1); border-left: 3px solid var(--accent-green); }
+
+        pre { background: var(--bg-primary); padding: 14px; border-radius: 8px; overflow-x: auto; margin: 10px 0; font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+        code { background: var(--bg-secondary); padding: 2px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; }
+
+        .input-area {
+            padding: 16px;
+            background: rgba(13, 13, 22, 0.9);
+            backdrop-filter: blur(10px);
+            display: flex;
+            gap: 12px;
+            border-top: 1px solid var(--border-subtle);
+        }
+        .input-area input {
+            flex: 1;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+            padding: 14px 18px;
+            border-radius: 10px;
+            font-size: 14px;
+        }
+        .input-area input:focus { outline: none; border-color: var(--accent-primary); }
+        .input-area input:disabled { opacity: 0.5; }
+        .input-area button {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .input-area button:hover { box-shadow: var(--glow-primary); transform: translateY(-1px); }
+        .input-area button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        .sidebar h3 { color: var(--text-primary); margin-bottom: 14px; font-size: 14px; font-weight: 600; }
+        .sidebar-section { margin-bottom: 24px; }
+
+        .ticket-info { background: var(--bg-secondary); padding: 16px; border-radius: 12px; }
+        .ticket-info .title { color: var(--text-primary); font-size: 14px; margin-bottom: 10px; font-weight: 500; }
+        .ticket-info .description { color: var(--text-muted); font-size: 13px; line-height: 1.5; max-height: 150px; overflow-y: auto; }
+        .ticket-info .meta { color: var(--text-muted); font-size: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-subtle); }
+        .ticket-info .meta code { font-size: 11px; }
+
+        .actions button {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 8px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        .btn-success { background: linear-gradient(135deg, var(--accent-green), #059669); color: white; }
+        .btn-success:hover { box-shadow: var(--glow-green); }
+        .btn-warning { background: linear-gradient(135deg, var(--accent-orange), #d97706); color: white; }
+        .btn-danger { background: linear-gradient(135deg, var(--accent-red), #dc2626); color: white; }
+        .btn-secondary { background: var(--bg-card); border: 1px solid var(--border-subtle) !important; color: var(--text-primary); }
+        .btn-secondary:hover { border-color: var(--accent-primary) !important; }
+
+        .commands { font-size: 12px; color: var(--text-muted); line-height: 2.2; }
+        .commands code { background: var(--bg-secondary); padding: 4px 10px; border-radius: 6px; color: var(--accent-cyan); }
+
+        .upload-mini { background: var(--bg-secondary); border-radius: 10px; padding: 14px; margin-top: 10px; }
+        .upload-mini-area {
+            border: 2px dashed var(--border-subtle);
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .upload-mini-area:hover { border-color: var(--accent-primary); background: rgba(99, 102, 241, 0.05); }
+        .upload-mini-area.dragover { border-color: var(--accent-cyan); background: rgba(34, 211, 238, 0.1); }
+        .upload-mini-area input { display: none; }
+        .upload-mini-area p { color: var(--text-muted); font-size: 12px; margin: 0; }
+        .upload-mini-result { margin-top: 10px; font-size: 11px; padding: 10px; border-radius: 6px; }
+        .upload-mini-result.success { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
+        .upload-mini-result.error { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); }
+
+        .file-list-mini { margin-top: 12px; max-height: 200px; overflow-y: auto; }
+        .file-item-mini {
+            display: flex;
+            align-items: center;
+            padding: 8px 10px;
+            background: var(--bg-card);
+            border-radius: 6px;
+            margin-bottom: 5px;
+            font-size: 11px;
+        }
+        .file-item-mini:hover { background: var(--bg-card-hover); }
+        .file-item-mini .icon { margin-right: 8px; }
+        .file-item-mini .name { flex: 1; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .file-item-mini .delete { color: var(--accent-red); background: none; border: none; cursor: pointer; opacity: 0.6; padding: 2px 4px; font-size: 10px; }
+        .file-item-mini .delete:hover { opacity: 1; }
+        .file-list-empty { color: var(--text-muted); font-size: 11px; text-align: center; padding: 12px; }
+
+        .ticket-stats { background: var(--bg-secondary); border-radius: 10px; padding: 14px; }
+        .ticket-stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .ticket-stat { text-align: center; padding: 10px; background: var(--bg-card); border-radius: 8px; }
+        .ticket-stat .value { font-size: 1.25em; font-weight: 700; color: var(--accent-cyan); font-family: 'JetBrains Mono', monospace; }
+        .ticket-stat .value.duration { color: #10b981; }
+        .ticket-stat .label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; margin-top: 4px; letter-spacing: 0.5px; }
+
+        .closed-banner {
+            background: rgba(16, 185, 129, 0.1);
+            padding: 14px 20px;
+            text-align: center;
+            border-bottom: 1px solid rgba(16, 185, 129, 0.2);
+            font-size: 13px;
+        }
+        .closed-banner.failed { background: rgba(239, 68, 68, 0.1); border-bottom-color: rgba(239, 68, 68, 0.2); }
+
+        .empty { text-align: center; padding: 60px; color: var(--text-muted); }
+
+        .tabs { display: flex; background: rgba(13, 13, 22, 0.8); border-bottom: 1px solid var(--border-subtle); }
+        .tab {
+            padding: 14px 24px;
+            cursor: pointer;
+            color: var(--text-muted);
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .tab:hover { color: var(--text-primary); background: var(--bg-card); }
+        .tab.active { color: var(--accent-cyan); border-bottom-color: var(--accent-cyan); }
+        .tab-content { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+        .tab-content.active { display: flex; }
+
+        .view-toggle { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--bg-secondary); border-bottom: 1px solid var(--border-subtle); font-size: 12px; }
+        .view-toggle label { color: var(--text-muted); }
+        .toggle-switch { position: relative; width: 44px; height: 22px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg-card); border-radius: 22px; transition: 0.3s; border: 1px solid var(--border-subtle); }
+        .toggle-slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px; background: var(--text-primary); border-radius: 50%; transition: 0.3s; }
+        .toggle-switch input:checked + .toggle-slider { background: var(--accent-primary); border-color: var(--accent-primary); }
+        .toggle-switch input:checked + .toggle-slider:before { transform: translateX(22px); }
+
+        .console-output { flex: 1; overflow-y: auto; padding: 16px; font-family: 'JetBrains Mono', monospace; font-size: 12px; background: var(--bg-primary); }
+        .console-line { margin: 3px 0; line-height: 1.6; }
+        .console-line.info { color: var(--text-muted); }
+        .console-line.output { color: var(--accent-green); }
+        .console-line.error { color: var(--accent-red); }
+        .console-line.warning { color: var(--accent-orange); }
+        .console-line .timestamp { color: var(--text-muted); margin-right: 12px; }
+
+        .console-tool { margin: 12px 0; background: var(--bg-secondary); border-radius: 8px; border-left: 3px solid var(--accent-cyan); overflow: hidden; }
+        .console-tool-header { padding: 10px 14px; background: var(--bg-card); display: flex; justify-content: space-between; align-items: center; }
+        .console-tool-name { color: var(--accent-cyan); font-weight: 600; }
+        .console-tool-time { color: var(--text-muted); font-size: 11px; }
+        .console-tool-content { padding: 14px; max-height: 400px; overflow: auto; white-space: pre-wrap; word-break: break-all; color: var(--text-secondary); }
+        .console-tool.tool_result { border-left-color: var(--accent-green); }
+        .console-tool.tool_result .console-tool-name { color: var(--accent-green); }
+
+        .formatted-content { line-height: 1.8; }
+        .formatted-content p { margin-bottom: 10px; }
+        .formatted-content ul, .formatted-content ol { margin: 10px 0 10px 20px; }
+        .formatted-content li { margin: 5px 0; }
+        .formatted-content code { background: var(--bg-secondary); padding: 2px 6px; border-radius: 4px; }
+        .formatted-content pre { background: var(--bg-primary); padding: 14px; border-radius: 8px; overflow-x: auto; margin: 10px 0; }
+        .formatted-content h1, .formatted-content h2, .formatted-content h3 { color: var(--accent-cyan); margin: 16px 0 10px; }
+
+        /* Modal */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; backdrop-filter: blur(4px); }
+        .modal.active { display: flex; justify-content: center; align-items: center; }
+        .modal-content {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-subtle);
+            padding: 28px;
+            border-radius: 16px;
+            width: 500px;
+            max-width: 90%;
+        }
+        .modal-content h3 {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 20px;
+            font-size: 1.15rem;
+        }
+        .modal-content textarea {
+            width: 100%;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+            padding: 14px;
+            border-radius: 10px;
+            font-size: 14px;
+            resize: vertical;
+            min-height: 100px;
+            font-family: inherit;
+        }
+        .modal-content textarea:focus { outline: none; border-color: var(--accent-primary); }
+        .modal-actions { margin-top: 20px; display: flex; gap: 12px; justify-content: flex-end; }
+        .modal-actions button { padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <div class="aurora-bg">
+        <div class="aurora-blob"></div>
+        <div class="aurora-blob"></div>
+        <div class="aurora-blob"></div>
+    </div>
+    <div class="noise"></div>
+
+    {% if ticket %}
+    <div class="header">
+        <h1>
+            <span class="ticket-num">{{ ticket.ticket_number }}</span>
+            {{ ticket.title[:50] }}{{ '...' if ticket.title|length > 50 else '' }}
+            <span class="status-badge {{ ticket.status }}">{{ ticket.status }}</span>
+        </h1>
+        <div class="nav">
+            <a href="/project/{{ ticket.project_id }}">{{ ticket.project_name }}</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/logout">Logout</a>
+        </div>
+    </div>
+
+    {% if ticket.status == 'awaiting_input' %}
+    <div class="closed-banner" style="background:rgba(139, 92, 246, 0.1);border-color:rgba(139, 92, 246, 0.2)">
+        Awaiting Input - Claude finished, send a message to continue or close the ticket
+        {% if ticket.review_deadline %}
+        <span style="margin-left:15px;color:var(--text-muted);font-size:12px">Auto-closes: {{ ticket.review_deadline.strftime('%Y-%m-%d %H:%M') }}</span>
+        {% endif %}
+        <button onclick="closeTicket('completed')" style="float:right;padding:8px 20px;border:none;border-radius:6px;cursor:pointer;background:var(--accent-secondary);color:white;font-weight:600">Close Ticket</button>
+    </div>
+    {% elif ticket.status == 'skipped' %}
+    <div class="closed-banner" style="background:rgba(245, 158, 11, 0.1);border-color:rgba(245, 158, 11, 0.2)">
+        Ticket paused - send a message to continue
+        <button onclick="closeTicket('completed')" style="float:right;padding:8px 20px;border:none;border-radius:6px;cursor:pointer;background:var(--bg-card);color:var(--text-primary);font-weight:600">Close Ticket</button>
+    </div>
+    {% elif ticket.status in ['done', 'failed'] %}
+    <div class="closed-banner {{ 'failed' if ticket.status == 'failed' else '' }}">
+        Ticket {{ ticket.status }}
+        {% if ticket.closed_by == 'Claude' %}
+            <span style="color:var(--accent-cyan)">(auto-closed by Claude after 7 days)</span>
+        {% elif ticket.closed_by %}
+            by {{ ticket.closed_by }}
+        {% endif %}
+        {% if ticket.closed_at %} on {{ ticket.closed_at.strftime('%Y-%m-%d %H:%M') }}{% endif %}
+        <button onclick="showReopenModal()" style="margin-left:20px;padding:6px 16px;border:none;border-radius:6px;cursor:pointer;background:var(--bg-card);color:var(--text-primary)">Reopen</button>
+    </div>
+    {% endif %}
+
+    <div class="main">
+        <div class="chat-panel">
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('conversation')">Conversation</div>
+                <div class="tab" onclick="switchTab('console')">Console</div>
+                {% if ticket.preview_url %}<div class="tab" onclick="switchTab('preview')">Live Preview</div>{% endif %}
+            </div>
+
+            <div class="tab-content active" id="tab-conversation">
+                <div class="view-toggle">
+                    <label>View:</label>
+                    <span style="color:var(--text-primary)">Raw</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="formatted-toggle" onchange="toggleFormatted()" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span style="color:var(--text-primary)">Formatted</span>
+                </div>
+                <div class="conversation" id="conversation">
+                    {% if messages %}
+                        {% for m in messages %}
+                        <div class="message {{ m.role }}" data-content="{{ m.content|e if m.content else '' }}">
+                            <div class="message-header">
+                                <span class="role {{ m.role }}">
+                                    {% if m.role == 'user' %}User
+                                    {% elif m.role == 'assistant' %}Claude
+                                    {% elif m.role == 'tool_use' %}Tool Call
+                                    {% elif m.role == 'tool_result' %}Result
+                                    {% else %}System{% endif %}
+                                </span>
+                                <span class="time" data-utc="{{ m.created_at.isoformat() + 'Z' if m.created_at else '' }}">{{ m.created_at.strftime('%H:%M:%S') if m.created_at else '' }}</span>
+                            </div>
+                            <div class="message-content">
+                                {% if m.role in ['tool_use', 'tool_result'] %}
+                                    {% if m.tool_name %}<div class="tool-name" onclick="toggleToolBody(this)">{{ m.tool_name }}</div>{% endif %}
+                                    <div class="tool-body">
+                                        {% if m.tool_input %}
+                                        {% set tool_input_str = m.tool_input if m.tool_input is string else m.tool_input|tojson %}
+                                        <div class="tool-input" data-tool="{{ m.tool_name }}" data-raw="{{ tool_input_str|e }}">Loading...</div>
+                                        {% endif %}
+                                        {% if m.content %}<div class="tool-result-text">{{ m.content[:1000] }}{{ '...' if m.content|length > 1000 else '' }}</div>{% endif %}
+                                    </div>
+                                {% else %}
+                                    <div class="formatted-content">{{ m.content|replace('\n', '<br>')|safe if m.content else '' }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty">
+                            <p>No messages yet.</p>
+                            <p style="margin-top:8px;color:var(--text-muted)">Start the conversation or wait for Claude to begin working.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-console">
+                <div class="view-toggle">
+                    <label style="color:var(--text-muted)">Daemon output</label>
+                    <span style="margin-left:20px;color:var(--text-primary)">Logs Only</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="show-code-toggle" onchange="refreshConsole()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span style="color:var(--text-primary)">Show Code</span>
+                    <button onclick="refreshConsole()" style="margin-left:auto;padding:6px 16px;background:var(--bg-card);border:1px solid var(--border-subtle);color:var(--text-primary);border-radius:6px;cursor:pointer;font-size:12px">Refresh</button>
+                </div>
+                <div class="console-output" id="console-output">
+                    <div class="console-line info">Loading console output...</div>
+                </div>
+            </div>
+
+            {% if ticket.preview_url %}
+            <div class="tab-content" id="tab-preview" style="flex-direction:column">
+                <div class="view-toggle">
+                    <label style="color:var(--text-muted)">{{ ticket.preview_url }}</label>
+                    <button onclick="refreshPreview()" style="margin-left:auto;padding:6px 16px;background:var(--bg-card);border:1px solid var(--border-subtle);color:var(--text-primary);border-radius:6px;cursor:pointer;font-size:12px">Refresh</button>
+                    <button onclick="window.open('{{ ticket.preview_url }}', '_blank')" style="padding:6px 16px;background:var(--accent-cyan);border:none;color:#000;border-radius:6px;cursor:pointer;margin-left:8px;font-size:12px;font-weight:600">Open</button>
+                </div>
+                <iframe id="preview-frame" src="" style="flex:1;border:none;background:#fff;width:100%"></iframe>
+            </div>
+            {% endif %}
+
+            <div class="input-area">
+                <input type="text" id="message-input" placeholder="Send a message to Claude..."
+                       {% if ticket.status in ['done', 'failed'] %}disabled{% endif %} />
+                <button onclick="sendMessage()" id="send-btn"
+                        {% if ticket.status in ['done', 'failed'] %}disabled{% endif %}>Send</button>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="sidebar-section">
+                <h3>Ticket Details</h3>
+                <div class="ticket-info">
+                    <div class="title">{{ ticket.title }}</div>
+                    <div class="description">{{ ticket.description or 'No description' }}</div>
+                    <div class="meta">
+                        <div>Priority: <strong>{{ ticket.priority|upper }}</strong></div>
+                        <div>Created: {{ ticket.created_at.strftime('%Y-%m-%d %H:%M') if ticket.created_at else 'N/A' }}</div>
+                        <div>Path: <code>{{ ticket.project_path }}</code></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <h3>Usage Stats</h3>
+                <div class="ticket-stats">
+                    <div class="ticket-stats-grid">
+                        <div class="ticket-stat">
+                            <div class="value" id="tkt-tokens">-</div>
+                            <div class="label">Tokens</div>
+                        </div>
+                        <div class="ticket-stat">
+                            <div class="value duration" id="tkt-duration">-</div>
+                            <div class="label">Duration</div>
+                        </div>
+                        <div class="ticket-stat">
+                            <div class="value" id="tkt-calls">0</div>
+                            <div class="label">API Calls</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <h3>Actions</h3>
+                <div class="actions">
+                    {% if ticket.status not in ['done', 'failed'] %}
+                    <button class="btn-success" onclick="closeTicket('completed')">Close Ticket</button>
+                    {% if ticket.status == 'in_progress' %}
+                    <button class="btn-warning" onclick="sendCommand('/skip')">Pause Ticket</button>
+                    {% endif %}
+                    {% else %}
+                    <button class="btn-warning" onclick="showReopenModal()">Reopen Ticket</button>
+                    {% endif %}
+                    <button class="btn-secondary" onclick="location.href='/project/{{ ticket.project_id }}'">Back to Project</button>
+                    <button class="btn-secondary" onclick="createBackup()" style="margin-top:10px">Create Backup</button>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <h3>Commands</h3>
+                <div class="commands">
+                    <p><code>/stop</code> Pause & wait for correction</p>
+                    <p><code>/skip</code> Stop & reopen ticket</p>
+                    <p><code>/done</code> Force complete</p>
+                </div>
+                <p style="color:var(--text-muted);font-size:11px;margin-top:10px">Tip: Messages sent while working will be read when Claude finishes</p>
+            </div>
+
+            <div class="sidebar-section">
+                <h3>Files</h3>
+                <div class="upload-mini">
+                    <div class="upload-mini-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+                        <input type="file" id="fileInput" multiple onchange="handleUpload(this.files)">
+                        <p>Click or drop to upload</p>
+                    </div>
+                    <div class="upload-mini-result" id="uploadResult" style="display:none"></div>
+                    <div class="file-list-mini" id="fileListMini">
+                        <div class="file-list-empty">Loading...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const ticketId = {{ ticket.id }};
+        const ticketStatus = '{{ ticket.status }}';
+        const projectId = {{ ticket.project_id }};
+        const previewUrl = '{{ ticket.preview_url|default("", true) }}';
+
+        function formatNumber(num) {
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            return num.toString();
+        }
+
+        async function loadTicketStats() {
+            try {
+                const resp = await fetch(`/api/stats/ticket/${ticketId}`);
+                const data = await resp.json();
+                if (data.error) return;
+
+                document.getElementById('tkt-tokens').textContent = formatNumber(data.totals?.total_tokens || 0);
+                document.getElementById('tkt-duration').textContent = data.totals?.duration_formatted || '0s';
+                document.getElementById('tkt-calls').textContent = data.totals?.api_calls || 0;
+            } catch (e) {
+                console.error('Failed to load ticket stats:', e);
+            }
+        }
+
+        loadTicketStats();
+        setInterval(loadTicketStats, 30000);
+
+        const socket = io({ transports: ['polling'], upgrade: false });
+        const conversation = document.getElementById('conversation');
+        const input = document.getElementById('message-input');
+
+        socket.on('connect', () => { socket.emit('join_ticket', {ticket_id: ticketId}); });
+
+        const shownMessageIds = new Set();
+        let lastUserMessageTime = 0;
+
+        socket.on('new_message', (msg) => {
+            if (msg.ticket_id === ticketId) {
+                if (msg.id && shownMessageIds.has(msg.id)) return;
+                if (msg.role === 'user' && Date.now() - lastUserMessageTime < 3000) return;
+                addMessage(msg);
+            }
+        });
+
+        socket.on('ticket_closed', (data) => { if (data.ticket_id === ticketId) location.reload(); });
+
+        function addMessage(msg) {
+            if (msg.id) shownMessageIds.add(msg.id);
+            if (msg.role === 'user') lastUserMessageTime = Date.now();
+
+            const empty = conversation.querySelector('.empty');
+            if (empty) empty.remove();
+
+            const div = document.createElement('div');
+            div.className = `message ${msg.role}`;
+            if (msg.content) div.dataset.content = msg.content;
+
+            const time = msg.created_at ? new Date(msg.created_at).toLocaleTimeString() : '';
+            let roleLabel = 'System';
+            if (msg.role === 'user') roleLabel = 'User';
+            else if (msg.role === 'assistant') roleLabel = 'Claude';
+            else if (msg.role === 'tool_use') roleLabel = 'Tool Call';
+            else if (msg.role === 'tool_result') roleLabel = 'Result';
+
+            let content = '';
+            if (msg.role === 'tool_use' || msg.role === 'tool_result') {
+                const toolName = msg.tool_name || 'Unknown';
+                content += `<div class="tool-name" onclick="toggleToolBody(this)">${escapeHtml(toolName)}</div>`;
+                content += `<div class="tool-body">`;
+                if (msg.tool_input) content += `<div class="tool-input" data-tool="${escapeHtml(toolName)}"></div>`;
+                if (msg.content) {
+                    const truncated = msg.content.length > 1000 ? msg.content.substring(0, 1000) + '...' : msg.content;
+                    content += `<div class="tool-result-text">${escapeHtml(truncated)}</div>`;
+                }
+                content += `</div>`;
+            } else {
+                const displayContent = isFormatted ? formatMarkdown(msg.content || '') : escapeHtml(msg.content || '').replace(/\n/g, '<br>');
+                content = `<div class="formatted-content">${displayContent}</div>`;
+            }
+
+            div.innerHTML = `
+                <div class="message-header">
+                    <span class="role ${msg.role}">${roleLabel}</span>
+                    <span class="time">${time}</span>
+                </div>
+                <div class="message-content">${content}</div>
+            `;
+
+            conversation.appendChild(div);
+
+            const toolInput = div.querySelector('.tool-input');
+            if (toolInput && msg.tool_input) formatToolInputDirect(toolInput, msg.tool_name, msg.tool_input);
+
+            conversation.scrollTop = conversation.scrollHeight;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        async function sendMessage() {
+            const message = input.value.trim();
+            if (!message) return;
+
+            addMessage({ role: 'user', content: message, created_at: new Date().toISOString() });
+
+            input.value = '';
+            input.disabled = true;
+            document.getElementById('send-btn').disabled = true;
+
+            try {
+                const resp = await fetch(`/api/ticket/${ticketId}/send`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({message})
+                });
+                const result = await resp.json();
+                if (result.success && result.message && result.message.includes('closed')) location.reload();
+                else if (!result.success) alert('Error: ' + result.message);
+            } catch (e) { alert('Error sending message'); }
+
+            input.disabled = false;
+            document.getElementById('send-btn').disabled = false;
+            input.focus();
+        }
+
+        function sendCommand(cmd) { input.value = cmd; sendMessage(); }
+
+        async function closeTicket(reason) {
+            if (!confirm('Close this ticket?')) return;
+            const resp = await fetch(`/api/ticket/${ticketId}/close`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({reason})
+            });
+            const result = await resp.json();
+            if (result.success) location.reload();
+            else alert('Error: ' + result.message);
+        }
+
+        function showReopenModal() {
+            document.getElementById('reopen-modal').style.display = 'flex';
+            document.getElementById('reopen-instructions').focus();
+        }
+
+        function hideReopenModal() {
+            document.getElementById('reopen-modal').style.display = 'none';
+            document.getElementById('reopen-instructions').value = '';
+        }
+
+        async function reopenTicket() {
+            const instructions = document.getElementById('reopen-instructions').value.trim();
+            const resp = await fetch(`/api/ticket/${ticketId}/reopen`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({instructions})
+            });
+            const result = await resp.json();
+            if (result.success) location.reload();
+            else alert('Error: ' + result.message);
+        }
+
+        input.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+        conversation.scrollTop = conversation.scrollHeight;
+
+        document.querySelectorAll('.time[data-utc]').forEach(el => {
+            const utc = el.dataset.utc;
+            if (utc) el.textContent = new Date(utc).toLocaleTimeString();
+        });
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            const tabs = document.querySelectorAll('.tab');
+            const tabIndex = tabName === 'conversation' ? 0 : tabName === 'console' ? 1 : 2;
+            if (tabs[tabIndex]) tabs[tabIndex].classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            if (tabName === 'console') refreshConsole();
+            else if (tabName === 'preview') loadPreview();
+        }
+
+        function loadPreview() {
+            const frame = document.getElementById('preview-frame');
+            if (frame && previewUrl && !frame.src) frame.src = previewUrl;
+        }
+
+        function refreshPreview() {
+            const frame = document.getElementById('preview-frame');
+            if (frame && previewUrl) frame.src = previewUrl + (previewUrl.includes('?') ? '&' : '?') + '_t=' + Date.now();
+        }
+
+        let isFormatted = true;
+
+        function toggleFormatted() {
+            isFormatted = document.getElementById('formatted-toggle').checked;
+            renderMessages();
+        }
+
+        function renderMessages() {
+            document.querySelectorAll('.message.assistant .formatted-content, .message.user .formatted-content').forEach(el => {
+                const msg = el.closest('.message');
+                const rawContent = msg.dataset.content || el.textContent;
+                if (isFormatted) el.innerHTML = formatMarkdown(rawContent);
+                else el.textContent = rawContent;
+            });
+        }
+
+        function formatMarkdown(text) {
+            if (!text) return '';
+            let html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+            html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+            html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+            html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+            html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+            html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+            html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+            html = html.replace(/^\- (.+)$/gm, '<li>$1</li>');
+            html = html.replace(/^(\d+)\. (.+)$/gm, '<li>$2</li>');
+            html = html.replace(/\n/g, '<br>');
+            html = html.replace(/(<li>.*<\/li>)/g, '<ul>$1</ul>');
+            html = html.replace(/<\/ul><br><ul>/g, '');
+            return html;
+        }
+
+        async function refreshConsole() {
+            const consoleEl = document.getElementById('console-output');
+            const showCode = document.getElementById('show-code-toggle').checked;
+            consoleEl.innerHTML = '<div class="console-line info">Loading...</div>';
+            try {
+                const url = `/api/ticket/${ticketId}/logs?include_code=${showCode ? '1' : '0'}`;
+                const resp = await fetch(url);
+                const items = await resp.json();
+                if (items.length === 0) {
+                    consoleEl.innerHTML = '<div class="console-line info">No execution logs yet.</div>';
+                    return;
+                }
+                consoleEl.innerHTML = items.map(item => {
+                    const time = item.created_at ? new Date(item.created_at).toLocaleTimeString() : '';
+                    if (item.source === 'log') {
+                        const typeClass = item.log_type || 'info';
+                        return `<div class="console-line ${typeClass}"><span class="timestamp">[${time}]</span>${escapeHtml(item.message || '')}</div>`;
+                    }
+                    if (item.source === 'tool') {
+                        const toolName = item.tool_name || 'Unknown Tool';
+                        const roleClass = item.role || 'tool_use';
+                        let content = '';
+                        if (item.role === 'tool_use' && item.tool_input) {
+                            const input = typeof item.tool_input === 'object' ? item.tool_input : {};
+                            if (input.content) content = escapeHtml(input.content);
+                            else if (input.command) content = '$ ' + escapeHtml(input.command);
+                            else if (input.file_path) {
+                                content = 'File: ' + escapeHtml(input.file_path);
+                                if (input.old_string || input.new_string) {
+                                    content += '\n\n--- OLD ---\n' + escapeHtml(input.old_string || '');
+                                    content += '\n\n+++ NEW +++\n' + escapeHtml(input.new_string || '');
+                                }
+                            } else content = escapeHtml(JSON.stringify(input, null, 2));
+                        } else if (item.role === 'tool_result' && item.content) {
+                            content = escapeHtml(item.content.substring(0, 2000));
+                            if (item.content.length > 2000) content += '\n... (truncated)';
+                        }
+                        return `<div class="console-tool ${roleClass}">
+                            <div class="console-tool-header">
+                                <span class="console-tool-name">${item.role === 'tool_result' ? 'Result' : 'Tool'}: ${escapeHtml(toolName)}</span>
+                                <span class="console-tool-time">${time}</span>
+                            </div>
+                            <div class="console-tool-content">${content}</div>
+                        </div>`;
+                    }
+                    return '';
+                }).join('');
+                consoleEl.scrollTop = consoleEl.scrollHeight;
+            } catch (e) {
+                consoleEl.innerHTML = '<div class="console-line error">Error loading console output</div>';
+            }
+        }
+
+        function toggleToolBody(el) {
+            el.classList.toggle('collapsed');
+            const body = el.nextElementSibling;
+            if (body) body.classList.toggle('collapsed');
+        }
+
+        function syntaxHighlightJSON(json) {
+            if (typeof json !== 'string') json = JSON.stringify(json, null, 2);
+            json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+                let cls = 'json-number';
+                if (/^"/.test(match)) { cls = /:$/.test(match) ? 'json-key' : 'json-string'; }
+                else if (/true|false/.test(match)) cls = 'json-boolean';
+                else if (/null/.test(match)) cls = 'json-null';
+                return '<span class="' + cls + '">' + match + '</span>';
+            });
+        }
+
+        function formatToolInput(el) {
+            const toolName = el.dataset.tool;
+            let rawData = el.dataset.raw;
+            if (!rawData) { el.innerHTML = '<span style="color:var(--text-muted)">No input data</span>'; return; }
+            let data;
+            try {
+                if (rawData.startsWith('"') && rawData.endsWith('"')) rawData = JSON.parse(rawData);
+                data = typeof rawData === 'object' ? rawData : JSON.parse(rawData);
+            } catch (e) {
+                el.innerHTML = `<div class="tool-param-value" style="color:var(--accent-orange)">${escapeHtml(rawData)}</div>`;
+                return;
+            }
+            renderToolInputHtml(el, toolName, data);
+        }
+
+        function formatToolInputDirect(el, toolName, toolInput) {
+            let data;
+            try {
+                data = typeof toolInput === 'string' ? JSON.parse(toolInput) : toolInput;
+            } catch (e) {
+                el.innerHTML = `<div class="tool-param-value" style="color:var(--accent-orange)">${escapeHtml(String(toolInput))}</div>`;
+                return;
+            }
+            renderToolInputHtml(el, toolName, data);
+        }
+
+        function renderToolInputHtml(el, toolName, data) {
+            let html = '';
+            if (toolName === 'Write') {
+                html += `<div class="tool-param"><div class="tool-param-label">File Path</div><div class="tool-param-value filepath">${escapeHtml(data.file_path || '')}</div></div>`;
+                if (data.content) html += `<div class="tool-param"><div class="tool-param-label">Content</div><div class="tool-param-value code">${escapeHtml(data.content)}</div></div>`;
+            } else if (toolName === 'Edit') {
+                html += `<div class="tool-param"><div class="tool-param-label">File Path</div><div class="tool-param-value filepath">${escapeHtml(data.file_path || '')}</div></div>`;
+                if (data.old_string) html += `<div class="tool-param"><div class="tool-param-label">Old String</div><div class="tool-param-value code diff-old">${escapeHtml(data.old_string)}</div></div>`;
+                if (data.new_string) html += `<div class="tool-param"><div class="tool-param-label">New String</div><div class="tool-param-value code diff-new">${escapeHtml(data.new_string)}</div></div>`;
+            } else if (toolName === 'Bash') {
+                if (data.description) html += `<div class="tool-param"><div class="tool-param-label">Description</div><div class="tool-param-value">${escapeHtml(data.description)}</div></div>`;
+                html += `<div class="tool-param"><div class="tool-param-label">Command</div><div class="tool-param-value command">$ ${escapeHtml(data.command || '')}</div></div>`;
+            } else if (toolName === 'Read') {
+                html += `<div class="tool-param"><div class="tool-param-label">File Path</div><div class="tool-param-value filepath">${escapeHtml(data.file_path || '')}</div></div>`;
+            } else if (toolName === 'Glob' || toolName === 'Grep') {
+                if (data.pattern) html += `<div class="tool-param"><div class="tool-param-label">Pattern</div><div class="tool-param-value command">${escapeHtml(data.pattern)}</div></div>`;
+                if (data.path) html += `<div class="tool-param"><div class="tool-param-label">Path</div><div class="tool-param-value filepath">${escapeHtml(data.path)}</div></div>`;
+            } else if (toolName === 'TodoWrite') {
+                if (data.todos && Array.isArray(data.todos)) {
+                    html += `<div class="tool-param"><div class="tool-param-label">Tasks (${data.todos.length})</div><div class="tool-param-value">`;
+                    data.todos.forEach(todo => {
+                        const icon = todo.status === 'completed' ? '✓' : todo.status === 'in_progress' ? '○' : '·';
+                        html += `<div style="margin:4px 0">${icon} ${escapeHtml(todo.content || todo.activeForm || '')}</div>`;
+                    });
+                    html += `</div></div>`;
+                }
+            } else {
+                html = `<div class="tool-param-value" style="background:var(--bg-primary)">${syntaxHighlightJSON(data)}</div>`;
+            }
+            el.innerHTML = html;
+        }
+
+        function formatAllToolInputs() { document.querySelectorAll('.tool-input[data-raw]').forEach(formatToolInput); }
+        renderMessages();
+        formatAllToolInputs();
+
+        const uploadArea = document.getElementById('uploadArea');
+        const uploadResult = document.getElementById('uploadResult');
+
+        uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+        uploadArea.addEventListener('dragleave', () => { uploadArea.classList.remove('dragover'); });
+        uploadArea.addEventListener('drop', (e) => { e.preventDefault(); uploadArea.classList.remove('dragover'); handleUpload(e.dataTransfer.files); });
+
+        async function handleUpload(files) {
+            if (!files.length) return;
+            const formData = new FormData();
+            for (let file of files) formData.append('files', file);
+            formData.append('ticket_id', ticketId);
+            formData.append('subdir', 'ticket_files');
+
+            uploadResult.style.display = 'block';
+            uploadResult.className = 'upload-mini-result';
+            uploadResult.textContent = 'Uploading...';
+
+            try {
+                const resp = await fetch(`/api/project/${projectId}/upload`, { method: 'POST', body: formData });
+                const result = await resp.json();
+                if (result.success) {
+                    uploadResult.className = 'upload-mini-result success';
+                    uploadResult.textContent = `${result.count} file(s) uploaded`;
+                    loadFileList();
+                } else {
+                    uploadResult.className = 'upload-mini-result error';
+                    uploadResult.textContent = result.message;
+                }
+            } catch (err) {
+                uploadResult.className = 'upload-mini-result error';
+                uploadResult.textContent = 'Upload failed';
+            }
+            document.getElementById('fileInput').value = '';
+        }
+
+        async function createBackup() {
+            if (!confirm('Create a backup now?')) return;
+            try {
+                const resp = await fetch(`/api/project/${projectId}/backup`, {method: 'POST'});
+                const result = await resp.json();
+                if (result.success) alert('Backup created: ' + result.filename);
+                else alert('Error: ' + result.message);
+            } catch (err) { alert('Error creating backup: ' + err.message); }
+        }
+
+        async function loadFileList() {
+            const fileListEl = document.getElementById('fileListMini');
+            try {
+                const resp = await fetch(`/api/project/${projectId}/files?subdir=ticket_files`);
+                const result = await resp.json();
+                if (!result.success || result.files.length === 0) {
+                    fileListEl.innerHTML = '<div class="file-list-empty">No files</div>';
+                    return;
+                }
+                const files = result.files.filter(f => !f.is_dir);
+                if (files.length === 0) {
+                    fileListEl.innerHTML = '<div class="file-list-empty">No files</div>';
+                    return;
+                }
+                fileListEl.innerHTML = files.slice(0, 20).map(f => {
+                    const icon = getFileIcon(f.name);
+                    return `<div class="file-item-mini"><span class="icon">${icon}</span><span class="name" title="${f.path}">${f.name}</span><button class="delete" onclick="deleteFile('${f.path}')" title="Delete">×</button></div>`;
+                }).join('');
+                if (result.files.length > 20) fileListEl.innerHTML += `<div class="file-list-empty">+ ${result.files.length - 20} more files</div>`;
+            } catch (err) { fileListEl.innerHTML = '<div class="file-list-empty">Error loading</div>'; }
+        }
+
+        function getFileIcon(name) {
+            const ext = name.split('.').pop().toLowerCase();
+            const icons = { 'php': 'P', 'js': 'J', 'css': 'C', 'html': 'H', 'json': '{', 'sql': 'S', 'md': 'M', 'txt': 'T', 'png': 'I', 'jpg': 'I', 'jpeg': 'I', 'gif': 'I', 'svg': 'I', 'pdf': 'P', 'zip': 'Z', 'py': 'Y' };
+            return icons[ext] || 'F';
+        }
+
+        async function deleteFile(path) {
+            if (!confirm(`Delete "${path}"?`)) return;
+            try {
+                const resp = await fetch(`/api/project/${projectId}/files/delete`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({path: path})
+                });
+                const result = await resp.json();
+                if (result.success) loadFileList();
+                else alert('Error: ' + result.message);
+            } catch (err) { alert('Delete failed'); }
+        }
+
+        loadFileList();
+    </script>
+
+    <div id="reopen-modal" class="modal">
+        <div class="modal-content">
+            <h3>Reopen Ticket</h3>
+            <p style="color:var(--text-muted);margin-bottom:14px;font-size:14px">Add additional instructions for Claude (optional):</p>
+            <textarea id="reopen-instructions" placeholder="Example: Fix the bug in line 42, also add unit tests..."></textarea>
+            <div class="modal-actions">
+                <button onclick="hideReopenModal()" class="btn-secondary">Cancel</button>
+                <button onclick="reopenTicket()" style="background:linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));color:white">Reopen</button>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="header">
+        <h1>Ticket Not Found</h1>
+    </div>
+    <div class="empty">
+        <p>Ticket not found.</p>
+        <a href="/dashboard" style="color:var(--accent-cyan)">Back to Dashboard</a>
+    </div>
+    {% endif %}
+</body>
+</html>

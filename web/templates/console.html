@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Console - Fotios Claude</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #07070d;
+            --bg-secondary: #0d0d16;
+            --bg-card: rgba(18, 18, 32, 0.7);
+            --bg-card-hover: rgba(25, 25, 45, 0.8);
+            --border-subtle: rgba(99, 102, 241, 0.15);
+            --border-glow: rgba(99, 102, 241, 0.4);
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-primary: #6366f1;
+            --accent-secondary: #8b5cf6;
+            --accent-cyan: #22d3ee;
+            --accent-green: #10b981;
+            --accent-orange: #f59e0b;
+            --accent-red: #ef4444;
+            --glow-primary: 0 0 20px rgba(99, 102, 241, 0.3);
+            --glow-cyan: 0 0 20px rgba(34, 211, 238, 0.3);
+            --glow-green: 0 0 20px rgba(16, 185, 129, 0.3);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Aurora Background */
+        .aurora-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+            background: var(--bg-primary);
+            overflow: hidden;
+        }
+
+        .aurora-blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.5;
+            animation: float 20s ease-in-out infinite;
+        }
+
+        .aurora-blob:nth-child(1) {
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.4) 0%, transparent 70%);
+            top: -200px;
+            left: -100px;
+        }
+
+        .aurora-blob:nth-child(2) {
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(139, 92, 246, 0.3) 0%, transparent 70%);
+            top: 50%;
+            right: -150px;
+            animation-delay: -5s;
+            animation-duration: 25s;
+        }
+
+        .aurora-blob:nth-child(3) {
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(34, 211, 238, 0.25) 0%, transparent 70%);
+            bottom: -100px;
+            left: 30%;
+            animation-delay: -10s;
+            animation-duration: 30s;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            25% { transform: translate(50px, -30px) scale(1.05); }
+            50% { transform: translate(-30px, 50px) scale(0.95); }
+            75% { transform: translate(-50px, -20px) scale(1.02); }
+        }
+
+        .noise {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.03;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+        }
+
+        .header {
+            background: rgba(13, 13, 22, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            z-index: 100;
+        }
+
+        .header h1 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .nav { display: flex; gap: 8px; }
+        .nav a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        .nav a:hover {
+            color: var(--text-primary);
+            background: var(--bg-card);
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            position: relative;
+        }
+
+        .status-dot.running {
+            background: var(--accent-green);
+            box-shadow: 0 0 12px var(--accent-green);
+        }
+
+        .status-dot.running::after {
+            content: '';
+            position: absolute;
+            top: -4px;
+            left: -4px;
+            right: -4px;
+            bottom: -4px;
+            border-radius: 50%;
+            border: 2px solid var(--accent-green);
+            animation: pulse-ring 1.5s ease-out infinite;
+        }
+
+        @keyframes pulse-ring {
+            0% { transform: scale(1); opacity: 0.8; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+
+        .status-dot.stopped {
+            background: var(--accent-red);
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+        }
+
+        #status-text { color: var(--text-secondary); font-size: 13px; }
+
+        .container { display: flex; height: calc(100vh - 60px); }
+        .console-panel { flex: 1; display: flex; flex-direction: column; }
+
+        .sidebar {
+            width: 320px;
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border-left: 1px solid var(--border-subtle);
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .conversation { flex: 1; overflow-y: auto; padding: 20px; }
+
+        .message { margin-bottom: 16px; max-width: 85%; }
+        .message.user { margin-left: auto; }
+        .message.assistant { margin-right: auto; }
+        .message.tool { margin-right: auto; max-width: 90%; }
+        .message.system { margin: 12px auto; max-width: 90%; text-align: center; }
+
+        .message-header { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+        .message-header .role { font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .message-header .role.user { color: var(--accent-cyan); }
+        .message-header .role.assistant { color: var(--accent-green); }
+        .message-header .role.tool { color: var(--accent-orange); }
+        .message-header .time { color: var(--text-muted); }
+
+        .message-content {
+            padding: 14px 18px;
+            border-radius: 14px;
+            line-height: 1.6;
+        }
+
+        .message.user .message-content {
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.25);
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.assistant .message-content {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            border-bottom-left-radius: 4px;
+        }
+
+        .message.tool .message-content {
+            background: rgba(245, 158, 11, 0.1);
+            border-left: 3px solid var(--accent-orange);
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+        }
+
+        .message.system .message-content {
+            background: var(--bg-card);
+            font-size: 13px;
+            color: var(--text-muted);
+            display: inline-block;
+            padding: 10px 18px;
+        }
+
+        .tool-name { color: var(--accent-orange); font-weight: 600; margin-bottom: 10px; }
+
+        .tool-input {
+            background: var(--bg-primary);
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .tool-result { color: var(--text-secondary); font-size: 12px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-subtle); }
+
+        .message-content pre {
+            background: var(--bg-primary);
+            padding: 14px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 12px 0;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+        }
+
+        .message-content code {
+            background: var(--bg-primary);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+        }
+
+        .live-log {
+            height: 120px;
+            background: var(--bg-primary);
+            border-top: 1px solid var(--border-subtle);
+            overflow-y: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            padding: 12px;
+        }
+
+        .log-entry { margin-bottom: 4px; opacity: 0.9; }
+        .log-entry .time { color: var(--text-muted); margin-right: 12px; }
+        .log-entry.info { color: var(--accent-green); }
+        .log-entry.output { color: var(--accent-cyan); }
+        .log-entry.error { color: var(--accent-red); }
+        .log-entry.user { color: var(--accent-secondary); }
+
+        .input-area {
+            padding: 16px;
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid var(--border-subtle);
+            display: flex;
+            gap: 12px;
+        }
+
+        .input-area select {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+            padding: 12px 16px;
+            border-radius: 10px;
+            min-width: 160px;
+            font-size: 13px;
+        }
+
+        .input-area input {
+            flex: 1;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-size: 14px;
+        }
+
+        .input-area input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+
+        .input-area button {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
+            border: none;
+            padding: 12px 28px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .input-area button:hover {
+            box-shadow: var(--glow-primary);
+            transform: translateY(-1px);
+        }
+
+        .sidebar h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 14px;
+        }
+
+        .sidebar-section { margin-bottom: 24px; }
+
+        .ticket-info {
+            background: var(--bg-secondary);
+            padding: 14px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .ticket-info:hover {
+            background: var(--bg-card-hover);
+        }
+
+        .ticket-info .number {
+            color: var(--accent-cyan);
+            font-weight: 600;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+        }
+
+        .ticket-info .title {
+            color: var(--text-primary);
+            margin-top: 6px;
+            font-size: 13px;
+        }
+
+        .ticket-info .meta {
+            color: var(--text-muted);
+            font-size: 11px;
+            margin-top: 8px;
+        }
+
+        .controls button {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-start {
+            background: linear-gradient(135deg, var(--accent-green), #059669);
+            color: white;
+        }
+
+        .btn-start:hover {
+            box-shadow: var(--glow-green);
+        }
+
+        .btn-stop {
+            background: linear-gradient(135deg, var(--accent-red), #dc2626);
+            color: white;
+        }
+
+        .commands { font-size: 12px; color: var(--text-muted); line-height: 2.2; }
+
+        .commands code {
+            background: var(--bg-secondary);
+            padding: 4px 10px;
+            border-radius: 6px;
+            color: var(--accent-cyan);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .view-toggle {
+            display: flex;
+            margin-bottom: 16px;
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            padding: 4px;
+        }
+
+        .view-toggle button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .view-toggle button.active {
+            background: var(--accent-primary);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="aurora-bg">
+        <div class="aurora-blob"></div>
+        <div class="aurora-blob"></div>
+        <div class="aurora-blob"></div>
+    </div>
+    <div class="noise"></div>
+
+    <div class="header">
+        <h1>Claude Console</h1>
+        <div class="nav">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/history">History</a>
+            <a href="/logout">Logout</a>
+        </div>
+        <div class="status">
+            <span id="status-text">Connecting...</span>
+            <div class="status-dot" id="status-dot"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="console-panel">
+            <div class="conversation" id="conversation"></div>
+            <div class="live-log" id="live-log"></div>
+
+            <div class="input-area">
+                <select id="ticket-select">
+                    <option value="">No active tickets</option>
+                </select>
+                <input type="text" id="message-input" placeholder="Message or command: /stop (pause & correct), /skip (reopen), /done (force complete)" />
+                <button onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="view-toggle">
+                <button class="active" onclick="setView('conversation', this)">Conversation</button>
+                <button onclick="setView('logs', this)">Raw Logs</button>
+            </div>
+
+            <div class="sidebar-section">
+                <h3>Active Workers (<span id="worker-count">0</span>)</h3>
+                <div id="active-tickets-list">
+                    <div class="ticket-info" style="opacity:0.5">
+                        <div class="number">No active tasks</div>
+                        <div class="title">Waiting for tickets...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <h3>Daemon Controls</h3>
+                <div class="controls">
+                    <button class="btn-start" onclick="startDaemon()">Start Daemon</button>
+                    <button class="btn-stop" onclick="stopDaemon()">Stop Daemon</button>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <h3>Commands</h3>
+                <div class="commands">
+                    <p><code>/stop</code> Pause & wait for correction</p>
+                    <p><code>/skip</code> Stop & reopen ticket</p>
+                    <p><code>/done</code> Force complete</p>
+                </div>
+                <p style="color:var(--text-muted);font-size:11px;margin-top:12px">Tip: Messages sent while Claude works will be read when done</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io({
+            transports: ['polling'],
+            upgrade: false
+        });
+        const conversation = document.getElementById('conversation');
+        const liveLog = document.getElementById('live-log');
+        const input = document.getElementById('message-input');
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        let currentView = 'conversation';
+
+        socket.on('connect', () => {
+            statusDot.className = 'status-dot running';
+            statusText.textContent = 'Connected';
+            socket.emit('join_console');
+            addLog('info', 'Connected to console');
+            loadConversation();
+        });
+
+        socket.on('disconnect', () => {
+            statusDot.className = 'status-dot stopped';
+            statusText.textContent = 'Disconnected';
+        });
+
+        socket.on('new_log', (log) => {
+            addLog(log.log_type, log.message, log.created_at);
+        });
+
+        socket.on('new_message', (msg) => {
+            addMessage(msg);
+        });
+
+        function addMessage(msg) {
+            const div = document.createElement('div');
+            div.className = `message ${msg.role}`;
+
+            const time = msg.created_at ? new Date(msg.created_at).toLocaleTimeString() : '';
+            const ticketBadge = msg.ticket_number ? `<span style="background:var(--bg-secondary);padding:3px 8px;border-radius:6px;font-size:10px;margin-right:10px;font-family:'JetBrains Mono',monospace">${msg.ticket_number}</span>` : '';
+
+            if (msg.role === 'tool_use' || msg.role === 'tool_result') {
+                div.className = 'message tool';
+                div.innerHTML = `
+                    <div class="message-header">
+                        ${ticketBadge}
+                        <span class="role tool">${msg.role === 'tool_use' ? 'Tool Call' : 'Result'}</span>
+                        <span class="time">${time}</span>
+                    </div>
+                    <div class="message-content">
+                        ${msg.tool_name ? `<div class="tool-name">${msg.tool_name}</div>` : ''}
+                        ${msg.tool_input ? `<div class="tool-input">${JSON.stringify(msg.tool_input, null, 2)}</div>` : ''}
+                        ${msg.content ? `<div class="tool-result">${escapeHtml(msg.content)}</div>` : ''}
+                    </div>
+                `;
+            } else if (msg.role === 'system') {
+                div.className = 'message system';
+                div.innerHTML = `<div class="message-content">${escapeHtml(msg.content)}</div>`;
+            } else {
+                div.innerHTML = `
+                    <div class="message-header">
+                        ${ticketBadge}
+                        <span class="role ${msg.role}">${msg.role === 'user' ? 'You' : 'Claude'}</span>
+                        <span class="time">${time}</span>
+                    </div>
+                    <div class="message-content">${formatContent(msg.content)}</div>
+                `;
+            }
+
+            conversation.appendChild(div);
+            conversation.scrollTop = conversation.scrollHeight;
+        }
+
+        function addLog(type, message, timestamp) {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            const time = timestamp ? new Date(timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
+            entry.innerHTML = `<span class="time">${time}</span>${escapeHtml(message)}`;
+            liveLog.appendChild(entry);
+            liveLog.scrollTop = liveLog.scrollHeight;
+
+            while (liveLog.children.length > 100) {
+                liveLog.removeChild(liveLog.firstChild);
+            }
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatContent(text) {
+            if (!text) return '';
+            let html = escapeHtml(text);
+            html = html.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+            html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+            html = html.replace(/\n/g, '<br>');
+            return html;
+        }
+
+        function loadConversation() {
+            fetch('/api/conversation/current')
+                .then(r => r.json())
+                .then(messages => {
+                    conversation.innerHTML = '';
+                    messages.forEach(addMessage);
+                })
+                .catch(() => {});
+        }
+
+        function sendMessage() {
+            const message = input.value.trim();
+            if (!message) return;
+
+            const ticketSelect = document.getElementById('ticket-select');
+            const ticketId = ticketSelect.value;
+
+            if (!ticketId) {
+                addLog('error', 'No active ticket selected');
+                return;
+            }
+
+            const selectedOption = ticketSelect.options[ticketSelect.selectedIndex];
+            const ticketNumber = selectedOption.text.split(' - ')[0];
+
+            addMessage({role: 'user', content: message, created_at: new Date().toISOString(), ticket_number: ticketNumber});
+
+            fetch('/api/send_message', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({message, ticket_id: ticketId})
+            }).then(r => r.json()).then(data => {
+                if (!data.success) {
+                    addLog('error', 'Failed to send: ' + data.message);
+                }
+            });
+
+            input.value = '';
+        }
+
+        function startDaemon() {
+            fetch('/api/daemon/start', {method: 'POST'})
+                .then(r => r.json())
+                .then(data => addLog('info', data.message));
+        }
+
+        function stopDaemon() {
+            fetch('/api/daemon/stop', {method: 'POST'})
+                .then(r => r.json())
+                .then(data => addLog('info', data.message));
+        }
+
+        function setView(view, btn) {
+            currentView = view;
+            document.querySelectorAll('.view-toggle button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            if (view === 'conversation') {
+                conversation.style.display = 'block';
+                liveLog.style.height = '120px';
+            } else {
+                conversation.style.display = 'none';
+                liveLog.style.height = 'calc(100% - 70px)';
+            }
+        }
+
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        function loadActiveTickets() {
+            fetch('/api/active_tickets')
+                .then(r => r.json())
+                .then(tickets => {
+                    const container = document.getElementById('active-tickets-list');
+                    const ticketSelect = document.getElementById('ticket-select');
+                    const currentSelection = ticketSelect.value;
+                    document.getElementById('worker-count').textContent = tickets.length;
+
+                    if (tickets.length === 0) {
+                        ticketSelect.innerHTML = '<option value="">No active tickets</option>';
+                    } else {
+                        ticketSelect.innerHTML = tickets.map(t =>
+                            `<option value="${t.id}">${t.ticket_number} - ${t.project_name}</option>`
+                        ).join('');
+                        if (currentSelection && tickets.some(t => t.id == currentSelection)) {
+                            ticketSelect.value = currentSelection;
+                        }
+                    }
+
+                    if (tickets.length === 0) {
+                        container.innerHTML = `
+                            <div class="ticket-info" style="opacity:0.5">
+                                <div class="number">No active tasks</div>
+                                <div class="title">Waiting for tickets...</div>
+                            </div>
+                        `;
+                    } else {
+                        container.innerHTML = tickets.map(t => `
+                            <div class="ticket-info" onclick="location.href='/ticket/${t.id}'">
+                                <div class="number">${t.ticket_number}</div>
+                                <div class="title">${t.title.substring(0, 40)}${t.title.length > 40 ? '...' : ''}</div>
+                                <div class="meta">${t.project_name}</div>
+                            </div>
+                        `).join('');
+                    }
+                });
+        }
+
+        setInterval(() => {
+            fetch('/api/daemon/status')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.running) {
+                        statusDot.className = 'status-dot running';
+                        statusText.textContent = 'Daemon Running';
+                    } else {
+                        statusDot.className = 'status-dot stopped';
+                        statusText.textContent = 'Daemon Stopped';
+                    }
+                });
+            loadActiveTickets();
+        }, 3000);
+
+        let lastLogId = 0;
+        function loadLogs() {
+            fetch('/api/logs/recent')
+                .then(r => r.json())
+                .then(logs => {
+                    logs.reverse().forEach(log => {
+                        if (log.id > lastLogId) {
+                            addLog(log.log_type, log.message, log.created_at);
+                            lastLogId = Math.max(lastLogId, log.id);
+                        }
+                    });
+                })
+                .catch(() => {});
+        }
+
+        loadActiveTickets();
+        loadLogs();
+
+        setInterval(loadConversation, 5000);
+        setInterval(loadLogs, 3000);
+    </script>
+</body>
+</html>

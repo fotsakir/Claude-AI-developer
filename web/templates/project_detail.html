@@ -1,0 +1,1692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ project.name if project else 'Project' }} - Fotios Claude</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #07070d;
+            --bg-secondary: #0d0d16;
+            --bg-card: rgba(18, 18, 32, 0.7);
+            --bg-card-hover: rgba(25, 25, 45, 0.8);
+            --border-subtle: rgba(99, 102, 241, 0.15);
+            --border-glow: rgba(99, 102, 241, 0.4);
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-primary: #6366f1;
+            --accent-secondary: #8b5cf6;
+            --accent-cyan: #22d3ee;
+            --accent-green: #10b981;
+            --accent-orange: #f59e0b;
+            --accent-red: #ef4444;
+            --glow-primary: 0 0 20px rgba(99, 102, 241, 0.3);
+            --glow-cyan: 0 0 20px rgba(34, 211, 238, 0.3);
+            --glow-green: 0 0 20px rgba(16, 185, 129, 0.3);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Aurora Background */
+        .aurora-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+            background: var(--bg-primary);
+            overflow: hidden;
+        }
+
+        .aurora-blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.5;
+            animation: float 20s ease-in-out infinite;
+        }
+
+        .aurora-blob:nth-child(1) {
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.4) 0%, transparent 70%);
+            top: -200px;
+            left: -100px;
+            animation-delay: 0s;
+        }
+
+        .aurora-blob:nth-child(2) {
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(139, 92, 246, 0.3) 0%, transparent 70%);
+            top: 50%;
+            right: -150px;
+            animation-delay: -5s;
+            animation-duration: 25s;
+        }
+
+        .aurora-blob:nth-child(3) {
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(34, 211, 238, 0.25) 0%, transparent 70%);
+            bottom: -100px;
+            left: 30%;
+            animation-delay: -10s;
+            animation-duration: 30s;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            25% { transform: translate(50px, -30px) scale(1.05); }
+            50% { transform: translate(-30px, 50px) scale(0.95); }
+            75% { transform: translate(-50px, -20px) scale(1.02); }
+        }
+
+        /* Noise Texture */
+        .noise {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.03;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+        }
+
+        /* Header */
+        .header {
+            background: rgba(13, 13, 22, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header h1 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .nav { display: flex; gap: 8px; }
+        .nav a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        .nav a:hover {
+            color: var(--text-primary);
+            background: var(--bg-card);
+        }
+
+        /* Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .breadcrumb { margin-bottom: 20px; font-size: 13px; }
+        .breadcrumb a { color: var(--text-muted); text-decoration: none; }
+        .breadcrumb a:hover { color: var(--accent-cyan); }
+
+        /* Project Header Card */
+        .project-header {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .project-header h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .project-header .code {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--accent-cyan);
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .project-header .description {
+            color: var(--text-secondary);
+            margin-top: 12px;
+        }
+
+        .project-header .path {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-muted);
+            font-size: 12px;
+            margin-top: 12px;
+        }
+
+        .archived-badge {
+            background: var(--text-muted);
+            color: var(--bg-primary);
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .db-info {
+            margin-top: 16px;
+            padding: 16px;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            border-radius: 12px;
+        }
+
+        .db-info-title {
+            color: var(--accent-green);
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .db-info code {
+            background: var(--bg-primary);
+            padding: 3px 8px;
+            border-radius: 4px;
+            color: var(--accent-green);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+        }
+
+        .db-info .row {
+            margin: 6px 0;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .preview-url-section {
+            margin-top: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .preview-url-section span {
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        .preview-url-section input {
+            flex: 1;
+            max-width: 300px;
+            padding: 8px 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .preview-url-section input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.2s ease;
+            font-family: inherit;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
+        }
+        .btn-primary:hover {
+            box-shadow: var(--glow-primary);
+            transform: translateY(-1px);
+        }
+
+        .btn-green {
+            background: linear-gradient(135deg, var(--accent-green), #059669);
+            color: white;
+        }
+        .btn-green:hover {
+            box-shadow: var(--glow-green);
+            transform: translateY(-1px);
+        }
+
+        .btn-cyan {
+            background: linear-gradient(135deg, var(--accent-cyan), #06b6d4);
+            color: #000;
+        }
+        .btn-cyan:hover {
+            box-shadow: var(--glow-cyan);
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-card-hover);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+        }
+        .btn-secondary:hover {
+            border-color: var(--accent-primary);
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        /* Panel Cards */
+        .panel {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .panel h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Project Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+        }
+
+        .stat-box {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-box::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent-primary), var(--accent-cyan));
+        }
+
+        .stat-box.duration::before { background: linear-gradient(90deg, var(--accent-green), #059669); }
+        .stat-box.tickets::before { background: linear-gradient(90deg, var(--accent-secondary), #c084fc); }
+
+        .stat-box .value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-primary);
+        }
+
+        .stat-box.duration .value { color: var(--accent-green); }
+
+        .stat-box .label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 6px;
+        }
+
+        /* Upload Area */
+        .upload-area {
+            border: 2px dashed var(--border-subtle);
+            border-radius: 12px;
+            padding: 32px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .upload-area:hover {
+            border-color: var(--accent-primary);
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        .upload-area.dragover {
+            border-color: var(--accent-cyan);
+            background: rgba(34, 211, 238, 0.1);
+        }
+
+        .upload-area input[type="file"] { display: none; }
+        .upload-area p { color: var(--text-secondary); margin-bottom: 8px; }
+        .upload-area .hint { font-size: 12px; color: var(--text-muted); }
+
+        .upload-subdir {
+            margin-top: 12px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .upload-subdir span { color: var(--text-muted); font-size: 13px; }
+
+        .upload-subdir input {
+            flex: 1;
+            padding: 10px 14px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 13px;
+        }
+
+        .upload-subdir input::placeholder { color: var(--text-muted); }
+        .upload-subdir input:focus { outline: none; border-color: var(--accent-primary); }
+
+        .upload-progress { margin-top: 16px; display: none; color: var(--accent-cyan); }
+        .upload-progress.active { display: block; }
+
+        .upload-result { margin-top: 12px; padding: 12px; border-radius: 8px; font-size: 13px; }
+        .upload-result.success { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
+        .upload-result.error { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); }
+
+        /* File Browser */
+        .file-browser { margin-top: 20px; }
+
+        .file-browser-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .file-browser-header h4 {
+            color: var(--accent-cyan);
+            font-size: 14px;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .file-path {
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-muted);
+            background: var(--bg-secondary);
+            padding: 10px 14px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .file-path a { color: var(--accent-cyan); text-decoration: none; cursor: pointer; }
+        .file-path a:hover { text-decoration: underline; }
+
+        .file-list {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-subtle);
+            gap: 12px;
+        }
+
+        .file-item:last-child { border-bottom: none; }
+        .file-item:hover { background: var(--bg-card); }
+        .file-icon { font-size: 16px; }
+
+        .file-name {
+            flex: 1;
+            color: var(--text-primary);
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .file-name:hover { color: var(--accent-cyan); }
+        .file-name.is-dir { color: var(--accent-cyan); font-weight: 600; }
+        .file-size { color: var(--text-muted); font-size: 11px; min-width: 60px; text-align: right; font-family: 'JetBrains Mono', monospace; }
+
+        .file-delete {
+            color: var(--accent-red);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            opacity: 0.6;
+            padding: 5px;
+        }
+
+        .file-delete:hover { opacity: 1; }
+        .file-empty { padding: 32px; text-align: center; color: var(--text-muted); font-size: 13px; }
+        .file-loading { padding: 24px; text-align: center; color: var(--text-secondary); }
+
+        /* Database Editor */
+        .db-tabs {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 16px;
+            border-bottom: 1px solid var(--border-subtle);
+            padding-bottom: 12px;
+        }
+
+        .db-tab {
+            padding: 10px 18px;
+            background: var(--bg-secondary);
+            border: none;
+            color: var(--text-muted);
+            border-radius: 8px 8px 0 0;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .db-tab:hover { color: var(--text-primary); }
+        .db-tab.active { background: var(--accent-primary); color: white; }
+
+        .db-content { display: none; }
+        .db-content.active { display: block; }
+
+        .db-table-list { display: flex; flex-wrap: wrap; gap: 12px; }
+
+        .db-table-item {
+            background: var(--bg-secondary);
+            padding: 14px 18px;
+            border-radius: 10px;
+            cursor: pointer;
+            border: 1px solid var(--border-subtle);
+            transition: all 0.2s ease;
+        }
+
+        .db-table-item:hover { border-color: var(--accent-primary); }
+        .db-table-item.active { border-color: var(--accent-cyan); background: rgba(34, 211, 238, 0.1); }
+        .db-table-item .name { color: var(--text-primary); font-weight: 600; }
+        .db-table-item .rows { color: var(--text-muted); font-size: 11px; margin-top: 4px; }
+
+        .db-grid { width: 100%; overflow-x: auto; margin-top: 16px; }
+
+        .db-grid table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        .db-grid th {
+            background: var(--accent-primary);
+            color: white;
+            padding: 12px 14px;
+            text-align: left;
+            white-space: nowrap;
+            font-weight: 600;
+        }
+
+        .db-grid td {
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border-subtle);
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .db-grid tr:hover td { background: var(--bg-card); }
+        .db-grid .null { color: var(--text-muted); font-style: italic; }
+        .db-grid .actions { white-space: nowrap; }
+        .db-grid .actions button { background: none; border: none; color: var(--accent-red); cursor: pointer; padding: 2px 6px; }
+
+        .db-pagination {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-top: 16px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .db-pagination button {
+            padding: 8px 14px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .db-pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .db-pagination button:hover:not(:disabled) { border-color: var(--accent-primary); }
+
+        .db-query-area { margin-top: 16px; }
+
+        .db-query-area textarea {
+            width: 100%;
+            height: 100px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-subtle);
+            color: var(--accent-green);
+            padding: 14px;
+            border-radius: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            resize: vertical;
+        }
+
+        .db-query-area textarea:focus { outline: none; border-color: var(--accent-primary); }
+
+        .db-query-result {
+            margin-top: 16px;
+            padding: 16px;
+            background: var(--bg-primary);
+            border-radius: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow: auto;
+        }
+
+        .db-query-result.error { color: var(--accent-red); }
+        .db-query-result.success { color: var(--accent-green); }
+        .db-no-db { color: var(--text-muted); padding: 32px; text-align: center; }
+
+        /* Backup Section */
+        .backup-actions { display: flex; gap: 12px; margin-bottom: 16px; }
+
+        .backup-list { max-height: 300px; overflow-y: auto; }
+
+        .backup-item {
+            display: flex;
+            align-items: center;
+            padding: 14px 16px;
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            margin-bottom: 10px;
+            gap: 16px;
+        }
+
+        .backup-item:hover { background: var(--bg-card); }
+        .backup-item .info { flex: 1; }
+        .backup-item .filename { color: var(--text-primary); font-size: 13px; font-family: 'JetBrains Mono', monospace; }
+        .backup-item .meta { color: var(--text-muted); font-size: 11px; margin-top: 4px; }
+
+        .backup-item .trigger {
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .backup-item .trigger.auto { background: rgba(99, 102, 241, 0.2); color: var(--accent-primary); }
+        .backup-item .trigger.manual { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); }
+        .backup-item .trigger.close { background: rgba(139, 92, 246, 0.2); color: var(--accent-secondary); }
+        .backup-item .trigger.reopen { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+        .backup-item .trigger.pre-restore { background: rgba(245, 158, 11, 0.2); color: var(--accent-orange); }
+
+        .backup-item .actions { display: flex; gap: 6px; }
+
+        .backup-item .actions button {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+
+        .backup-item .actions button:hover { border-color: var(--accent-primary); }
+        .backup-item .actions button.restore { background: var(--accent-cyan); color: #000; border: none; }
+        .backup-item .actions button.delete { background: var(--accent-red); color: white; border: none; }
+
+        .backup-empty { color: var(--text-muted); text-align: center; padding: 24px; }
+
+        /* Tickets Section */
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .section-header h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .tickets-list { display: flex; flex-direction: column; gap: 12px; }
+
+        .ticket-row {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 4px solid var(--border-subtle);
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.2s ease;
+        }
+
+        .ticket-row:hover {
+            background: var(--bg-card-hover);
+            transform: translateX(4px);
+        }
+
+        .ticket-row.in_progress { border-left-color: var(--accent-cyan); }
+        .ticket-row.open, .ticket-row.new { border-left-color: var(--accent-orange); }
+        .ticket-row.done { border-left-color: var(--accent-green); }
+
+        .ticket-info { flex: 1; }
+        .ticket-info .number { color: var(--accent-cyan); font-weight: 600; font-family: 'JetBrains Mono', monospace; margin-right: 10px; }
+        .ticket-info .title { color: var(--text-primary); }
+        .ticket-info .meta { color: var(--text-muted); font-size: 12px; margin-top: 6px; }
+
+        .ticket-status { min-width: 100px; text-align: right; }
+
+        .status-badge {
+            padding: 5px 14px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-badge.in_progress { background: rgba(34, 211, 238, 0.15); color: var(--accent-cyan); border: 1px solid rgba(34, 211, 238, 0.3); }
+        .status-badge.open, .status-badge.new, .status-badge.pending { background: rgba(245, 158, 11, 0.15); color: var(--accent-orange); border: 1px solid rgba(245, 158, 11, 0.3); }
+        .status-badge.done { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border: 1px solid rgba(16, 185, 129, 0.3); }
+        .status-badge.failed { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); border: 1px solid rgba(239, 68, 68, 0.3); }
+
+        .priority { font-size: 11px; margin-left: 10px; font-weight: 600; }
+        .priority.high, .priority.critical { color: var(--accent-red); }
+        .priority.medium { color: var(--accent-orange); }
+        .priority.low { color: var(--text-muted); }
+
+        .empty { text-align: center; padding: 48px; color: var(--text-muted); }
+
+        /* Modal */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; backdrop-filter: blur(4px); }
+        .modal.active { display: flex; justify-content: center; align-items: center; }
+
+        .modal-content {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 32px;
+            width: 600px;
+            max-width: 90%;
+        }
+
+        .modal-content h3 {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 24px;
+            font-size: 1.25rem;
+        }
+
+        .form-group { margin-bottom: 18px; }
+        .form-group label { display: block; color: var(--text-muted); margin-bottom: 6px; font-size: 13px; font-weight: 500; }
+
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%;
+            padding: 12px 14px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+
+        .form-group textarea { resize: vertical; min-height: 120px; }
+
+        .form-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Aurora Background -->
+    <div class="aurora-bg">
+        <div class="aurora-blob"></div>
+        <div class="aurora-blob"></div>
+        <div class="aurora-blob"></div>
+    </div>
+
+    <!-- Noise Texture -->
+    <div class="noise"></div>
+
+    <div class="header">
+        <h1>{{ project.name if project else 'Project' }}</h1>
+        <div class="nav">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/projects">Projects</a>
+            <a href="/console">Console</a>
+            <a href="/logout">Logout</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="/projects">Projects</a> / {{ project.name if project else 'Unknown' }}
+        </div>
+
+        {% if project %}
+        <div class="project-header">
+            <div style="display:flex;justify-content:space-between;align-items:start">
+                <div>
+                    <h2>{{ project.name }}
+                        {% if project.status == 'archived' %}
+                        <span class="archived-badge">ARCHIVED</span>
+                        {% endif %}
+                    </h2>
+                    <div class="code">{{ project.code }}</div>
+                    <div class="description">{{ project.description or 'No description' }}</div>
+                    <div class="path">{{ project.web_path or project.app_path or 'No path set' }}</div>
+                    {% if project.db_name %}
+                    <div class="db-info">
+                        <div class="db-info-title">Project Database</div>
+                        <div class="row">Host: <code>{{ project.db_host or 'localhost' }}</code></div>
+                        <div class="row">Database: <code>{{ project.db_name }}</code></div>
+                        <div class="row">Username: <code>{{ project.db_user }}</code></div>
+                        <div class="row">Password: <code>{{ project.db_password }}</code></div>
+                    </div>
+                    {% endif %}
+                    <div class="preview-url-section">
+                        <span>Preview URL:</span>
+                        <input type="text" id="previewUrlInput" value="{{ project.preview_url or '' }}" placeholder="https://hostname:9867/path">
+                        <button onclick="savePreviewUrl()" class="btn btn-primary btn-small">Save</button>
+                        {% if project.preview_url %}
+                        <a href="{{ project.preview_url }}" target="_blank" style="color:var(--accent-cyan);font-size:12px">Open</a>
+                        {% endif %}
+                    </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:10px">
+                    <a href="/project/{{ project.id }}/editor" class="btn btn-green">Code Editor</a>
+                    <button onclick="exportProject()" class="btn btn-cyan">Export Project</button>
+                    {% if project.status == 'archived' %}
+                    <button onclick="reopenProject()" class="btn btn-green">Reopen Project</button>
+                    {% else %}
+                    <button onclick="archiveProject()" class="btn btn-secondary">Archive Project</button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Project Usage Stats -->
+        <div class="panel">
+            <h3>Usage Statistics</h3>
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="value" id="proj-tokens">-</div>
+                    <div class="label">Total Tokens</div>
+                </div>
+                <div class="stat-box duration">
+                    <div class="value" id="proj-duration">-</div>
+                    <div class="label">Work Time</div>
+                </div>
+                <div class="stat-box tickets">
+                    <div class="value" id="proj-tickets">0</div>
+                    <div class="label">Tickets Worked</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Section -->
+        <div class="panel">
+            <h3>Upload Files</h3>
+            <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+                <input type="file" id="fileInput" multiple onchange="handleFiles(this.files)">
+                <p>Click or drag files here to upload</p>
+                <div class="hint">Files will be uploaded to: {{ project.web_path or project.app_path or 'No path configured' }}</div>
+            </div>
+            <div class="upload-subdir">
+                <span>Subdirectory:</span>
+                <input type="text" id="subdirInput" placeholder="e.g. assets/images (optional)">
+            </div>
+            <div class="upload-progress" id="uploadProgress">
+                Uploading...
+            </div>
+            <div class="upload-result" id="uploadResult"></div>
+
+            <!-- File Browser -->
+            <div class="file-browser">
+                <div class="file-browser-header">
+                    <h4>Project Files</h4>
+                    <button onclick="loadFiles()" class="btn btn-secondary btn-small">Refresh</button>
+                </div>
+                <div class="file-path" id="filePath"></div>
+                <div class="file-list" id="fileList">
+                    <div class="file-loading">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Database Editor Section -->
+        {% if project.db_name %}
+        <div class="panel">
+            <h3>Database Editor</h3>
+            <div class="db-tabs">
+                <button class="db-tab active" onclick="switchDbTab('tables')">Tables</button>
+                <button class="db-tab" onclick="switchDbTab('structure')">Structure</button>
+                <button class="db-tab" onclick="switchDbTab('data')">Data</button>
+                <button class="db-tab" onclick="switchDbTab('query')">SQL Query</button>
+            </div>
+
+            <!-- Tables Tab -->
+            <div class="db-content active" id="db-tables">
+                <div class="db-table-list" id="dbTableList">
+                    <div style="color:var(--text-muted)">Loading tables...</div>
+                </div>
+            </div>
+
+            <!-- Structure Tab -->
+            <div class="db-content" id="db-structure">
+                <p style="color:var(--text-muted);margin-bottom:12px">Select a table to view its structure</p>
+                <div id="dbStructure"></div>
+            </div>
+
+            <!-- Data Tab -->
+            <div class="db-content" id="db-data">
+                <p style="color:var(--text-muted);margin-bottom:12px">Select a table to view its data</p>
+                <div id="dbData"></div>
+                <div class="db-pagination" id="dbPagination" style="display:none">
+                    <button onclick="loadTableData(currentTable, currentPage - 1)" id="btnPrev">Prev</button>
+                    <span id="pageInfo">Page 1 of 1</span>
+                    <button onclick="loadTableData(currentTable, currentPage + 1)" id="btnNext">Next</button>
+                </div>
+            </div>
+
+            <!-- Query Tab -->
+            <div class="db-content" id="db-query">
+                <div class="db-query-area">
+                    <textarea id="sqlQuery" placeholder="SELECT * FROM table_name LIMIT 10;"></textarea>
+                    <div style="margin-top:12px;display:flex;gap:12px;align-items:center">
+                        <button onclick="runQuery()" class="btn btn-primary">Run Query</button>
+                        <span style="color:var(--text-muted);font-size:12px">Tip: SELECT, INSERT, UPDATE, DELETE supported</span>
+                    </div>
+                </div>
+                <div id="queryResult"></div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Backup Section -->
+        <div class="panel">
+            <h3>Backups</h3>
+            <div class="backup-actions">
+                <button onclick="createBackup()" class="btn btn-primary">Create Backup Now</button>
+                <button onclick="loadBackups()" class="btn btn-secondary">Refresh</button>
+            </div>
+            <div class="backup-list" id="backupList">
+                <div class="backup-empty">Loading backups...</div>
+            </div>
+        </div>
+
+        <div class="section-header">
+            <h3>Tickets</h3>
+            <button class="btn btn-primary" onclick="showModal()">+ New Ticket</button>
+        </div>
+
+        <div class="tickets-list">
+            {% if tickets %}
+                {% for t in tickets %}
+                <a href="/ticket/{{ t.id }}" class="ticket-row {{ t.status }}">
+                    <div class="ticket-info">
+                        <span class="number">{{ t.ticket_number }}</span>
+                        <span class="title">{{ t.title }}</span>
+                        <span class="priority {{ t.priority }}">{{ t.priority|upper }}</span>
+                        <div class="meta">Created {{ t.created_at.strftime('%Y-%m-%d %H:%M') if t.created_at else 'N/A' }}</div>
+                    </div>
+                    <div class="ticket-status">
+                        <span class="status-badge {{ t.status }}">{{ t.status }}</span>
+                    </div>
+                </a>
+                {% endfor %}
+            {% else %}
+                <div class="empty">
+                    <p>No tickets yet. Create your first ticket!</p>
+                </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="empty">
+            <p>Project not found.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- New Ticket Modal -->
+    <div class="modal" id="newTicketModal">
+        <div class="modal-content">
+            <h3>Create New Ticket</h3>
+            <form id="ticketForm" onsubmit="createTicket(event)">
+                <div class="form-group">
+                    <label>Title *</label>
+                    <input type="text" name="title" required placeholder="e.g. Build login page with authentication">
+                </div>
+                <div class="form-group">
+                    <label>Description *</label>
+                    <textarea name="description" required placeholder="Describe what needs to be done in detail..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Priority</label>
+                    <select name="priority">
+                        <option value="low">Low</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="high">High</option>
+                        <option value="critical">Critical</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="hideModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Ticket</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const projectId = {{ project.id if project else 0 }};
+
+        // Load project usage stats
+        function formatNumber(num) {
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            return num.toString();
+        }
+
+        async function loadProjectStats() {
+            try {
+                const resp = await fetch(`/api/stats/project/${projectId}`);
+                const data = await resp.json();
+                if (data.error) return;
+
+                document.getElementById('proj-tokens').textContent = formatNumber(data.totals?.total_tokens || 0);
+                document.getElementById('proj-duration').textContent = data.totals?.duration_formatted || '0s';
+                document.getElementById('proj-tickets').textContent = data.totals?.tickets_worked || 0;
+            } catch (e) {
+                console.error('Failed to load project stats:', e);
+            }
+        }
+
+        // Load stats on page load
+        if (projectId) loadProjectStats();
+
+        function showModal() {
+            document.getElementById('newTicketModal').classList.add('active');
+        }
+
+        function hideModal() {
+            document.getElementById('newTicketModal').classList.remove('active');
+            document.getElementById('ticketForm').reset();
+        }
+
+        async function createTicket(e) {
+            e.preventDefault();
+            const form = e.target;
+            const data = {
+                project_id: projectId,
+                title: form.title.value,
+                description: form.description.value,
+                priority: form.priority.value
+            };
+
+            const resp = await fetch('/api/tickets', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+
+            const result = await resp.json();
+            if (result.success) {
+                window.location.href = '/ticket/' + result.ticket_id;
+            } else {
+                alert('Error: ' + result.message);
+            }
+        }
+
+        document.getElementById('newTicketModal').addEventListener('click', function(e) {
+            if (e.target === this) hideModal();
+        });
+
+        async function archiveProject() {
+            if (!confirm('Archive this project? It will be hidden from the main list.')) return;
+
+            const resp = await fetch(`/api/project/${projectId}/archive`, {method: 'POST'});
+            const result = await resp.json();
+            if (result.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        }
+
+        async function reopenProject() {
+            const resp = await fetch(`/api/project/${projectId}/reopen`, {method: 'POST'});
+            const result = await resp.json();
+            if (result.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        }
+
+        async function savePreviewUrl() {
+            const url = document.getElementById('previewUrlInput').value.trim();
+            const resp = await fetch(`/api/project/${projectId}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({preview_url: url})
+            });
+            const result = await resp.json();
+            if (result.success) {
+                alert('Preview URL saved!');
+                location.reload();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        }
+
+        function exportProject() {
+            if (!confirm('Export project? This will create a zip with files and database.')) return;
+            window.location.href = `/api/project/${projectId}/export`;
+        }
+
+        // File Upload
+        const uploadArea = document.getElementById('uploadArea');
+        const uploadProgress = document.getElementById('uploadProgress');
+        const uploadResult = document.getElementById('uploadResult');
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        async function handleFiles(files) {
+            if (!files.length) return;
+
+            const formData = new FormData();
+            for (let file of files) {
+                formData.append('files', file);
+            }
+            const subdir = document.getElementById('subdirInput').value.trim();
+            if (subdir) {
+                formData.append('subdir', subdir);
+            }
+
+            uploadProgress.classList.add('active');
+            uploadResult.className = 'upload-result';
+            uploadResult.textContent = '';
+
+            try {
+                const resp = await fetch(`/api/project/${projectId}/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await resp.json();
+
+                uploadProgress.classList.remove('active');
+
+                if (result.success) {
+                    uploadResult.className = 'upload-result success';
+                    uploadResult.textContent = `Uploaded ${result.count} file(s) to ${result.directory}`;
+                } else {
+                    uploadResult.className = 'upload-result error';
+                    uploadResult.textContent = result.message;
+                }
+            } catch (err) {
+                uploadProgress.classList.remove('active');
+                uploadResult.className = 'upload-result error';
+                uploadResult.textContent = 'Upload failed: ' + err.message;
+            }
+
+            document.getElementById('fileInput').value = '';
+            loadFiles();
+        }
+
+        // === FILE BROWSER ===
+        let currentSubdir = '';
+
+        async function loadFiles(subdir = '') {
+            currentSubdir = subdir;
+            const fileList = document.getElementById('fileList');
+            const filePath = document.getElementById('filePath');
+
+            fileList.innerHTML = '<div class="file-loading">Loading...</div>';
+
+            try {
+                const url = `/api/project/${projectId}/files${subdir ? '?subdir=' + encodeURIComponent(subdir) : ''}`;
+                const resp = await fetch(url);
+                const result = await resp.json();
+
+                if (!result.success) {
+                    fileList.innerHTML = `<div class="file-empty">Error: ${result.message}</div>`;
+                    return;
+                }
+
+                let pathHtml = '<a onclick="loadFiles(\'\')">root</a>';
+                if (subdir) {
+                    const parts = subdir.split('/');
+                    let accumulated = '';
+                    for (let part of parts) {
+                        accumulated = accumulated ? accumulated + '/' + part : part;
+                        const acc = accumulated;
+                        pathHtml += ` / <a onclick="loadFiles('${acc}')">${part}</a>`;
+                    }
+                }
+                filePath.innerHTML = pathHtml;
+
+                if (result.files.length === 0) {
+                    fileList.innerHTML = '<div class="file-empty">No files yet</div>';
+                    return;
+                }
+
+                fileList.innerHTML = result.files.map(f => {
+                    const icon = f.is_dir ? '&#128193;' : getFileIcon(f.name);
+                    const sizeStr = f.is_dir ? '' : formatSize(f.size);
+                    const nameClass = f.is_dir ? 'file-name is-dir' : 'file-name';
+                    const clickAction = f.is_dir ? `loadFiles('${f.path}')` : '';
+
+                    return `
+                        <div class="file-item">
+                            <span class="file-icon">${icon}</span>
+                            <span class="${nameClass}" ${clickAction ? `onclick="${clickAction}"` : ''}>${f.name}</span>
+                            <span class="file-size">${sizeStr}</span>
+                            <button class="file-delete" onclick="deleteFile('${f.path}')" title="Delete">&#128465;</button>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (err) {
+                fileList.innerHTML = `<div class="file-empty">Error loading files</div>`;
+            }
+        }
+
+        function getFileIcon(name) {
+            const ext = name.split('.').pop().toLowerCase();
+            const icons = {
+                'php': '&#128024;', 'js': '&#128220;', 'css': '&#127912;', 'html': '&#127760;',
+                'json': '&#128203;', 'sql': '&#128452;', 'md': '&#128221;', 'txt': '&#128196;',
+                'png': '&#128444;', 'jpg': '&#128444;', 'jpeg': '&#128444;', 'gif': '&#128444;', 'svg': '&#128444;',
+                'pdf': '&#128213;', 'zip': '&#128230;', 'py': '&#128013;', 'java': '&#9749;'
+            };
+            return icons[ext] || '&#128196;';
+        }
+
+        function formatSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        async function deleteFile(path) {
+            if (!confirm(`Delete "${path}"?`)) return;
+
+            try {
+                const resp = await fetch(`/api/project/${projectId}/files/delete`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({path: path})
+                });
+                const result = await resp.json();
+
+                if (result.success) {
+                    loadFiles(currentSubdir);
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (err) {
+                alert('Delete failed: ' + err.message);
+            }
+        }
+
+        loadFiles();
+
+        // === DATABASE EDITOR ===
+        let currentTable = null;
+        let currentPage = 1;
+        let totalPages = 1;
+        const hasDatabase = {{ 'true' if project.db_name else 'false' }};
+
+        function switchDbTab(tabName) {
+            document.querySelectorAll('.db-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.db-content').forEach(c => c.classList.remove('active'));
+
+            event.target.classList.add('active');
+            document.getElementById(`db-${tabName}`).classList.add('active');
+        }
+
+        async function loadDbTables() {
+            if (!hasDatabase) return;
+
+            const container = document.getElementById('dbTableList');
+            container.innerHTML = '<div style="color:var(--text-muted)">Loading tables...</div>';
+
+            try {
+                const resp = await fetch(`/api/project/${projectId}/db/tables`);
+                const result = await resp.json();
+
+                if (!result.success) {
+                    container.innerHTML = `<div style="color:var(--accent-red)">${result.message}</div>`;
+                    return;
+                }
+
+                if (result.tables.length === 0) {
+                    container.innerHTML = '<div style="color:var(--text-muted)">No tables found</div>';
+                    return;
+                }
+
+                container.innerHTML = result.tables.map(t => `
+                    <div class="db-table-item ${currentTable === t.name ? 'active' : ''}" onclick="selectTable('${t.name}')">
+                        <div class="name">${t.name}</div>
+                        <div class="rows">${t.rows} rows</div>
+                    </div>
+                `).join('');
+
+            } catch (err) {
+                container.innerHTML = `<div style="color:var(--accent-red)">Error: ${err.message}</div>`;
+            }
+        }
+
+        function selectTable(tableName) {
+            currentTable = tableName;
+            currentPage = 1;
+
+            document.querySelectorAll('.db-table-item').forEach(el => {
+                el.classList.toggle('active', el.querySelector('.name').textContent.includes(tableName));
+            });
+
+            loadTableStructure(tableName);
+            loadTableData(tableName, 1);
+        }
+
+        async function loadTableStructure(tableName) {
+            const container = document.getElementById('dbStructure');
+            container.innerHTML = '<div style="color:var(--text-muted)">Loading structure...</div>';
+
+            try {
+                const resp = await fetch(`/api/project/${projectId}/db/table/${tableName}/structure`);
+                const result = await resp.json();
+
+                if (!result.success) {
+                    container.innerHTML = `<div style="color:var(--accent-red)">${result.message}</div>`;
+                    return;
+                }
+
+                let html = `<h4 style="color:var(--accent-cyan);margin-bottom:12px">${tableName}</h4>`;
+                html += '<div class="db-grid"><table><thead><tr>';
+                html += '<th>Column</th><th>Type</th><th>Null</th><th>Key</th><th>Default</th><th>Extra</th>';
+                html += '</tr></thead><tbody>';
+
+                result.columns.forEach(col => {
+                    html += `<tr>
+                        <td>${col.Field}</td>
+                        <td>${col.Type}</td>
+                        <td>${col.Null}</td>
+                        <td>${col.Key || '-'}</td>
+                        <td>${col.Default !== null ? col.Default : '<span class="null">NULL</span>'}</td>
+                        <td>${col.Extra || '-'}</td>
+                    </tr>`;
+                });
+
+                html += '</tbody></table></div>';
+                container.innerHTML = html;
+
+            } catch (err) {
+                container.innerHTML = `<div style="color:var(--accent-red)">Error: ${err.message}</div>`;
+            }
+        }
+
+        async function loadTableData(tableName, page = 1) {
+            const container = document.getElementById('dbData');
+            const pagination = document.getElementById('dbPagination');
+
+            container.innerHTML = '<div style="color:var(--text-muted)">Loading data...</div>';
+
+            try {
+                const resp = await fetch(`/api/project/${projectId}/db/table/${tableName}/data?page=${page}&per_page=50`);
+                const result = await resp.json();
+
+                if (!result.success) {
+                    container.innerHTML = `<div style="color:var(--accent-red)">${result.message}</div>`;
+                    pagination.style.display = 'none';
+                    return;
+                }
+
+                currentPage = result.page;
+                totalPages = result.pages;
+
+                if (result.rows.length === 0) {
+                    container.innerHTML = '<div style="color:var(--text-muted)">No data in this table</div>';
+                    pagination.style.display = 'none';
+                    return;
+                }
+
+                const columns = Object.keys(result.rows[0]);
+                let html = `<h4 style="color:var(--accent-cyan);margin-bottom:12px">${tableName} (${result.total} rows)</h4>`;
+                html += '<div class="db-grid"><table><thead><tr>';
+                columns.forEach(col => html += `<th>${col}</th>`);
+                html += '<th>Actions</th></tr></thead><tbody>';
+
+                result.rows.forEach(row => {
+                    html += '<tr>';
+                    columns.forEach(col => {
+                        const val = row[col];
+                        if (val === null) {
+                            html += '<td><span class="null">NULL</span></td>';
+                        } else {
+                            const display = String(val).length > 50 ? String(val).substring(0, 50) + '...' : val;
+                            html += `<td title="${String(val).replace(/"/g, '&quot;')}">${escapeHtml(display)}</td>`;
+                        }
+                    });
+                    html += `<td class="actions"><button onclick="deleteRow('${tableName}', ${JSON.stringify(row).replace(/'/g, "\\'")})" title="Delete">&#128465;</button></td>`;
+                    html += '</tr>';
+                });
+
+                html += '</tbody></table></div>';
+                container.innerHTML = html;
+
+                pagination.style.display = 'flex';
+                document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${totalPages} (${result.total} total)`;
+                document.getElementById('btnPrev').disabled = currentPage <= 1;
+                document.getElementById('btnNext').disabled = currentPage >= totalPages;
+
+            } catch (err) {
+                container.innerHTML = `<div style="color:var(--accent-red)">Error: ${err.message}</div>`;
+                pagination.style.display = 'none';
+            }
+        }
+
+        async function deleteRow(tableName, row) {
+            if (!confirm('Delete this row?')) return;
+
+            try {
+                const resp = await fetch(`/api/project/${projectId}/db/table/${tableName}/row`, {
+                    method: 'DELETE',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({where: row})
+                });
+                const result = await resp.json();
+
+                if (result.success) {
+                    loadTableData(tableName, currentPage);
+                    loadDbTables();
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (err) {
+                alert('Delete failed: ' + err.message);
+            }
+        }
+
+        async function runQuery() {
+            const query = document.getElementById('sqlQuery').value.trim();
+            const resultEl = document.getElementById('queryResult');
+
+            if (!query) {
+                resultEl.className = 'db-query-result error';
+                resultEl.textContent = 'Please enter a SQL query';
+                return;
+            }
+
+            resultEl.className = 'db-query-result';
+            resultEl.textContent = 'Running query...';
+
+            try {
+                const resp = await fetch(`/api/project/${projectId}/db/query`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({query: query})
+                });
+                const result = await resp.json();
+
+                if (!result.success) {
+                    resultEl.className = 'db-query-result error';
+                    resultEl.textContent = 'Error: ' + result.message;
+                    return;
+                }
+
+                if (result.rows) {
+                    if (result.rows.length === 0) {
+                        resultEl.className = 'db-query-result success';
+                        resultEl.textContent = 'Query returned 0 rows';
+                        return;
+                    }
+
+                    const columns = Object.keys(result.rows[0]);
+                    let html = `<div style="color:var(--accent-green);margin-bottom:12px">${result.rows.length} row(s) returned</div>`;
+                    html += '<div class="db-grid"><table><thead><tr>';
+                    columns.forEach(col => html += `<th>${col}</th>`);
+                    html += '</tr></thead><tbody>';
+
+                    result.rows.forEach(row => {
+                        html += '<tr>';
+                        columns.forEach(col => {
+                            const val = row[col];
+                            if (val === null) {
+                                html += '<td><span class="null">NULL</span></td>';
+                            } else {
+                                html += `<td>${escapeHtml(String(val))}</td>`;
+                            }
+                        });
+                        html += '</tr>';
+                    });
+
+                    html += '</tbody></table></div>';
+                    resultEl.className = 'db-query-result';
+                    resultEl.innerHTML = html;
+                } else {
+                    resultEl.className = 'db-query-result success';
+                    resultEl.textContent = result.message || `${result.affected} row(s) affected`;
+                    loadDbTables();
+                }
+
+            } catch (err) {
+                resultEl.className = 'db-query-result error';
+                resultEl.textContent = 'Error: ' + err.message;
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        if (hasDatabase) {
+            loadDbTables();
+        }
+
+        // === BACKUP FUNCTIONS ===
+        async function loadBackups() {
+            const container = document.getElementById('backupList');
+            container.innerHTML = '<div class="backup-empty">Loading backups...</div>';
+
+            try {
+                const resp = await fetch(`/api/project/${projectId}/backups`);
+                const result = await resp.json();
+
+                if (!result.success) {
+                    container.innerHTML = `<div class="backup-empty" style="color:var(--accent-red)">${result.message}</div>`;
+                    return;
+                }
+
+                if (result.backups.length === 0) {
+                    container.innerHTML = '<div class="backup-empty">No backups yet. Backups are created automatically when tickets start processing.</div>';
+                    return;
+                }
+
+                container.innerHTML = result.backups.map(b => {
+                    const date = new Date(b.created).toLocaleString();
+                    const size = formatSize(b.size);
+                    const triggerMap = {'auto': 'auto', 'manual': 'manual', 'close': 'close', 'reopen': 'reopen', 'pre-restore': 'pre-restore'};
+                    const triggerClass = triggerMap[b.trigger] || 'auto';
+
+                    return `
+                        <div class="backup-item">
+                            <span class="trigger ${triggerClass}">${b.trigger}</span>
+                            <div class="info">
+                                <div class="filename">${b.filename}</div>
+                                <div class="meta">${date} - ${size}</div>
+                            </div>
+                            <div class="actions">
+                                <button onclick="downloadBackup('${b.filename}')">Download</button>
+                                <button class="restore" onclick="restoreBackup('${b.filename}')">Restore</button>
+                                <button class="delete" onclick="deleteBackup('${b.filename}')">Delete</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (err) {
+                container.innerHTML = `<div class="backup-empty" style="color:var(--accent-red)">Error loading backups</div>`;
+            }
+        }
+
+        async function createBackup() {
+            if (!confirm('Create a backup now?')) return;
+
+            try {
+                const resp = await fetch(`/api/project/${projectId}/backup`, {method: 'POST'});
+                const result = await resp.json();
+
+                if (result.success) {
+                    alert('Backup created: ' + result.filename);
+                    loadBackups();
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (err) {
+                alert('Error creating backup: ' + err.message);
+            }
+        }
+
+        function downloadBackup(filename) {
+            window.location.href = `/api/project/${projectId}/backup/${filename}`;
+        }
+
+        async function restoreBackup(filename) {
+            if (!confirm('Restore from this backup? A pre-restore backup will be created first.')) return;
+
+            try {
+                const resp = await fetch(`/api/project/${projectId}/restore`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({filename: filename})
+                });
+                const result = await resp.json();
+
+                if (result.success) {
+                    alert('Restore completed successfully!');
+                    loadBackups();
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (err) {
+                alert('Error restoring: ' + err.message);
+            }
+        }
+
+        async function deleteBackup(filename) {
+            if (!confirm('Delete this backup?')) return;
+
+            try {
+                const resp = await fetch(`/api/project/${projectId}/backup/${filename}`, {method: 'DELETE'});
+                const result = await resp.json();
+
+                if (result.success) {
+                    loadBackups();
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (err) {
+                alert('Error deleting: ' + err.message);
+            }
+        }
+
+        loadBackups();
+    </script>
+</body>
+</html>

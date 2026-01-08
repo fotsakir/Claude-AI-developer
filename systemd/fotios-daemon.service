@@ -1,0 +1,19 @@
+[Unit]
+Description=Fotios Claude Daemon (Multi-Worker)
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=claude-worker
+Group=claude-worker
+WorkingDirectory=/home/claude-worker
+Environment=HOME=/home/claude-worker
+ExecStart=/usr/bin/python3 /opt/fotios-claude/scripts/claude-daemon.py
+Restart=always
+RestartSec=10
+
+# Allow write to projects and logs
+ReadWritePaths=/var/www/projects /opt/apps /var/log/fotios-claude /var/run/fotios-claude /home/claude-worker /tmp
+
+[Install]
+WantedBy=multi-user.target
