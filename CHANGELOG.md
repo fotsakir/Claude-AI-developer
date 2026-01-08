@@ -2,6 +2,13 @@
 
 All notable changes to Fotios Claude System will be documented in this file.
 
+## [2.26.7] - 2026-01-08
+
+### Added
+- **Screenshots**: Added ticket detail and console screenshots to README
+
+---
+
 ## [2.26.6] - 2026-01-08
 
 ### Added

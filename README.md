@@ -3,7 +3,7 @@
 ### Self-hosted AI Coding Agent powered by Claude | Autonomous Development Platform
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.26.6-green.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.26.7-green.svg)](CHANGELOG.md)
 [![Ubuntu](https://img.shields.io/badge/Ubuntu-22.04%20|%2024.04-orange.svg)]()
 [![Claude AI](https://img.shields.io/badge/Powered%20by-Claude%20AI-blueviolet.svg)](https://anthropic.com)
 
@@ -33,6 +33,12 @@ This is not science fiction. This is happening now. And this project lets you ex
 
 ![Projects](screenshots/projects.png)
 *Projects - Manage multiple projects with isolated environments*
+
+![Ticket Detail](screenshots/ticket-detail.png)
+*Ticket Detail - Claude's response with code and conversation history*
+
+![Console](screenshots/console.png)
+*Console - Real-time view of Claude working on tickets*
 
 ---
 
@@ -80,7 +86,7 @@ This is not science fiction. This is happening now. And this project lets you ex
 ```bash
 # Download, extract, and run
 cd /root
-unzip fotios-claude-system-2.26.6.zip
+unzip fotios-claude-system-2.26.7.zip
 cd fotios-claude-system
 chmod +x setup.sh && ./setup.sh
 
