@@ -2,6 +2,14 @@
 
 All notable changes to Fotios Claude System will be documented in this file.
 
+## [2.26.8] - 2026-01-08
+
+### Added
+- **Logo**: Added SVG logo banner to README
+- **Badges**: Centered badges with GitHub stars counter
+
+---
+
 ## [2.26.7] - 2026-01-08
 
 ### Added

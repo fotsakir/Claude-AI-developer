@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#16213e"/>
+    </linearGradient>
+    <linearGradient id="aiGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00d4aa"/>
+      <stop offset="100%" style="stop-color:#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#00d4aa"/>
+      <stop offset="50%" style="stop-color:#06b6d4"/>
+      <stop offset="100%" style="stop-color:#7c3aed"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="200" rx="20" fill="url(#bgGrad)"/>
+
+  <!-- AI Brain/Circuit Icon -->
+  <g transform="translate(40, 30)">
+    <!-- Outer circle -->
+    <circle cx="70" cy="70" r="60" fill="none" stroke="url(#aiGrad)" stroke-width="3"/>
+
+    <!-- Brain circuits -->
+    <circle cx="70" cy="70" r="40" fill="none" stroke="#00d4aa" stroke-width="2" opacity="0.6"/>
+    <circle cx="70" cy="70" r="20" fill="none" stroke="#7c3aed" stroke-width="2" opacity="0.8"/>
+
+    <!-- Neural nodes -->
+    <circle cx="70" cy="30" r="6" fill="#00d4aa"/>
+    <circle cx="110" cy="70" r="6" fill="#06b6d4"/>
+    <circle cx="70" cy="110" r="6" fill="#7c3aed"/>
+    <circle cx="30" cy="70" r="6" fill="#00d4aa"/>
+
+    <!-- Diagonal nodes -->
+    <circle cx="98" cy="42" r="4" fill="#06b6d4"/>
+    <circle cx="98" cy="98" r="4" fill="#7c3aed"/>
+    <circle cx="42" cy="98" r="4" fill="#00d4aa"/>
+    <circle cx="42" cy="42" r="4" fill="#06b6d4"/>
+
+    <!-- Center -->
+    <circle cx="70" cy="70" r="8" fill="url(#aiGrad)"/>
+
+    <!-- Connection lines -->
+    <line x1="70" y1="36" x2="70" y2="62" stroke="#00d4aa" stroke-width="2" opacity="0.5"/>
+    <line x1="78" y1="70" x2="104" y2="70" stroke="#06b6d4" stroke-width="2" opacity="0.5"/>
+    <line x1="70" y1="78" x2="70" y2="104" stroke="#7c3aed" stroke-width="2" opacity="0.5"/>
+    <line x1="36" y1="70" x2="62" y2="70" stroke="#00d4aa" stroke-width="2" opacity="0.5"/>
+  </g>
+
+  <!-- Terminal bracket -->
+  <g transform="translate(170, 55)">
+    <text x="0" y="60" font-family="monospace" font-size="80" font-weight="bold" fill="#00d4aa" opacity="0.8">&gt;_</text>
+  </g>
+
+  <!-- Main Text -->
+  <text x="290" y="95" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="url(#textGrad)">Claude AI</text>
+  <text x="290" y="145" font-family="Arial, sans-serif" font-size="28" fill="#94a3b8">Developer</text>
+
+  <!-- Tagline -->
+  <text x="540" y="130" font-family="Arial, sans-serif" font-size="14" fill="#64748b">Autonomous Coding Agent</text>
+
+  <!-- Code symbols decoration -->
+  <text x="700" y="60" font-family="monospace" font-size="20" fill="#00d4aa" opacity="0.4">{ }</text>
+  <text x="720" y="90" font-family="monospace" font-size="16" fill="#7c3aed" opacity="0.4">/&gt;</text>
+  <text x="700" y="120" font-family="monospace" font-size="18" fill="#06b6d4" opacity="0.4">( )</text>
+  <text x="730" y="150" font-family="monospace" font-size="14" fill="#00d4aa" opacity="0.4">[ ]</text>
+</svg>

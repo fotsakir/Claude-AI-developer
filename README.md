@@ -1,11 +1,20 @@
-# Fotios Claude System
+<p align="center">
+  <img src="assets/logo.svg" alt="Claude AI Developer" width="700">
+</p>
 
-### Self-hosted AI Coding Agent powered by Claude | Autonomous Development Platform
+<h1 align="center">Fotios Claude System</h1>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.26.7-green.svg)](CHANGELOG.md)
-[![Ubuntu](https://img.shields.io/badge/Ubuntu-22.04%20|%2024.04-orange.svg)]()
-[![Claude AI](https://img.shields.io/badge/Powered%20by-Claude%20AI-blueviolet.svg)](https://anthropic.com)
+<p align="center">
+  <strong>Self-hosted AI Coding Agent powered by Claude | Autonomous Development Platform</strong>
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-2.26.8-green.svg" alt="Version"></a>
+  <img src="https://img.shields.io/badge/Ubuntu-22.04%20|%2024.04-orange.svg" alt="Ubuntu">
+  <a href="https://anthropic.com"><img src="https://img.shields.io/badge/Powered%20by-Claude%20AI-blueviolet.svg" alt="Claude AI"></a>
+  <a href="https://github.com/fotsakir/Claude-AI-developer/stargazers"><img src="https://img.shields.io/github/stars/fotsakir/Claude-AI-developer?style=social" alt="Stars"></a>
+</p>
 
 > **Transform your development workflow with an AI agent that writes code, manages projects, and works autonomously on your tickets.**
 
@@ -86,7 +95,7 @@ This is not science fiction. This is happening now. And this project lets you ex
 ```bash
 # Download, extract, and run
 cd /root
-unzip fotios-claude-system-2.26.7.zip
+unzip fotios-claude-system-2.26.8.zip
 cd fotios-claude-system
 chmod +x setup.sh && ./setup.sh
 
