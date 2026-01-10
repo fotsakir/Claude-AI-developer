@@ -5,6 +5,30 @@ All notable changes to the Fotios Claude System will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.37.0] - 2026-01-10
+
+### Changed
+- **New messaging**: Emphasize long-running unattended development
+  - "Set it. Forget it. Wake up to working code."
+  - "Master code from a new perspective"
+  - Updated README, website, and all meta tags
+- **Philosophy shift**: From "autonomous agent" to "unattended development"
+  - Focus on Claude working for hours while you sleep
+  - You architect, Claude builds
+
+## [2.36.0] - 2026-01-10
+
+### Added
+- **Pop-out File Explorer**: New standalone window for browsing project files
+  - Accessible from Project Detail page with "Pop Out" button
+  - Full file browser functionality in a separate window
+- **Pop-out Code Editor**: Button to open editor in new window
+  - Opens from both Project Detail and Editor pages
+  - Allows multi-window workflow
+
+### Fixed
+- **Daemon logs**: Fixed duplicate log entries (removed redundant print statements)
+
 ## [2.35.0] - 2026-01-10
 
 ### Changed

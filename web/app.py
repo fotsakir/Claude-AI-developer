@@ -727,6 +727,23 @@ def get_project_path(project_id):
     return project.get('web_path') or project.get('app_path')
 
 
+@app.route('/project/<int:project_id>/files')
+@login_required
+def project_files_popup(project_id):
+    """File explorer popup window"""
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM projects WHERE id = %s", (project_id,))
+    project = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    if not project:
+        return "Project not found", 404
+
+    return render_template('file_explorer.html', project=project)
+
+
 @app.route('/project/<int:project_id>/editor')
 @login_required
 def project_editor(project_id):

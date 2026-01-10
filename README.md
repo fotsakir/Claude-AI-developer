@@ -5,30 +5,32 @@
 <h1 align="center">Fotios Claude System</h1>
 
 <p align="center">
-  <strong>Self-hosted AI Coding Agent powered by Claude | Autonomous Development Platform</strong>
+  <strong>Self-hosted AI Coding Agent | Long-Running Unattended Development | Master Code From a New Perspective</strong>
 </p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-2.35.0-green.svg" alt="Version"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-2.37.0-green.svg" alt="Version"></a>
   <img src="https://img.shields.io/badge/Ubuntu-22.04%20|%2024.04-orange.svg" alt="Ubuntu">
   <a href="https://anthropic.com"><img src="https://img.shields.io/badge/Powered%20by-Claude%20AI-blueviolet.svg" alt="Claude AI"></a>
   <a href="https://github.com/fotsakir/Claude-AI-developer/stargazers"><img src="https://img.shields.io/github/stars/fotsakir/Claude-AI-developer?style=social" alt="Stars"></a>
 </p>
 
-> **Transform your development workflow with an AI agent that writes code, manages projects, and works autonomously on your tickets.**
+> **Set it. Forget it. Wake up to working code.** An AI agent that works for hours unattended, writing production code while you sleep, eat, or focus on what matters.
 
-Fotios Claude System is a **self-hosted autonomous development platform** that uses [Claude AI](https://anthropic.com) (via Claude Code CLI) to process development tickets, write production-ready code, and manage multiple projects in parallel. Perfect for solo developers, small teams, or anyone who wants an AI coding assistant running on their own infrastructure.
+Fotios Claude System is a **self-hosted platform for long-running, unattended AI development**. Unlike chat-based AI tools that need constant hand-holding, this system lets Claude work independently for hours - processing tickets, writing code, and building features while you're away. It's a **new way to master development**: you architect, you direct, Claude executes. Perfect for developers who want to multiply their output without multiplying their hours.
 
 ---
 
-## A Glimpse Into the Future
+## A New Way to Master Development
 
-> **This project is a Proof of Concept** demonstrating the future of software development through human-AI collaboration.
+> **Stop babysitting AI. Start directing it.**
 
-We believe the next era of programming will not be humans writing code alone, but **humans and AI working together** - where developers describe what they need, and AI agents translate those ideas into working software. Fotios Claude System is an early experiment in this direction: a platform where you create tickets, and an AI agent autonomously writes the code.
+Traditional AI coding assistants require you to sit there, prompting, reviewing, prompting again. That's not leverage - that's just typing with extra steps.
 
-This is not science fiction. This is happening now. And this project lets you experience it on your own infrastructure.
+Fotios Claude System flips the script: **you become the architect, Claude becomes your development team**. Write a ticket describing what you need. Walk away. Come back to find working code, tests, and documentation. This is development mastery from a completely new angle - you focus on the *what* and *why*, while AI handles the *how*.
+
+This isn't about replacing developers. It's about **amplifying what you can accomplish** in a day, a week, a lifetime.
 
 ---
 
@@ -55,10 +57,11 @@ This is not science fiction. This is happening now. And this project lets you ex
 
 | Challenge | Solution |
 |-----------|----------|
-| "I have too many tasks and not enough time" | AI processes tickets autonomously while you focus on other work |
-| "I want AI assistance but need data privacy" | Self-hosted on your own server - your code never leaves your infrastructure |
-| "Managing multiple projects is overwhelming" | Parallel execution handles multiple projects simultaneously |
-| "I need to track what the AI is doing" | Real-time monitoring shows exactly what Claude is writing |
+| "AI tools need constant prompting" | **Set it and forget it** - Claude works for hours unattended |
+| "I want to code more, but time is limited" | **Multiply your output** - wake up to completed features |
+| "Chat-based AI feels like extra work" | **True autonomy** - describe once, Claude figures out the rest |
+| "I need my code to stay private" | **Self-hosted** - your code never leaves your infrastructure |
+| "I want to think bigger, not type more" | **Master from above** - architect solutions, let AI build them |
 
 ## Key Features
 
@@ -170,7 +173,7 @@ Full Linux terminal in your browser:
 ```bash
 # Download, extract, and run
 cd /root
-unzip fotios-claude-system-2.35.0.zip
+unzip fotios-claude-system-2.37.0.zip
 cd fotios-claude-system
 chmod +x setup.sh && ./setup.sh
 
@@ -190,7 +193,7 @@ The installer automatically sets up:
 ```bash
 # Download new version
 cd /root
-unzip fotios-claude-system-2.35.0.zip
+unzip fotios-claude-system-2.37.0.zip
 cd fotios-claude-system
 
 # Preview changes (recommended)

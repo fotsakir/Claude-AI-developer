@@ -432,7 +432,10 @@
         <div class="sidebar">
             <div class="sidebar-header">
                 <h3>Files</h3>
-                <button onclick="refreshTree()" title="Refresh">🔄</button>
+                <div style="display:flex;gap:4px;">
+                    <button onclick="refreshTree()" title="Refresh">🔄</button>
+                    <button onclick="popoutEditor()" title="Open Editor in new window">⧉</button>
+                </div>
             </div>
             <div class="tree-container" id="fileTree">
                 <div style="padding:20px;color:#888;text-align:center">Loading...</div>
@@ -489,6 +492,18 @@
     <script>
         const projectId = {{ project.id }};
         const basePath = '{{ project.web_path or project.app_path or "" }}';
+
+        function popoutEditor() {
+            const width = 1200;
+            const height = 800;
+            const left = (screen.width - width) / 2;
+            const top = (screen.height - height) / 2;
+            window.open(
+                `/project/${projectId}/editor`,
+                'CodeEditor_' + projectId,
+                `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+            );
+        }
 
         // Editor setup
         let editor = null;

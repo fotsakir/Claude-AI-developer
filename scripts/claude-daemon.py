@@ -1137,7 +1137,6 @@ class ClaudeDaemon:
     def log(self, message, level="INFO"):
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         log_line = f"[{timestamp}] [{level}] {message}"
-        print(log_line)
         try:
             os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
             with open(LOG_FILE, 'a') as f:

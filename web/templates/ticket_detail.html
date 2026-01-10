@@ -662,6 +662,7 @@
                     <button class="btn-warning" onclick="showReopenModal()">Reopen Ticket</button>
                     {% endif %}
                     <button class="btn-secondary" onclick="location.href='/project/{{ ticket.project_id }}'">Back to Project</button>
+                    <button class="btn-secondary" onclick="popoutEditor()" style="margin-top:10px">⧉ Code Editor</button>
                     <button class="btn-secondary" onclick="createBackup()" style="margin-top:10px">Create Backup</button>
                 </div>
             </div>
@@ -697,6 +698,18 @@
         const ticketStatus = '{{ ticket.status }}';
         const projectId = {{ ticket.project_id }};
         const previewUrl = '{{ ticket.preview_url|default("", true) }}';
+
+        function popoutEditor() {
+            const width = 1200;
+            const height = 800;
+            const left = (screen.width - width) / 2;
+            const top = (screen.height - height) / 2;
+            window.open(
+                `/project/${projectId}/editor`,
+                'CodeEditor_' + projectId,
+                `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+            );
+        }
 
         function formatNumber(num) {
             if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
