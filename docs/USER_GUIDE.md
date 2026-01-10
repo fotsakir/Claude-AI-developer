@@ -10,6 +10,9 @@ This guide will walk you through using the Claude-AI-developer Admin Panel to ma
 4. [Console View](#console-view)
 5. [Execution History](#execution-history)
 6. [Kill Switch Commands](#kill-switch-commands)
+7. [Web Terminal](#web-terminal)
+8. [Claude Assistant](#claude-assistant)
+9. [AI Project Manager](#ai-project-manager)
 
 ---
 
@@ -131,17 +134,102 @@ When Claude is working on a ticket, you can control execution using kill switch 
 
 | Command | Description |
 |---------|-------------|
-| `/stop` | Stop execution immediately and mark as failed |
-| `/skip` | Skip current ticket, move to next |
-| `/done` | Mark as completed successfully |
-| `/cancel` | Cancel the ticket entirely |
+| `/stop` | Pause execution and wait for your correction |
+| `/skip` | Stop and reopen ticket for later |
+| `/done` | Force complete ticket successfully |
 
 ### How to Use Kill Switch
 
 1. Open the ticket that's currently `in_progress`
-2. Type your command (e.g., `/stop`) in the response field
-3. Click **Submit**
-4. Claude will detect the command and act accordingly
+2. Type your command (e.g., `/stop`) in the chat field
+3. Click **Send**
+4. The command appears immediately in the conversation
+5. Claude receives and acts on the command
+
+---
+
+## Web Terminal
+
+The Web Terminal provides full Linux shell access directly in your browser.
+
+### Accessing the Terminal
+
+Click **Terminal** in the navigation menu to open the terminal.
+
+### Features
+
+- **Real shell access**: Full PTY terminal via WebSocket
+- **Popup support**: Click "Open in Popup" for multi-monitor setups
+- **Full sudo access**: Run administrative commands
+- **256-color support**: Full terminal color support with xterm.js
+
+### Tips
+
+- The terminal runs as the `claude` user
+- Use `sudo` for administrative commands
+- Resize the browser window to adjust terminal size
+- Open in popup to keep terminal visible while working
+
+---
+
+## Claude Assistant
+
+Claude Assistant provides direct interactive access to Claude AI outside of the ticket workflow.
+
+### Accessing the Assistant
+
+Click **Claude Assistant** in the navigation menu.
+
+### Features
+
+- **AI Model Selection**: Choose your preferred model:
+  - **Opus**: Most capable, best for complex tasks
+  - **Sonnet** (default): Balanced performance and speed
+  - **Haiku**: Fastest, good for quick questions
+
+- **Popup Window**: Click "Open in Popup" for multi-monitor setups
+
+- **Direct Access**: Chat with Claude without creating tickets
+
+### Use Cases
+
+- Quick questions about your code
+- Getting help with platform issues
+- Learning and exploration
+- Prototyping ideas before creating tickets
+
+---
+
+## AI Project Manager
+
+The AI Project Manager helps you design your project before coding by creating a comprehensive blueprint.
+
+### How to Use
+
+1. Go to the **Projects** page
+2. Click the **"Plan with AI"** button
+3. A new Claude Assistant window opens in blueprint mode
+4. Claude automatically asks about your project requirements:
+   - Project overview and goals
+   - Technology stack preferences
+   - Database requirements
+   - API endpoints needed
+   - File structure
+
+### What You Get
+
+After the conversation, Claude provides a complete blueprint including:
+
+- **Tech Stack**: Recommended technologies
+- **Database Schema**: Tables, relationships, indexes
+- **API Design**: Endpoints with request/response formats
+- **File Structure**: Organized directory layout
+- **Feature Breakdown**: Implementation milestones
+- **Coding Standards**: Naming conventions, best practices
+
+### Tip
+
+Copy the generated blueprint into your project's description field when creating a new project. This gives Claude all the context it needs when working on tickets.
 
 ---
 
@@ -211,4 +299,4 @@ Ensure the `claude` user has:
 
 ---
 
-*Claude-AI-developer v2.26.14 - Smartnav*
+*Claude-AI-developer v2.32.0 - Smartnav*

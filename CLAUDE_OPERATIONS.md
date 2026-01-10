@@ -498,15 +498,17 @@ cd /opt/fotios-claude/web && python3 app.py
 ### Templates Location
 ```
 /opt/fotios-claude/web/templates/
-├── login.html          # Login page
-├── dashboard.html      # Main dashboard with stats
-├── tickets_list.html   # All tickets with filters
-├── ticket_detail.html  # Single ticket view + chat
-├── projects.html       # Project list
-├── project_detail.html # Project view + tickets
-├── console.html        # Live console for tickets
-├── history.html        # Execution history
-└── session_detail.html # Session details + logs
+├── login.html              # Login page
+├── dashboard.html          # Main dashboard with stats
+├── tickets_list.html       # All tickets with filters
+├── ticket_detail.html      # Single ticket view + chat
+├── projects.html           # Project list + "Plan with AI" button
+├── project_detail.html     # Project view + tickets
+├── console.html            # Live console for tickets
+├── terminal.html           # Web Terminal (xterm.js)
+├── claude_assistant.html   # Claude Assistant with model selection
+├── history.html            # Execution history
+└── session_detail.html     # Session details + logs
 ```
 
 ### WebSocket (SocketIO)
@@ -815,5 +817,105 @@ curl -X PUT http://localhost:5000/api/project/1 \
 
 ---
 
-**Last Updated:** 2026-01-08
-**Version:** 2.26.2
+---
+
+## 11. New Features (v2.32.0)
+
+### Web Terminal
+Full Linux terminal in browser via WebSocket.
+
+**Route:** `/terminal`
+**Template:** `terminal.html`
+
+**Features:**
+- Real PTY via WebSocket (`pty` module)
+- Popup support for multi-monitor
+- 256-color support with xterm.js
+- Runs as user `claude` with sudo access
+
+**WebSocket Events:**
+```python
+@socketio.on('terminal_create')  # Create new terminal session
+@socketio.on('terminal_input')   # Send input to terminal
+@socketio.on('terminal_resize')  # Resize terminal
+@socketio.on('terminal_kill')    # Kill terminal session
+```
+
+### Claude Assistant
+Interactive Claude terminal with model selection.
+
+**Route:** `/claude-assistant`
+**Template:** `claude_assistant.html`
+
+**Features:**
+- AI Model Selection: `opus`, `sonnet` (default), `haiku`
+- Popup window support
+- Blueprint mode for project planning
+
+**URL Parameters:**
+- `popup=1` - Open in popup mode (minimal UI)
+- `mode=blueprint` - Auto-load project template and start guided planning
+
+**Implementation:**
+```python
+def start(self, model='sonnet'):
+    # Use simple model aliases (opus, sonnet, haiku)
+    os.execvpe(claude_path, [claude_path, '--dangerously-skip-permissions', '--model', model], env)
+```
+
+### AI Project Manager (Blueprint Planner)
+Helps users design projects before coding.
+
+**Button Location:** Projects page ("Plan with AI" button)
+**Template File:** `config/project-template.md`
+
+**How it works:**
+1. User clicks "Plan with AI" on Projects page
+2. Opens Claude Assistant in blueprint mode
+3. Claude reads `/home/claude/fotios-claude-system/config/project-template.md`
+4. Guided questionnaire about project requirements
+5. Generates complete blueprint
+
+### Kill Switch Commands (Instant)
+Commands show immediately in conversation and console.
+
+**Commands:**
+- `/stop` - Pause and wait for correction
+- `/skip` - Stop and reopen ticket
+- `/done` - Force complete ticket
+
+**Implementation:**
+```python
+# In app.py send_message route:
+cursor.execute("""INSERT INTO conversation_messages (ticket_id, role, content, created_at)
+                  VALUES (%s, 'user', %s, NOW())""", (ticket_id, content))
+msg_id = cursor.lastrowid
+# Fetch and broadcast immediately
+socketio.emit('new_message', msg, room=f'ticket_{ticket_id}')
+socketio.emit('new_message', msg, room='console')
+```
+
+### SmartContext
+Intelligent context management for reduced token usage.
+
+**Location:** `scripts/smart_context.py`
+
+**Features:**
+- Auto-detects framework, language, architecture
+- Finds relevant files based on task
+- Builds minimal context
+- Reduces token usage by up to 70%
+
+### AI Failsafe (Watchdog)
+Protection against runaway AI sessions.
+
+**Features:**
+- Monitors tickets every 30 minutes
+- Detects stuck patterns (repeated errors, circular behavior)
+- Auto-pauses problematic tickets
+- Email notifications when issues detected
+
+---
+
+**Last Updated:** 2026-01-10
+**Version:** 2.32.0
