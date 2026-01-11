@@ -5,6 +5,13 @@ All notable changes to the Fotios Claude System will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.37.1] - 2026-01-11
+
+### Fixed
+- **Playwright**: Added missing system dependencies for fresh installations
+  - Chromium now works out-of-the-box on new Ubuntu installs
+  - Added libnss3, libgbm1, fonts, and other required libraries
+
 ## [2.37.0] - 2026-01-10
 
 ### Changed
