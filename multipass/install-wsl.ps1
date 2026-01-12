@@ -73,22 +73,36 @@ Write-Host "[4/4] Installing Fotios Claude System inside WSL..." -ForegroundColo
 Write-Host "      This takes about 10-15 minutes..." -ForegroundColor Gray
 Write-Host ""
 
-$installScript = @'
+# Create install script file and copy to WSL
+$installScriptContent = @"
+#!/bin/bash
 set -e
 cd /root
+echo "Updating packages..."
 apt-get update
 apt-get install -y unzip wget net-tools curl
-LATEST_URL=$(curl -s https://api.github.com/repos/fotsakir/Claude-AI-developer/releases/latest | grep "browser_download_url.*zip" | cut -d '"' -f 4)
-wget -q "$LATEST_URL" -O fotios-claude-system.zip
+echo "Downloading latest release..."
+LATEST_URL=`$(curl -s https://api.github.com/repos/fotsakir/Claude-AI-developer/releases/latest | grep "browser_download_url.*zip" | cut -d '"' -f 4)
+wget -q "`$LATEST_URL" -O fotios-claude-system.zip
 rm -rf fotios-claude-system
 unzip -q fotios-claude-system.zip
 cd fotios-claude-system
 chmod +x setup.sh
+echo "Running setup..."
 ./setup.sh
 echo "done" > /root/install-complete
-'@
+"@
 
-wsl -d Ubuntu-24.04 -u root -- bash -c $installScript
+# Write script to temp file
+$tempScript = "$env:TEMP\wsl-install.sh"
+$installScriptContent | Out-File -FilePath $tempScript -Encoding utf8 -NoNewline
+
+# Convert to Unix line endings and copy to WSL
+$wslPath = wsl -d Ubuntu-24.04 -- wslpath -u "$tempScript"
+wsl -d Ubuntu-24.04 -u root -- bash -c "cat '$wslPath' | tr -d '\r' > /root/install-fotios.sh && chmod +x /root/install-fotios.sh && /root/install-fotios.sh"
+
+# Cleanup
+Remove-Item $tempScript -Force -ErrorAction SilentlyContinue
 
 # Get IP address
 Write-Host ""
@@ -123,18 +137,55 @@ Write-Host ""
 Write-Host "==========================================" -ForegroundColor Green
 Write-Host ""
 
-# Create desktop shortcut
+# Create desktop shortcuts
 $desktopPath = [Environment]::GetFolderPath("Desktop")
-$shortcutPath = Join-Path $desktopPath "Claude AI Developer (WSL).url"
 
-$shortcutContent = @"
+# Create batch file that starts services and opens browser
+$batchPath = Join-Path $desktopPath "Claude AI Developer (WSL).bat"
+$batchContent = @"
+@echo off
+title Claude AI Developer (WSL)
+echo.
+echo ========================================
+echo   Claude AI Developer (WSL)
+echo ========================================
+echo.
+echo Starting services...
+wsl -d Ubuntu-24.04 -u root -- systemctl start mysql lshttpd fotios-claude-web fotios-claude-daemon 2>nul
+
+echo Getting IP address...
+for /f "tokens=1" %%a in ('wsl -d Ubuntu-24.04 -- hostname -I 2^>nul') do set IP=%%a
+
+if "%IP%"=="" (
+    echo ERROR: Could not get IP address
+    echo Make sure WSL is running: wsl -d Ubuntu-24.04
+    pause
+    exit /b 1
+)
+
+echo.
+echo Dashboard: https://%IP%:9453
+echo.
+echo Opening browser...
+start https://%IP%:9453
+echo.
+echo Press any key to close...
+pause >nul
+"@
+$batchContent | Out-File -FilePath $batchPath -Encoding ascii
+Write-Host "Desktop shortcut created: Claude AI Developer (WSL).bat" -ForegroundColor Green
+
+# Also create URL shortcut if we have valid IP
+if ($ip -match "^\d+\.\d+\.\d+\.\d+$") {
+    $urlPath = Join-Path $desktopPath "Claude Dashboard (WSL).url"
+    $urlContent = @"
 [InternetShortcut]
 URL=https://${ip}:9453
 IconIndex=0
 "@
-
-$shortcutContent | Out-File -FilePath $shortcutPath -Encoding ascii
-Write-Host "Desktop shortcut created: Claude AI Developer (WSL)" -ForegroundColor Green
+    $urlContent | Out-File -FilePath $urlPath -Encoding ascii
+    Write-Host "Desktop shortcut created: Claude Dashboard (WSL).url" -ForegroundColor Green
+}
 
 Write-Host ""
 

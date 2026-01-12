@@ -86,20 +86,28 @@ driver=virtualbox
 "@ | Out-File -FilePath "$configDir\multipassd.conf" -Encoding utf8 -Force
     }
 
-    # Check if winget is available
-    $winget = Get-Command winget -ErrorAction SilentlyContinue
-    if ($winget) {
-        Write-Host "      Using winget to install Multipass..." -ForegroundColor Gray
-        winget install -e --id Canonical.Multipass --accept-package-agreements --accept-source-agreements
-    } else {
-        Write-Host "      Downloading Multipass installer..." -ForegroundColor Gray
+    # Download latest Multipass from GitHub releases
+    Write-Host "      Getting latest Multipass version..." -ForegroundColor Gray
+    try {
+        $releases = Invoke-RestMethod -Uri "https://api.github.com/repos/canonical/multipass/releases/latest"
+        $version = $releases.tag_name -replace '^v', ''
+        $asset = $releases.assets | Where-Object { $_.name -match "multipass.*win.*exe$" } | Select-Object -First 1
+        if ($asset) {
+            $installerUrl = $asset.browser_download_url
+            Write-Host "      Downloading Multipass $version..." -ForegroundColor Gray
+        } else {
+            throw "No installer found"
+        }
+    } catch {
+        Write-Host "      Using default download URL..." -ForegroundColor Gray
         $installerUrl = "https://multipass.run/download/windows"
-        $installerPath = "$env:TEMP\multipass-installer.exe"
-        Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath
-        Write-Host "      Running installer..." -ForegroundColor Gray
-        Start-Process -FilePath $installerPath -Wait
-        Remove-Item $installerPath -Force
     }
+
+    $installerPath = "$env:TEMP\multipass-installer.exe"
+    Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath
+    Write-Host "      Running installer..." -ForegroundColor Gray
+    Start-Process -FilePath $installerPath -ArgumentList "/S" -Wait
+    Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
 
     # Refresh PATH
     $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
