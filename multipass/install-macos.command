@@ -101,38 +101,34 @@ echo ""
 echo "      Live installation progress:"
 echo "      ─────────────────────────────"
 
-# Wait a bit for cloud-init to start
-sleep 5
-
-# Show live progress - run tail with unbuffered output
-multipass exec claude-dev -- tail -f /var/log/cloud-init-output.log 2>/dev/null &
-TAIL_PID=$!
-
-# Check for completion in background
-MAX_WAIT=1200  # 20 minutes
-WAITED=0
-INTERVAL=10
-
-while [ $WAITED -lt $MAX_WAIT ]; do
-    sleep $INTERVAL
-    WAITED=$((WAITED + INTERVAL))
-
-    # Check if install completed
-    INSTALL_STATUS=$(multipass exec claude-dev -- cat /root/install-complete 2>/dev/null || echo "")
-    if [ "$INSTALL_STATUS" == "done" ]; then
+# Wait for cloud-init log to exist
+echo "      Waiting for installation to start..."
+for i in {1..60}; do
+    if multipass exec claude-dev -- test -f /var/log/cloud-init-output.log 2>/dev/null; then
         break
     fi
-
-    # Check if services are running
-    WEB_STATUS=$(multipass exec claude-dev -- systemctl is-active codehero-web 2>/dev/null || echo "inactive")
-    if [ "$WEB_STATUS" == "active" ]; then
-        break
-    fi
+    sleep 2
 done
 
-# Stop the tail process
-kill $TAIL_PID 2>/dev/null
-wait $TAIL_PID 2>/dev/null
+# Follow the log until we see completion marker or services start
+# timeout will kill tail after 20 minutes max
+timeout 1200 multipass exec claude-dev -- bash -c '
+    tail -f /var/log/cloud-init-output.log &
+    TAIL_PID=$!
+
+    while true; do
+        sleep 5
+        if [ -f /root/install-complete ]; then
+            kill $TAIL_PID 2>/dev/null
+            exit 0
+        fi
+        if systemctl is-active codehero-web >/dev/null 2>&1; then
+            kill $TAIL_PID 2>/dev/null
+            exit 0
+        fi
+    done
+' 2>/dev/null || true
+
 echo ""
 echo "      ─────────────────────────────"
 echo "      Installation complete!"
