@@ -125,14 +125,19 @@ Write-Host "==========================================" -ForegroundColor Green
 Write-Host "  Installation Complete!" -ForegroundColor Green
 Write-Host "==========================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "  Dashboard: https://${ip}:9453" -ForegroundColor Cyan
+Write-Host "  ACCESS POINTS:" -ForegroundColor Yellow
+Write-Host "  Dashboard:    https://${ip}:9453" -ForegroundColor Cyan
+Write-Host "  Web Projects: https://${ip}:9867" -ForegroundColor Cyan
+Write-Host "  OLS Admin:    https://${ip}:7080" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "  LOGIN:" -ForegroundColor Yellow
 Write-Host "  Username:  admin" -ForegroundColor White
 Write-Host "  Password:  admin123" -ForegroundColor White
 Write-Host ""
-Write-Host "  To access VM terminal:" -ForegroundColor Yellow
+Write-Host "  VM TERMINAL:" -ForegroundColor Yellow
 Write-Host "  multipass shell claude-dev" -ForegroundColor White
 Write-Host ""
-Write-Host "  IMPORTANT: Change passwords after login!" -ForegroundColor Red
+Write-Host "  IMPORTANT: Change passwords after first login!" -ForegroundColor Red
 Write-Host ""
 Write-Host "==========================================" -ForegroundColor Green
 Write-Host ""
