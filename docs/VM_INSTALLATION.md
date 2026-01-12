@@ -19,6 +19,7 @@ Step-by-step guide to install Claude-AI-developer on a Virtual Machine.
 - [Step 3: Install Ubuntu](#step-3-install-ubuntu)
 - [Step 4: Install Claude-AI-developer](#step-4-install-claude-ai-developer)
 - [Step 5: Access the Dashboard](#step-5-access-the-dashboard)
+- [How to Find Your VM's IP Address](#how-to-find-your-vms-ip-address)
 
 ---
 
@@ -408,6 +409,61 @@ You'll see a security warning because of the self-signed SSL certificate. This i
 - **Firefox**: Click "Advanced" → "Accept the Risk and Continue"
 - **Safari**: Click "Show Details" → "visit this website"
 - **Edge**: Click "Advanced" → "Continue to site"
+
+---
+
+## How to Find Your VM's IP Address
+
+After installation, you need the VM's IP to access the dashboard. Here's how to find it for each platform:
+
+### WSL2 (Windows)
+
+**From PowerShell:**
+```powershell
+wsl -d Ubuntu-24.04 --exec hostname -I
+```
+
+**From inside WSL:**
+```bash
+hostname -I
+```
+
+---
+
+### Multipass (macOS/Linux)
+
+```bash
+multipass exec claude-dev -- hostname -I
+```
+
+Or check the list:
+```bash
+multipass list
+```
+
+---
+
+### VirtualBox / VMware / Hyper-V / UTM / Parallels
+
+**Inside the VM terminal:**
+```bash
+hostname -I
+```
+
+Or with more details:
+```bash
+ip addr show
+```
+
+Look for the IP under `eth0`, `ens33`, or `enp0s3` (e.g., `192.168.1.100`)
+
+---
+
+### Quick Tip
+
+The IP may change after VM restart. Always check with the commands above before accessing the dashboard.
+
+**Dashboard URL format:** `https://YOUR_IP:9453`
 
 ---
 
