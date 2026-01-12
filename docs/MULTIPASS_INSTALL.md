@@ -1,77 +1,184 @@
-# One-Click Installation with Multipass
+# Installation with Multipass (macOS & Linux)
 
-The easiest way to install Claude-AI-developer on any computer (Windows, macOS, or Linux).
+Complete guide to install Claude-AI-developer using Multipass virtual machines.
 
-## What is Multipass?
+## Table of Contents
 
-Multipass is a free tool from Ubuntu that creates virtual machines with a single command. No complex setup required.
+- [What is Multipass?](#what-is-multipass)
+- [Requirements](#requirements)
+- [Quick Install](#quick-install)
+  - [macOS](#macos)
+  - [Linux](#linux)
+- [Manual Installation](#manual-installation)
+- [After Installation](#after-installation)
+- [Daily Usage](#daily-usage)
+- [Troubleshooting](#troubleshooting)
+  - [macOS Issues](#macos-issues)
+  - [Linux Issues](#linux-issues)
 
 ---
 
-## Quick Install (Recommended)
+## What is Multipass?
 
-### Windows
+Multipass is a free tool from Canonical (makers of Ubuntu) that creates lightweight Ubuntu virtual machines with a single command. It's:
 
-1. **Download the installer**: [install-windows.ps1](https://raw.githubusercontent.com/fotsakir/Claude-AI-developer/main/multipass/install-windows.ps1)
-2. **Right-click** the file → **Run with PowerShell** (as Administrator)
-3. Wait 15-20 minutes
-4. Done! Open the dashboard URL shown
+- **Simple** - One command to create a VM
+- **Fast** - Uses native hypervisors (HyperKit/QEMU on macOS, KVM/LXD on Linux)
+- **Free** - Open source, no license needed
+- **Cross-platform** - Works on macOS and Linux
+
+---
+
+## Requirements
+
+| | Minimum | Recommended |
+|---|---------|-------------|
+| RAM | 8GB total (6GB for VM) | 16GB total |
+| Disk | 70GB free | 100GB free |
+| CPU | 2 cores | 4+ cores |
+
+### macOS Requirements
+
+- macOS 10.15 (Catalina) or newer
+- Intel or Apple Silicon (M1/M2/M3/M4)
+- Homebrew (installed automatically if missing)
+
+### Linux Requirements
+
+- Ubuntu 18.04+, Debian 10+, Fedora 32+, or similar
+- Snap support (installed automatically if missing)
+- KVM support recommended (check: `egrep -c '(vmx|svm)' /proc/cpuinfo` > 0)
+
+---
+
+## Quick Install
 
 ### macOS
 
-1. **Download the installer**: [install-macos.command](https://raw.githubusercontent.com/fotsakir/Claude-AI-developer/main/multipass/install-macos.command)
-2. **Double-click** the file
-3. If blocked: System Settings → Privacy & Security → Allow
-4. Wait 15-20 minutes
-5. Done! Open the dashboard URL shown
+#### Option 1: One-Line Install (Terminal)
+
+```bash
+curl -sL https://raw.githubusercontent.com/fotsakir/Claude-AI-developer/main/multipass/install-macos.command | bash
+```
+
+#### Option 2: Download and Double-Click
+
+1. Download: [install-macos.command](https://raw.githubusercontent.com/fotsakir/Claude-AI-developer/main/multipass/install-macos.command)
+2. Double-click the file
+3. If macOS blocks it: **System Settings** → **Privacy & Security** → **Allow**
+4. Enter your password when prompted (for sudo)
+
+#### What Happens
+
+1. Installs Homebrew (if not installed)
+2. Installs Multipass via Homebrew
+3. Starts the Multipass daemon
+4. Downloads Ubuntu 24.04 image
+5. Creates VM with 6GB RAM, 64GB disk, 4 CPUs
+6. Installs Claude-AI-developer inside VM
+7. Creates desktop shortcuts
+
+**Installation time:** 15-25 minutes (depending on internet speed)
+
+---
 
 ### Linux
+
+#### One-Line Install
 
 ```bash
 curl -sL https://raw.githubusercontent.com/fotsakir/Claude-AI-developer/main/multipass/install-linux.sh | bash
 ```
 
+#### What Happens
+
+1. Installs Snap (if not installed)
+2. Installs Multipass via Snap
+3. Downloads Ubuntu 24.04 image
+4. Creates VM with 6GB RAM, 64GB disk, 4 CPUs
+5. Installs Claude-AI-developer inside VM
+6. Creates desktop shortcuts
+
+**Installation time:** 15-25 minutes
+
 ---
 
 ## Manual Installation
 
-If you prefer to run commands manually:
+If you prefer step-by-step control:
 
 ### Step 1: Install Multipass
-
-**Windows:**
-```powershell
-winget install Canonical.Multipass
-```
 
 **macOS:**
 ```bash
 brew install --cask multipass
 ```
 
-**Linux:**
+**Ubuntu/Debian:**
 ```bash
 sudo snap install multipass
 ```
 
-### Step 2: Create the VM
-
+**Fedora:**
 ```bash
-# Download configuration
-curl -sL https://raw.githubusercontent.com/fotsakir/Claude-AI-developer/main/multipass/cloud-init.yaml -o cloud-init.yaml
-
-# Create VM (takes 15-20 minutes)
-multipass launch 24.04 --name claude-dev --memory 4G --disk 40G --cpus 2 --cloud-init cloud-init.yaml
+sudo dnf install snapd
+sudo ln -s /var/lib/snapd/snap /snap
+sudo snap install multipass
 ```
 
-### Step 3: Get the Dashboard URL
+**Arch Linux:**
+```bash
+sudo pacman -S snapd
+sudo systemctl enable --now snapd.socket
+sudo snap install multipass
+```
+
+### Step 2: Verify Installation
 
 ```bash
-# Get VM IP address
-multipass exec claude-dev -- hostname -I
+multipass version
+multipass list
+```
 
-# Output example: 192.168.64.5
-# Dashboard URL: https://192.168.64.5:9453
+### Step 3: Download Configuration
+
+```bash
+curl -sL https://raw.githubusercontent.com/fotsakir/Claude-AI-developer/main/multipass/cloud-init.yaml -o /tmp/cloud-init.yaml
+```
+
+### Step 4: Create the VM
+
+```bash
+multipass launch 24.04 \
+  --name claude-dev \
+  --memory 6G \
+  --disk 64G \
+  --cpus 4 \
+  --timeout 1800 \
+  --cloud-init /tmp/cloud-init.yaml
+```
+
+This takes 15-20 minutes. The cloud-init configuration automatically:
+- Updates the system
+- Installs all dependencies
+- Downloads and installs Claude-AI-developer
+- Configures services
+
+### Step 5: Check Installation Progress
+
+```bash
+# Watch installation logs
+multipass exec claude-dev -- tail -f /var/log/cloud-init-output.log
+
+# Check if complete
+multipass exec claude-dev -- cat /root/install-complete
+# Should show: done
+```
+
+### Step 6: Get IP Address
+
+```bash
+multipass exec claude-dev -- hostname -I
 ```
 
 ---
@@ -80,145 +187,363 @@ multipass exec claude-dev -- hostname -I
 
 ### Access the Dashboard
 
-Open in your browser: `https://YOUR_VM_IP:9453`
+Open your browser:
 
-**Default login:**
-- Username: `admin`
-- Password: `admin123`
+```
+https://YOUR_VM_IP:9453
+```
+
+Replace `YOUR_VM_IP` with the IP from the previous step (e.g., `https://192.168.64.5:9453`)
+
+### Default Login
+
+- **Username**: `admin`
+- **Password**: `admin123`
+
+### Security Warning
+
+You'll see a browser security warning (self-signed certificate). This is normal:
+
+- **Chrome**: Click "Advanced" → "Proceed to site"
+- **Firefox**: Click "Advanced" → "Accept the Risk and Continue"
+- **Safari**: Click "Show Details" → "visit this website"
 
 ### Change Passwords (Important!)
-
-Open the **Web Terminal** from the dashboard menu, or SSH into the VM:
 
 ```bash
 multipass shell claude-dev
 sudo /opt/fotios-claude/scripts/change-passwords.sh
 ```
 
-### Access the VM Terminal
-
-```bash
-multipass shell claude-dev
-```
-
 ### Activate Claude Code
 
 1. Open the dashboard
-2. Click the "Activate Claude" button in the header
-3. Follow the prompts to login with your Anthropic account
+2. Click "Activate Claude" in the header
+3. Follow the prompts
 
 Or via terminal:
 ```bash
 multipass shell claude-dev
 su - claude
 claude
-# Follow the login prompts
 ```
 
 ---
 
 ## Daily Usage
 
-After installation, the VM runs in the background. Use these commands to manage it:
-
-### Start/Stop the VM
+### Start the VM
 
 ```bash
-# Start VM (after reboot or when stopped)
 multipass start claude-dev
+```
 
-# Stop VM (saves resources when not using)
+### Stop the VM
+
+```bash
 multipass stop claude-dev
+```
 
-# Check VM status
+### Check VM Status
+
+```bash
 multipass list
 ```
 
-### Access the Dashboard
+Output example:
+```
+Name                    State             IPv4             Image
+claude-dev              Running           192.168.64.5     Ubuntu 24.04 LTS
+```
 
-1. Make sure VM is running: `multipass start claude-dev`
-2. Get the IP: `multipass exec claude-dev -- hostname -I`
-3. Open browser: `https://YOUR_IP:9453`
-
-### Access VM Terminal
+### Open VM Terminal
 
 ```bash
 multipass shell claude-dev
 ```
 
+### Get Current IP Address
+
+```bash
+multipass exec claude-dev -- hostname -I
+```
+
+### View VM Details
+
+```bash
+multipass info claude-dev
+```
+
+### Restart VM
+
+```bash
+multipass restart claude-dev
+```
+
+---
+
+## VM Management
+
+### Increase Resources
+
+```bash
+# Stop VM first
+multipass stop claude-dev
+
+# Increase memory to 8GB
+multipass set local.claude-dev.memory=8G
+
+# Increase CPUs to 8
+multipass set local.claude-dev.cpus=8
+
+# Start VM
+multipass start claude-dev
+```
+
 ### Delete the VM (Uninstall)
 
 ```bash
-multipass delete claude-dev --purge
+# Delete VM
+multipass delete claude-dev
+
+# Purge (permanently remove)
+multipass purge
 ```
 
-> **Tip:** The VM starts automatically when your computer boots. Use `multipass stop claude-dev` to stop it when not needed.
+### Create Snapshot (Backup)
+
+```bash
+# Stop VM
+multipass stop claude-dev
+
+# Create snapshot
+multipass snapshot claude-dev --name backup-$(date +%Y%m%d)
+
+# List snapshots
+multipass snapshot list claude-dev
+```
+
+### Restore from Snapshot
+
+```bash
+multipass restore claude-dev.backup-20240115
+```
+
+---
+
+## Desktop Shortcuts
+
+The installer creates these on your Desktop:
+
+### macOS
+
+- **Claude AI Developer.webloc** - Opens dashboard in browser
+- **Start Claude VM.command** - Starts VM and opens dashboard
+
+### Linux
+
+- **claude-ai-developer.desktop** - Opens dashboard
+- **start-claude-vm.sh** - Starts VM and opens dashboard
 
 ---
 
 ## Troubleshooting
 
-### Can't access dashboard
+### macOS Issues
 
-1. Make sure VM is running: `multipass list`
-2. Get the IP: `multipass exec claude-dev -- hostname -I`
-3. Try: `https://IP:9453` (note: HTTPS, not HTTP)
+#### "failed to open file multipass_root_cert.pem"
 
-### Installation seems stuck
+The Multipass daemon hasn't started. Fix:
 
-The installation takes 15-20 minutes. Check progress:
 ```bash
-multipass exec claude-dev -- tail -f /var/log/cloud-init-output.log
+# Start the daemon
+sudo launchctl load /Library/LaunchDaemons/com.canonical.multipassd.plist
+
+# Wait 10 seconds
+sleep 10
+
+# Test
+multipass list
 ```
 
-### VM won't start
+If still failing:
+```bash
+# Restart daemon
+sudo launchctl unload /Library/LaunchDaemons/com.canonical.multipassd.plist
+sudo launchctl load /Library/LaunchDaemons/com.canonical.multipassd.plist
+sleep 15
+multipass list
+```
+
+#### "Operation not permitted" on Apple Silicon
+
+Allow Multipass in System Settings:
+1. **System Settings** → **Privacy & Security** → **Full Disk Access**
+2. Add **multipassd**
+3. Restart Multipass:
+   ```bash
+   brew services restart multipass
+   ```
+
+#### VM Creation Stuck
+
+Check logs:
+```bash
+# Multipass logs
+cat /Library/Logs/Multipass/multipassd.log | tail -50
+
+# Cloud-init logs (if VM started)
+multipass exec claude-dev -- cat /var/log/cloud-init-output.log
+```
+
+#### Network Issues on macOS
+
+```bash
+# Check VM network
+multipass exec claude-dev -- ip addr
+
+# Try restarting
+multipass restart claude-dev
+```
+
+---
+
+### Linux Issues
+
+#### "Cannot connect to the Multipass socket"
+
+```bash
+# Check service status
+sudo snap services multipass
+
+# Restart service
+sudo snap restart multipass
+```
+
+#### "launch failed: KVM is required"
+
+Enable KVM:
+```bash
+# Check if KVM is available
+egrep -c '(vmx|svm)' /proc/cpuinfo
+
+# If 0, enable in BIOS (VT-x for Intel, AMD-V for AMD)
+
+# Install KVM
+sudo apt install qemu-kvm libvirt-daemon-system
+sudo usermod -aG kvm $USER
+# Log out and back in
+```
+
+Or use LXD instead:
+```bash
+multipass set local.driver=lxd
+```
+
+#### "Not enough disk space"
+
+```bash
+# Check space
+df -h
+
+# Clean old images
+multipass purge
+```
+
+#### Snap Permission Issues
+
+```bash
+# Connect interfaces
+sudo snap connect multipass:lxd lxd
+sudo snap connect multipass:libvirt
+```
+
+---
+
+### General Issues
+
+#### Can't Access Dashboard
+
+1. **Check VM is running:**
+   ```bash
+   multipass list
+   ```
+
+2. **Check services inside VM:**
+   ```bash
+   multipass exec claude-dev -- systemctl status fotios-claude-web
+   ```
+
+3. **Start services if needed:**
+   ```bash
+   multipass exec claude-dev -- sudo systemctl start mysql lshttpd fotios-claude-web fotios-claude-daemon
+   ```
+
+4. **Check IP:**
+   ```bash
+   multipass exec claude-dev -- hostname -I
+   ```
+
+#### Installation Incomplete
+
+Check if setup finished:
+```bash
+multipass exec claude-dev -- cat /root/install-complete
+```
+
+If empty, check logs:
+```bash
+multipass exec claude-dev -- tail -100 /var/log/cloud-init-output.log
+```
+
+#### VM Won't Start
 
 ```bash
 # Check status
 multipass info claude-dev
 
-# Try restarting Multipass service
-# Windows: Restart "Multipass" service
-# macOS: brew services restart multipass
-# Linux: sudo snap restart multipass
-```
+# Try recovery
+multipass recover claude-dev
 
-### Need more resources
-
-Stop the VM and modify:
-```bash
-multipass stop claude-dev
-multipass set local.claude-dev.memory=8G
-multipass set local.claude-dev.cpus=4
-multipass start claude-dev
+# If corrupted, recreate
+multipass delete claude-dev --purge
+# Run installer again
 ```
 
 ---
 
-## Requirements
+## Command Reference
 
-| | Minimum | Recommended |
-|---|---------|-------------|
-| RAM | 4GB free | 8GB free |
-| Disk | 45GB free | 60GB free |
-| CPU | 2 cores | 4 cores |
-
-**Supported OS:**
-- Windows 10/11 (Pro, Enterprise, Education, or Home with WSL2)
-- macOS 10.15+ (Intel or Apple Silicon)
-- Linux (Ubuntu, Debian, Fedora, CentOS, etc.)
+| Task | Command |
+|------|---------|
+| List VMs | `multipass list` |
+| Start VM | `multipass start claude-dev` |
+| Stop VM | `multipass stop claude-dev` |
+| Restart VM | `multipass restart claude-dev` |
+| Open shell | `multipass shell claude-dev` |
+| Run command | `multipass exec claude-dev -- <command>` |
+| Get IP | `multipass exec claude-dev -- hostname -I` |
+| VM info | `multipass info claude-dev` |
+| Delete VM | `multipass delete claude-dev --purge` |
+| View logs | `multipass exec claude-dev -- journalctl -u fotios-claude-web` |
 
 ---
 
-## Why Multipass?
+## Multipass vs WSL2 vs Traditional VM
 
-| Traditional VM | Multipass |
-|----------------|-----------|
-| Download ISO | Not needed |
-| Configure VM settings | Automatic |
-| Install OS manually | Automatic |
-| Run setup scripts | Automatic |
-| 30-60 minutes | 15-20 minutes |
+| Feature | Multipass | WSL2 | Traditional VM |
+|---------|-----------|------|----------------|
+| Platform | macOS, Linux, Windows | Windows only | All |
+| Setup time | 15-20 min | 10-15 min | 30-60 min |
+| Resource usage | Medium | Low | High |
+| Isolation | Full VM | Shared kernel | Full VM |
+| Networking | Separate IP | Windows IP | Configurable |
+| Best for | macOS/Linux | Windows | Maximum control |
+
+**Recommendations:**
+- **Windows users**: Use [WSL2](WSL_INSTALL.md) (lighter weight)
+- **macOS users**: Use Multipass
+- **Linux users**: Use Multipass or [direct installation](../INSTALL.md)
 
 ---
 

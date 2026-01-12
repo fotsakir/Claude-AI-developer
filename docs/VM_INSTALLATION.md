@@ -2,6 +2,10 @@
 
 Step-by-step guide to install Claude-AI-developer on a Virtual Machine.
 
+> **Quick Links:**
+> - **Windows users**: See [WSL2 Installation](WSL_INSTALL.md) (recommended) or [Multipass](MULTIPASS_INSTALL.md)
+> - **macOS/Linux users**: See [Multipass Installation](MULTIPASS_INSTALL.md) (automated)
+
 ## Table of Contents
 
 - [Requirements](#requirements)
@@ -339,10 +343,10 @@ sudo su
 cd /root
 
 # Download the latest release
-wget https://github.com/fotsakir/Claude-AI-developer/releases/latest/download/fotios-claude-system-2.47.0.zip
+wget https://github.com/fotsakir/Claude-AI-developer/releases/latest/download/fotios-claude-system-2.51.0.zip
 
 # Extract
-unzip fotios-claude-system-2.47.0.zip
+unzip fotios-claude-system-2.51.0.zip
 
 # Enter the folder
 cd fotios-claude-system
