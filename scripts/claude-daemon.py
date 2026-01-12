@@ -1475,9 +1475,10 @@ User's question: {question if question else "What is the current status?"}
 
 Answer briefly:"""
 
-            # Use claude CLI with haiku model
+            # Use claude CLI with haiku model (full path needed for daemon)
+            claude_bin = os.path.expanduser('~/.local/bin/claude')
             result = subprocess.run(
-                ['claude', '--model', 'haiku', '-p', prompt, '--max-tokens', '200'],
+                [claude_bin, '--model', 'haiku', '-p', prompt, '--max-tokens', '200'],
                 capture_output=True,
                 text=True,
                 timeout=30,
