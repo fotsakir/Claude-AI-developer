@@ -51,6 +51,28 @@ if ! command -v multipass &> /dev/null; then
     fi
 
     echo "      Multipass installed!"
+
+    # Wait for multipassd service to be ready
+    echo "      Waiting for Multipass daemon to start..."
+    sleep 5
+
+    # Check if multipass is working
+    DAEMON_READY=false
+    for i in {1..30}; do
+        if multipass list &>/dev/null; then
+            DAEMON_READY=true
+            break
+        fi
+        sleep 2
+    done
+
+    if [ "$DAEMON_READY" = false ]; then
+        echo "      Restarting Multipass service..."
+        sudo snap restart multipass
+        sleep 10
+    fi
+
+    echo "      Daemon ready!"
 else
     echo "      Multipass is already installed."
 fi
