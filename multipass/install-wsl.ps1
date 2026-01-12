@@ -63,7 +63,8 @@ Write-Host "[3/4] Initializing Ubuntu..." -ForegroundColor Yellow
 Write-Host "      Configuring root as default user..." -ForegroundColor Gray
 
 # First, try to configure wsl.conf using --exec (bypasses OOBE)
-$configResult = wsl -d Ubuntu-24.04 --exec /bin/bash -c "echo -e '[user]\ndefault=root' > /etc/wsl.conf" 2>&1
+# Enable systemd and set root as default user
+$configResult = wsl -d Ubuntu-24.04 --exec /bin/bash -c "echo -e '[boot]\nsystemd=true\n\n[user]\ndefault=root' > /etc/wsl.conf" 2>&1
 if ($LASTEXITCODE -ne 0) {
     Write-Host "      Note: First-time initialization..." -ForegroundColor Gray
 }
@@ -79,7 +80,7 @@ if ($testResult -match "root") {
     Write-Host "      Ubuntu ready! (running as root)" -ForegroundColor Green
 } else {
     # Fallback: try with -u root
-    wsl -d Ubuntu-24.04 -u root --exec /bin/bash -c "echo -e '[user]\ndefault=root' > /etc/wsl.conf" 2>$null
+    wsl -d Ubuntu-24.04 -u root --exec /bin/bash -c "echo -e '[boot]\nsystemd=true\n\n[user]\ndefault=root' > /etc/wsl.conf" 2>$null
     wsl --terminate Ubuntu-24.04 2>$null
     Start-Sleep -Seconds 2
     Write-Host "      Ubuntu ready!" -ForegroundColor Green
