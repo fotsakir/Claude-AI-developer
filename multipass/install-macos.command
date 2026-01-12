@@ -61,13 +61,13 @@ fi
 # Create VM
 echo "[4/5] Creating VM (this takes 15-20 minutes)..."
 echo "      - Name: claude-dev"
-echo "      - Memory: 4GB"
-echo "      - Disk: 40GB"
+echo "      - Memory: 6GB"
+echo "      - Disk: 64GB"
 echo "      - OS: Ubuntu 24.04 LTS"
 echo ""
 echo "      Please wait..."
 
-multipass launch 24.04 --name claude-dev --memory 4G --disk 40G --cpus 2 --timeout 1800 --cloud-init "$CLOUD_INIT_PATH"
+multipass launch 24.04 --name claude-dev --memory 6G --disk 64G --cpus 4 --timeout 1800 --cloud-init "$CLOUD_INIT_PATH"
 
 # Wait for cloud-init to complete
 echo "[5/5] Waiting for installation to complete..."

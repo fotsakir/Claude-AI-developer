@@ -208,13 +208,13 @@ if ($existingVm) {
 # Create VM
 Write-Host "[6/6] Creating VM (this takes 15-20 minutes)..." -ForegroundColor Yellow
 Write-Host "      - Name: claude-dev" -ForegroundColor Gray
-Write-Host "      - Memory: 4GB" -ForegroundColor Gray
-Write-Host "      - Disk: 40GB" -ForegroundColor Gray
+Write-Host "      - Memory: 6GB" -ForegroundColor Gray
+Write-Host "      - Disk: 64GB" -ForegroundColor Gray
 Write-Host "      - OS: Ubuntu 24.04 LTS" -ForegroundColor Gray
 Write-Host ""
 Write-Host "      Please wait..." -ForegroundColor Gray
 
-multipass launch 24.04 --name claude-dev --memory 4G --disk 40G --cpus 2 --timeout 1800 --cloud-init $cloudInitPath
+multipass launch 24.04 --name claude-dev --memory 6G --disk 64G --cpus 4 --timeout 1800 --cloud-init $cloudInitPath
 
 # Wait for cloud-init to complete
 Write-Host "      Waiting for installation to complete..." -ForegroundColor Yellow
