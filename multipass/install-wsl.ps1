@@ -55,18 +55,18 @@ if (-not $ubuntuInstalled) {
     Write-Host "      Ubuntu 24.04 installed!" -ForegroundColor Green
 }
 
-# Initialize Ubuntu (first run creates user)
+# Initialize Ubuntu with root as default user (skip user creation prompt)
 Write-Host "[3/4] Initializing Ubuntu..." -ForegroundColor Yellow
-Write-Host "      You may be asked to create a username and password." -ForegroundColor Gray
-Write-Host "      This is for the Ubuntu user (not related to the dashboard)." -ForegroundColor Gray
-Write-Host ""
 
-# Check if already initialized
-$initialized = wsl -d Ubuntu-24.04 -- cat /etc/passwd 2>$null | Select-String "^root:"
-if (-not $initialized) {
-    Write-Host "      Starting Ubuntu for first-time setup..." -ForegroundColor Yellow
-    Start-Process "wsl" -ArgumentList "-d Ubuntu-24.04" -Wait
-}
+# Set root as default user to skip the interactive user creation
+Write-Host "      Configuring default user..." -ForegroundColor Gray
+ubuntu2404.exe config --default-user root 2>$null
+
+# Start WSL to initialize it
+Write-Host "      Starting Ubuntu..." -ForegroundColor Gray
+wsl -d Ubuntu-24.04 -u root -- echo "Ubuntu initialized" 2>$null
+
+Write-Host "      Ubuntu ready!" -ForegroundColor Green
 
 # Run the installation inside WSL
 Write-Host "[4/4] Installing Fotios Claude System inside WSL..." -ForegroundColor Yellow
