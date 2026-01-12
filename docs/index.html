@@ -1199,7 +1199,7 @@
                     <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.8rem;">
                         Install on <strong>Ubuntu 22.04/24.04</strong> VM (VirtualBox, VMware, Hyper-V, or cloud VPS).
                     </p>
-                    <div style="position: relative; background: rgba(0,0,0,0.3); padding: 0.8rem; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; overflow-x: auto;">
+                    <div style="position: relative; background: rgba(0,0,0,0.3); padding: 0.8rem 3rem 0.8rem 0.8rem; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; overflow-x: auto;">
                         <button onclick="copyCode(this, 'wget https://github.com/fotsakir/codehero/releases/latest/download/codehero-2.55.1.zip\nunzip codehero-*.zip && cd codehero && ./setup.sh')" style="position: absolute; top: 6px; right: 6px; background: rgba(255,255,255,0.1); border: none; color: var(--text-muted); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">📋</button>
                         <span style="color: var(--text-muted);"># On Ubuntu VM (as root)</span><br>
                         <span style="color: var(--accent-cyan);">wget https://github.com/fotsakir/codehero/releases/latest/download/codehero-2.55.1.zip</span><br>
@@ -1218,7 +1218,7 @@
                     <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.8rem;">
                         Run natively using <strong>Windows Subsystem for Linux</strong>. Installs Ubuntu automatically.
                     </p>
-                    <div style="position: relative; background: rgba(0,0,0,0.3); padding: 0.8rem; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; overflow-x: auto;">
+                    <div style="position: relative; background: rgba(0,0,0,0.3); padding: 0.8rem 3rem 0.8rem 0.8rem; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; overflow-x: auto;">
                         <button onclick="copyCode(this, 'irm https://raw.githubusercontent.com/fotsakir/codehero/main/multipass/install-wsl.ps1 | iex')" style="position: absolute; top: 6px; right: 6px; background: rgba(255,255,255,0.1); border: none; color: var(--text-muted); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">📋</button>
                         <span style="color: var(--accent-cyan);">irm https://raw.githubusercontent.com/fotsakir/codehero/main/multipass/install-wsl.ps1 | iex</span>
                     </div>
@@ -1238,14 +1238,14 @@
                     <div style="font-size: 0.8rem; margin-bottom: 0.5rem;">
                         <strong style="color: #a3a3a3;">🍎 macOS</strong> <span style="color: var(--text-muted);">(Terminal)</span>
                     </div>
-                    <div style="position: relative; background: rgba(0,0,0,0.3); padding: 0.5rem 0.8rem; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; overflow-x: auto; margin-bottom: 0.8rem;">
+                    <div style="position: relative; background: rgba(0,0,0,0.3); padding: 0.5rem 3rem 0.5rem 0.8rem; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; overflow-x: auto; margin-bottom: 0.8rem;">
                         <button onclick="copyCode(this, 'curl -sL https://raw.githubusercontent.com/fotsakir/codehero/main/multipass/install-macos.command | bash')" style="position: absolute; top: 4px; right: 6px; background: rgba(255,255,255,0.1); border: none; color: var(--text-muted); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">📋</button>
                         <code style="color: var(--accent-cyan);">curl -sL https://raw.githubusercontent.com/fotsakir/codehero/main/multipass/install-macos.command | bash</code>
                     </div>
                     <div style="font-size: 0.8rem; margin-bottom: 0.5rem;">
                         <strong style="color: #e95420;">🐧 Linux</strong> <span style="color: var(--text-muted);">(Terminal)</span>
                     </div>
-                    <div style="position: relative; background: rgba(0,0,0,0.3); padding: 0.5rem 0.8rem; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; overflow-x: auto;">
+                    <div style="position: relative; background: rgba(0,0,0,0.3); padding: 0.5rem 3rem 0.5rem 0.8rem; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; overflow-x: auto;">
                         <button onclick="copyCode(this, 'curl -sL https://raw.githubusercontent.com/fotsakir/codehero/main/multipass/install-linux.sh | bash')" style="position: absolute; top: 4px; right: 6px; background: rgba(255,255,255,0.1); border: none; color: var(--text-muted); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">📋</button>
                         <code style="color: var(--accent-cyan);">curl -sL https://raw.githubusercontent.com/fotsakir/codehero/main/multipass/install-linux.sh | bash</code>
                     </div>
