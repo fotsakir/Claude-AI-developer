@@ -5,6 +5,17 @@ All notable changes to CodeHero will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.55.0] - 2026-01-12
+
+### Changed
+- **Website Hero Animation** - New 24-hour story animation showing CodeHero working while you do other things
+  - Dynamic scenes: working together, coffee break, lunch, exercise, family time, sleep
+  - Consistent layout width throughout all transitions
+  - Smooth fade transitions between scenes
+- **GitHub Pages Improvements**
+  - Added `.nojekyll` file to fix sitemap processing
+  - Fixed sitemap.xml format for Google Search Console
+
 ## [2.54.0] - 2026-01-12
 
 ### Changed
