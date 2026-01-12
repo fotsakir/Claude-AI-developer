@@ -244,6 +244,248 @@
             filter: drop-shadow(0 0 30px rgba(99, 102, 241, 0.3));
         }
 
+        /* Night Shift Scene */
+        .night-scene {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            height: 300px;
+            margin-bottom: 30px;
+            border-radius: 20px;
+            background: linear-gradient(180deg, #0a0a1a 0%, #12122a 100%);
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Window with moon */
+        .window {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            width: 80px;
+            height: 100px;
+            background: linear-gradient(180deg, #1a1a3a 0%, #0d0d20 100%);
+            border: 3px solid #2a2a4a;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .moon {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 30px;
+            height: 30px;
+            background: linear-gradient(135deg, #fff9c4 0%, #ffd54f 100%);
+            border-radius: 50%;
+            box-shadow: 0 0 20px rgba(255, 245, 157, 0.6), 0 0 40px rgba(255, 245, 157, 0.3);
+            animation: moonGlow 4s ease-in-out infinite;
+        }
+
+        @keyframes moonGlow {
+            0%, 100% { box-shadow: 0 0 20px rgba(255, 245, 157, 0.6), 0 0 40px rgba(255, 245, 157, 0.3); }
+            50% { box-shadow: 0 0 30px rgba(255, 245, 157, 0.8), 0 0 60px rgba(255, 245, 157, 0.4); }
+        }
+
+        .stars {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+
+        .star {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: #fff;
+            border-radius: 50%;
+            animation: twinkle 2s ease-in-out infinite;
+        }
+
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+
+        /* Clock */
+        .clock {
+            position: absolute;
+            top: 25px;
+            left: 30px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.5rem;
+            color: #22d3ee;
+            text-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
+            animation: clockPulse 1s ease-in-out infinite;
+        }
+
+        @keyframes clockPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .clock-label {
+            font-size: 0.6rem;
+            color: #64748b;
+            margin-top: 2px;
+        }
+
+        /* Desk */
+        .desk {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 80px;
+            background: linear-gradient(180deg, #1a1a2e 0%, #16162a 100%);
+            border-top: 2px solid #2a2a4a;
+        }
+
+        /* Laptop */
+        .laptop {
+            position: absolute;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .laptop-screen {
+            width: 180px;
+            height: 120px;
+            background: #0d0d1a;
+            border: 3px solid #3a3a5a;
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(34, 211, 238, 0.3), inset 0 0 20px rgba(34, 211, 238, 0.1);
+            position: relative;
+        }
+
+        .laptop-base {
+            width: 200px;
+            height: 10px;
+            background: linear-gradient(180deg, #4a4a6a 0%, #3a3a5a 100%);
+            border-radius: 0 0 4px 4px;
+            margin-left: -10px;
+        }
+
+        /* Code animation on screen */
+        .code-lines {
+            padding: 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.5rem;
+            line-height: 1.4;
+        }
+
+        .code-line {
+            color: #22d3ee;
+            opacity: 0;
+            animation: typeLine 0.5s ease forwards;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        .code-line.purple { color: #a78bfa; }
+        .code-line.green { color: #10b981; }
+        .code-line.yellow { color: #fbbf24; }
+        .code-line.pink { color: #f472b6; }
+
+        @keyframes typeLine {
+            from { opacity: 0; width: 0; }
+            to { opacity: 1; width: 100%; }
+        }
+
+        .code-line:nth-child(1) { animation-delay: 0s; }
+        .code-line:nth-child(2) { animation-delay: 0.3s; }
+        .code-line:nth-child(3) { animation-delay: 0.6s; }
+        .code-line:nth-child(4) { animation-delay: 0.9s; }
+        .code-line:nth-child(5) { animation-delay: 1.2s; }
+        .code-line:nth-child(6) { animation-delay: 1.5s; }
+        .code-line:nth-child(7) { animation-delay: 1.8s; }
+        .code-line:nth-child(8) { animation-delay: 2.1s; }
+
+        .cursor {
+            display: inline-block;
+            width: 6px;
+            height: 10px;
+            background: #22d3ee;
+            animation: blink 0.8s infinite;
+            margin-left: 2px;
+            vertical-align: middle;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        /* Screen glow effect */
+        .screen-glow {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 250px;
+            height: 150px;
+            background: radial-gradient(ellipse at center, rgba(34, 211, 238, 0.15) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        /* Zzz animation */
+        .zzz {
+            position: absolute;
+            bottom: 180px;
+            right: 50px;
+            font-size: 1.2rem;
+            color: #64748b;
+            opacity: 0;
+            animation: floatZzz 3s ease-in-out infinite;
+        }
+
+        .zzz:nth-child(2) {
+            right: 40px;
+            bottom: 200px;
+            animation-delay: 0.5s;
+            font-size: 1rem;
+        }
+
+        .zzz:nth-child(3) {
+            right: 55px;
+            bottom: 220px;
+            animation-delay: 1s;
+            font-size: 0.8rem;
+        }
+
+        @keyframes floatZzz {
+            0% { opacity: 0; transform: translateY(0); }
+            20% { opacity: 0.7; }
+            80% { opacity: 0.7; }
+            100% { opacity: 0; transform: translateY(-20px); }
+        }
+
+        /* Coffee cup (crossed out) */
+        .no-coffee {
+            position: absolute;
+            bottom: 90px;
+            right: 60px;
+            font-size: 1.5rem;
+            opacity: 0.6;
+        }
+
+        .no-coffee::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: -5px;
+            width: 35px;
+            height: 3px;
+            background: #ef4444;
+            transform: rotate(-45deg);
+            border-radius: 2px;
+        }
+
         .hero h1 {
             font-size: clamp(2.5rem, 5vw, 4rem);
             font-weight: 700;
@@ -636,9 +878,58 @@
 
     <!-- Hero Section -->
     <section class="hero">
-        <div style="display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 20px;">
-            <div style="font-size: 5rem; filter: drop-shadow(0 0 30px rgba(99, 102, 241, 0.5));">🦸‍♂️</div>
+        <!-- Night Shift Animated Scene -->
+        <div class="night-scene">
+            <!-- Window with moon and stars -->
+            <div class="window">
+                <div class="stars">
+                    <div class="star" style="top: 20%; left: 20%; animation-delay: 0s;"></div>
+                    <div class="star" style="top: 40%; left: 60%; animation-delay: 0.5s;"></div>
+                    <div class="star" style="top: 15%; left: 45%; animation-delay: 1s;"></div>
+                    <div class="star" style="top: 60%; left: 30%; animation-delay: 1.5s;"></div>
+                    <div class="star" style="top: 35%; left: 75%; animation-delay: 0.7s;"></div>
+                </div>
+                <div class="moon"></div>
+            </div>
+
+            <!-- Clock showing 3:00 AM -->
+            <div class="clock">
+                3:00<span style="font-size: 0.8rem;"> AM</span>
+                <div class="clock-label">while you sleep...</div>
+            </div>
+
+            <!-- Desk surface -->
+            <div class="desk"></div>
+
+            <!-- Screen glow effect -->
+            <div class="screen-glow"></div>
+
+            <!-- Laptop with animated code -->
+            <div class="laptop">
+                <div class="laptop-screen">
+                    <div class="code-lines" id="codeAnimation">
+                        <div class="code-line purple">async function build() {</div>
+                        <div class="code-line green">  await compile();</div>
+                        <div class="code-line green">  await test();</div>
+                        <div class="code-line yellow">  // Fixed bug #142</div>
+                        <div class="code-line green">  await deploy();</div>
+                        <div class="code-line pink">  console.log('Done!');</div>
+                        <div class="code-line purple">}</div>
+                        <div class="code-line"><span class="cursor"></span></div>
+                    </div>
+                </div>
+                <div class="laptop-base"></div>
+            </div>
+
+            <!-- Floating Zzz -->
+            <div class="zzz">z</div>
+            <div class="zzz">z</div>
+            <div class="zzz">z</div>
+
+            <!-- No coffee needed -->
+            <div class="no-coffee">☕</div>
         </div>
+
         <h1>CodeHero</h1>
         <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 16px;">
             <span style="background: linear-gradient(135deg, #8b5cf6, #6366f1); padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; color: white; display: flex; align-items: center; gap: 6px;">
@@ -1106,6 +1397,18 @@
                 createCodeRain();
             }, 250);
         });
+
+        // Loop the code animation in night scene
+        function restartCodeAnimation() {
+            const codeLines = document.querySelectorAll('.code-line');
+            codeLines.forEach(line => {
+                line.style.animation = 'none';
+                line.offsetHeight; // Trigger reflow
+                line.style.animation = null;
+            });
+        }
+        // Restart animation every 4 seconds
+        setInterval(restartCodeAnimation, 4000);
     </script>
 </body>
 </html>
