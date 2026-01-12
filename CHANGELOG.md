@@ -5,7 +5,7 @@ All notable changes to the Fotios Claude System will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.42.0] - 2026-01-12
+## [2.43.0] - 2026-01-12
 
 ### Added
 - **Telegram Notifications**: Get instant alerts on your phone
@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Settings panel (⚙️) in dashboard for easy configuration
   - Test notification button before saving
   - Auto-restart daemon when settings saved
+- **docs/TELEGRAM_SETUP.md**: Complete setup guide for Telegram notifications
+
+## [2.42.0] - 2026-01-12
+
+### Added
 - **Multimedia Tools**: Full suite of image, audio, video, and PDF processing tools
   - ffmpeg, ImageMagick, tesseract-ocr (English + Greek), sox, poppler-utils
   - Python: Pillow, OpenCV, pytesseract, pdf2image, pydub
