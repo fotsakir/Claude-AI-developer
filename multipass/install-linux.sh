@@ -99,55 +99,69 @@ if multipass list --format csv | grep -q "claude-dev"; then
 fi
 
 # Create VM
-echo "[4/5] Creating VM (this takes 15-20 minutes)..."
+echo "[4/5] Creating VM and installing software..."
 echo "      - Name: claude-dev"
 echo "      - Memory: 6GB"
 echo "      - Disk: 64GB"
 echo "      - OS: Ubuntu 24.04 LTS"
 echo ""
-echo "      Please wait..."
 
-multipass launch 24.04 --name claude-dev --memory 6G --disk 64G --cpus 4 --timeout 1800 --cloud-init "$CLOUD_INIT_PATH"
+# Launch VM in background so we can show progress
+multipass launch 24.04 --name claude-dev --memory 6G --disk 64G --cpus 4 --timeout 1800 --cloud-init "$CLOUD_INIT_PATH" &
+LAUNCH_PID=$!
 
-# Wait for cloud-init to complete
-echo "[5/5] Waiting for installation to complete..."
-echo "      This may take 10-15 more minutes..."
+# Wait for VM to be running
+echo "      Waiting for VM to start..."
+while ! multipass list 2>/dev/null | grep -q "claude-dev.*Running"; do
+    sleep 3
+done
+echo "      VM started!"
 echo ""
 
-# Wait for cloud-init log to exist
-for i in {1..60}; do
-    if multipass exec claude-dev -- test -f /var/log/cloud-init-output.log 2>/dev/null; then
-        break
-    fi
-    sleep 2
-done
-
 # Show progress by displaying last lines periodically
+echo "[5/5] Installing software (15-20 minutes)..."
+echo ""
+
 while true; do
     # Clear screen and show last 30 lines
     clear
     echo "=========================================="
-    echo "  Installation Progress (updating every 3s)"
+    echo "  CodeHero Installation Progress"
+    echo "  (refreshing every 3 seconds)"
     echo "=========================================="
     echo ""
-    multipass exec claude-dev -- tail -30 /var/log/cloud-init-output.log 2>/dev/null
+    multipass exec claude-dev -- tail -30 /var/log/cloud-init-output.log 2>/dev/null || echo "      Waiting for installation to start..."
     echo ""
     echo "=========================================="
 
     # Check if install completed
     if multipass exec claude-dev -- test -f /root/install-complete 2>/dev/null; then
+        echo ""
         echo "Installation complete!"
         break
     fi
 
     # Check if services are running
     if multipass exec claude-dev -- systemctl is-active codehero-web >/dev/null 2>&1; then
+        echo ""
         echo "Installation complete!"
         break
     fi
 
+    # Check if launch failed
+    if ! kill -0 $LAUNCH_PID 2>/dev/null; then
+        wait $LAUNCH_PID
+        if [ $? -ne 0 ]; then
+            echo "ERROR: VM creation failed!"
+            exit 1
+        fi
+    fi
+
     sleep 3
 done
+
+# Make sure launch process is done
+wait $LAUNCH_PID 2>/dev/null || true
 
 # Get IP address
 IP=$(multipass exec claude-dev -- hostname -I | awk '{print $1}')
