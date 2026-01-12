@@ -20,13 +20,13 @@ CodeHero is a self-hosted autonomous AI coding platform powered by Claude AI to 
 ### Source Code (Edit Here)
 | Component | Path |
 |-----------|------|
-| Web App | `/home/claude/fotios-claude-system/web/app.py` |
-| Daemon | `/home/claude/fotios-claude-system/scripts/claude-daemon.py` |
-| Templates | `/home/claude/fotios-claude-system/web/templates/*.html` |
-| Config | `/home/claude/fotios-claude-system/config/` |
-| Scripts | `/home/claude/fotios-claude-system/scripts/` |
-| Database Schema | `/home/claude/fotios-claude-system/database/schema.sql` |
-| Migrations | `/home/claude/fotios-claude-system/database/migrations/` |
+| Web App | `/home/claude/codehero/web/app.py` |
+| Daemon | `/home/claude/codehero/scripts/claude-daemon.py` |
+| Templates | `/home/claude/codehero/web/templates/*.html` |
+| Config | `/home/claude/codehero/config/` |
+| Scripts | `/home/claude/codehero/scripts/` |
+| Database Schema | `/home/claude/codehero/database/schema.sql` |
+| Migrations | `/home/claude/codehero/database/migrations/` |
 
 ### Production (Running)
 | Component | Path |
@@ -43,7 +43,7 @@ CodeHero is a self-hosted autonomous AI coding platform powered by Claude AI to 
 |------|---------|
 | `/etc/fotios-claude/system.conf` | Database credentials, MAX_PARALLEL_PROJECTS |
 | `/etc/fotios-claude/global-context.md` | Global context sent to all projects |
-| `/home/claude/fotios-claude-system/config/project-template.md` | Blueprint planner template |
+| `/home/claude/codehero/config/project-template.md` | Blueprint planner template |
 
 ---
 
@@ -149,7 +149,7 @@ Protection against runaway AI sessions:
 
 ### 3. AI Project Manager (Blueprint Planner)
 - "Plan with AI" button on Projects page
-- Reads `/home/claude/fotios-claude-system/config/project-template.md`
+- Reads `/home/claude/codehero/config/project-template.md`
 - Guided questionnaire for requirements
 - Generates complete blueprint: tech stack, database schema, API design
 
@@ -254,14 +254,14 @@ audio = AudioSegment.from_mp3("input.mp3")
 
 1. **Edit in source directory:**
    ```
-   /home/claude/fotios-claude-system/
+   /home/claude/codehero/
    ```
 
 2. **Deploy to production:**
    ```bash
-   sudo cp /home/claude/fotios-claude-system/web/app.py /opt/fotios-claude/web/
-   sudo cp /home/claude/fotios-claude-system/scripts/claude-daemon.py /opt/fotios-claude/scripts/
-   sudo cp -r /home/claude/fotios-claude-system/web/templates/* /opt/fotios-claude/web/templates/
+   sudo cp /home/claude/codehero/web/app.py /opt/fotios-claude/web/
+   sudo cp /home/claude/codehero/scripts/claude-daemon.py /opt/fotios-claude/scripts/
+   sudo cp -r /home/claude/codehero/web/templates/* /opt/fotios-claude/web/templates/
    ```
 
 3. **Restart services:**
@@ -286,7 +286,7 @@ audio = AudioSegment.from_mp3("input.mp3")
 2. Create zip:
    ```bash
    cd /home/claude
-   zip -r fotios-claude-system-X.Y.Z.zip fotios-claude-system -x "*.pyc" -x "*__pycache__*" -x "*.git*"
+   zip -r codehero-X.Y.Z.zip codehero -x "*.pyc" -x "*__pycache__*" -x "*.git*"
    ```
 
 ---

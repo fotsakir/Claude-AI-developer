@@ -5,9 +5,9 @@
 ## Project Structure
 
 ```
-/home/claude/fotios-claude-system/    <- LOCAL SOURCE (make changes here)
+/home/claude/codehero/    <- LOCAL SOURCE (make changes here)
 /opt/fotios-claude/                   <- LOCAL PRODUCTION (installed files)
-/home/claude/fotios-claude-system-X.Y.Z.zip  <- BACKUPS (DON'T DELETE!)
+/home/claude/codehero-X.Y.Z.zip  <- BACKUPS (DON'T DELETE!)
 ```
 
 ### Remote Server (Optional)
@@ -21,23 +21,23 @@ Production path: /opt/fotios-claude/
 
 ### 1. Make changes in SOURCE
 ```
-/home/claude/fotios-claude-system/
+/home/claude/codehero/
 ```
 
 ### 2. Copy to PRODUCTION
 ```bash
-sudo cp /home/claude/fotios-claude-system/web/app.py /opt/fotios-claude/web/
-sudo cp /home/claude/fotios-claude-system/scripts/claude-daemon.py /opt/fotios-claude/scripts/
-sudo cp -r /home/claude/fotios-claude-system/web/templates/* /opt/fotios-claude/web/templates/
-sudo cp /home/claude/fotios-claude-system/scripts/*.sh /opt/fotios-claude/scripts/
+sudo cp /home/claude/codehero/web/app.py /opt/fotios-claude/web/
+sudo cp /home/claude/codehero/scripts/claude-daemon.py /opt/fotios-claude/scripts/
+sudo cp -r /home/claude/codehero/web/templates/* /opt/fotios-claude/web/templates/
+sudo cp /home/claude/codehero/scripts/*.sh /opt/fotios-claude/scripts/
 ```
 
 ### 3. Copy to REMOTE PRODUCTION (when remote server is available)
 ```bash
 # User will provide IP and PASSWORD
-sshpass -p 'PASSWORD' scp -o StrictHostKeyChecking=no /home/claude/fotios-claude-system/web/app.py root@REMOTE_IP:/opt/fotios-claude/web/
-sshpass -p 'PASSWORD' scp -o StrictHostKeyChecking=no /home/claude/fotios-claude-system/scripts/claude-daemon.py root@REMOTE_IP:/opt/fotios-claude/scripts/
-sshpass -p 'PASSWORD' scp -o StrictHostKeyChecking=no -r /home/claude/fotios-claude-system/web/templates/* root@REMOTE_IP:/opt/fotios-claude/web/templates/
+sshpass -p 'PASSWORD' scp -o StrictHostKeyChecking=no /home/claude/codehero/web/app.py root@REMOTE_IP:/opt/fotios-claude/web/
+sshpass -p 'PASSWORD' scp -o StrictHostKeyChecking=no /home/claude/codehero/scripts/claude-daemon.py root@REMOTE_IP:/opt/fotios-claude/scripts/
+sshpass -p 'PASSWORD' scp -o StrictHostKeyChecking=no -r /home/claude/codehero/web/templates/* root@REMOTE_IP:/opt/fotios-claude/web/templates/
 ```
 
 ### 4. Restart services (ALWAYS!) - Both Local and Remote
@@ -60,7 +60,7 @@ sshpass -p 'PASSWORD' ssh -o StrictHostKeyChecking=no root@REMOTE_IP "systemctl 
 ```bash
 cd /home/claude
 # DON'T rm the old zip! It's a backup!
-zip -r fotios-claude-system-X.Y.Z.zip fotios-claude-system -x "*.pyc" -x "*__pycache__*" -x "*.git*"
+zip -r codehero-X.Y.Z.zip codehero -x "*.pyc" -x "*__pycache__*" -x "*.git*"
 ```
 
 ### 7. Git commit and push
@@ -78,7 +78,7 @@ git push origin vX.Y.Z
 
 ### 9. Create GitHub release with zip
 ```bash
-gh release create vX.Y.Z /home/claude/fotios-claude-system-X.Y.Z.zip --title "vX.Y.Z - Description" --notes "Release notes here"
+gh release create vX.Y.Z /home/claude/codehero-X.Y.Z.zip --title "vX.Y.Z - Description" --notes "Release notes here"
 ```
 
 ## Service Names (IMPORTANT!)
@@ -91,12 +91,12 @@ The correct names are:
 
 ```bash
 # Local Source vs Local Production
-diff /home/claude/fotios-claude-system/web/app.py /opt/fotios-claude/web/app.py
-diff /home/claude/fotios-claude-system/scripts/claude-daemon.py /opt/fotios-claude/scripts/claude-daemon.py
+diff /home/claude/codehero/web/app.py /opt/fotios-claude/web/app.py
+diff /home/claude/codehero/scripts/claude-daemon.py /opt/fotios-claude/scripts/claude-daemon.py
 
 # Local Source vs Remote Production (when remote available)
-sshpass -p 'PASSWORD' ssh -o StrictHostKeyChecking=no root@REMOTE_IP "cat /opt/fotios-claude/web/app.py" | diff /home/claude/fotios-claude-system/web/app.py -
-sshpass -p 'PASSWORD' ssh -o StrictHostKeyChecking=no root@REMOTE_IP "cat /opt/fotios-claude/scripts/claude-daemon.py" | diff /home/claude/fotios-claude-system/scripts/claude-daemon.py -
+sshpass -p 'PASSWORD' ssh -o StrictHostKeyChecking=no root@REMOTE_IP "cat /opt/fotios-claude/web/app.py" | diff /home/claude/codehero/web/app.py -
+sshpass -p 'PASSWORD' ssh -o StrictHostKeyChecking=no root@REMOTE_IP "cat /opt/fotios-claude/scripts/claude-daemon.py" | diff /home/claude/codehero/scripts/claude-daemon.py -
 ```
 
 ## Check Services
@@ -112,8 +112,8 @@ sshpass -p 'PASSWORD' ssh -o StrictHostKeyChecking=no root@REMOTE_IP "systemctl 
 ## Version History
 
 The zip files are BACKUPS. Keep them all:
-- fotios-claude-system-2.20.0.zip
-- fotios-claude-system-2.21.0.zip
+- codehero-2.20.0.zip
+- codehero-2.21.0.zip
 - ... etc
 
 ## Files that must be SYNCED
@@ -136,7 +136,7 @@ systemctl status fotios-claude-web fotios-claude-daemon mysql lshttpd
 
 For comprehensive development guide, database info, common tasks, and tips:
 ```
-/home/claude/fotios-claude-system/CLAUDE_DEV_NOTES.md
+/home/claude/codehero/CLAUDE_DEV_NOTES.md
 ```
 
 ## Project Template

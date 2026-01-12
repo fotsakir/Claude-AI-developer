@@ -3670,10 +3670,10 @@ def do_update():
         with zipfile.ZipFile(zip_path, 'r') as z:
             z.extractall(extract_dir)
 
-        # Find the fotios-claude-system folder inside
+        # Find the codehero folder inside
         extracted_folder = None
         for item in os.listdir(extract_dir):
-            if item.startswith('fotios-claude-system'):
+            if item.startswith('codehero'):
                 extracted_folder = os.path.join(extract_dir, item)
                 break
 

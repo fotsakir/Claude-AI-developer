@@ -12,8 +12,8 @@
 
 ```bash
 cd /root
-unzip fotios-claude-system-2.53.0.zip
-cd fotios-claude-system
+unzip codehero-2.53.0.zip
+cd codehero
 ```
 
 ### 2. (Optional) Edit configuration
@@ -98,8 +98,8 @@ To upgrade from a previous version:
 ```bash
 # Download and extract new version
 cd /root
-unzip fotios-claude-system-2.53.0.zip
-cd fotios-claude-system
+unzip codehero-2.53.0.zip
+cd codehero
 
 # Preview what will change (recommended)
 sudo ./upgrade.sh --dry-run
@@ -132,7 +132,7 @@ sudo ./upgrade.sh -y
 ## Uninstallation
 
 ```bash
-cd /root/fotios-claude-system
+cd /root/codehero
 chmod +x uninstall.sh
 ./uninstall.sh
 ```

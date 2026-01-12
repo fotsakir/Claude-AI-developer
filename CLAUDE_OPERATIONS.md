@@ -704,17 +704,17 @@ When making changes to the platform:
 
 | What | Source (sync here) | Installed (running) |
 |------|-------------------|---------------------|
-| Flask App | `/home/claude/fotios-claude-system/web/app.py` | `/opt/fotios-claude/web/app.py` |
-| Daemon | `/home/claude/fotios-claude-system/scripts/claude-daemon.py` | `/opt/fotios-claude/scripts/claude-daemon.py` |
-| Templates | `/home/claude/fotios-claude-system/web/templates/` | `/opt/fotios-claude/web/templates/` |
-| Schema | `/home/claude/fotios-claude-system/database/schema.sql` | (applied to MySQL) |
+| Flask App | `/home/claude/codehero/web/app.py` | `/opt/fotios-claude/web/app.py` |
+| Daemon | `/home/claude/codehero/scripts/claude-daemon.py` | `/opt/fotios-claude/scripts/claude-daemon.py` |
+| Templates | `/home/claude/codehero/web/templates/` | `/opt/fotios-claude/web/templates/` |
+| Schema | `/home/claude/codehero/database/schema.sql` | (applied to MySQL) |
 
 **After editing:**
 ```bash
 # Copy to installed location
-sudo cp /home/claude/fotios-claude-system/web/app.py /opt/fotios-claude/web/
-sudo cp -r /home/claude/fotios-claude-system/web/templates/* /opt/fotios-claude/web/templates/
-sudo cp /home/claude/fotios-claude-system/scripts/claude-daemon.py /opt/fotios-claude/scripts/
+sudo cp /home/claude/codehero/web/app.py /opt/fotios-claude/web/
+sudo cp -r /home/claude/codehero/web/templates/* /opt/fotios-claude/web/templates/
+sudo cp /home/claude/codehero/scripts/claude-daemon.py /opt/fotios-claude/scripts/
 
 # Restart services
 sudo systemctl restart fotios-claude-web fotios-claude-daemon
@@ -872,7 +872,7 @@ Helps users design projects before coding.
 **How it works:**
 1. User clicks "Plan with AI" on Projects page
 2. Opens Claude Assistant in blueprint mode
-3. Claude reads `/home/claude/fotios-claude-system/config/project-template.md`
+3. Claude reads `/home/claude/codehero/config/project-template.md`
 4. Guided questionnaire about project requirements
 5. Generates complete blueprint
 

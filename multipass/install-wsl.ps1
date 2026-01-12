@@ -101,10 +101,10 @@ apt-get update
 apt-get install -y unzip wget net-tools curl
 echo "Downloading latest release..."
 LATEST_URL=`$(curl -s https://api.github.com/repos/fotsakir/codehero/releases/latest | grep "browser_download_url.*zip" | cut -d '"' -f 4)
-wget -q "`$LATEST_URL" -O fotios-claude-system.zip
-rm -rf fotios-claude-system
-unzip -q fotios-claude-system.zip
-cd fotios-claude-system
+wget -q "`$LATEST_URL" -O codehero.zip
+rm -rf codehero
+unzip -q codehero.zip
+cd codehero
 chmod +x setup.sh
 echo "Running setup..."
 ./setup.sh

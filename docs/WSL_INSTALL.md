@@ -131,11 +131,11 @@ apt-get install -y unzip wget curl
 
 # Download latest release
 cd /root
-wget https://github.com/fotsakir/codehero/releases/latest/download/fotios-claude-system-2.52.0.zip
+wget https://github.com/fotsakir/codehero/releases/latest/download/codehero-2.52.0.zip
 
 # Extract and install
-unzip fotios-claude-system-2.52.0.zip
-cd fotios-claude-system
+unzip codehero-2.52.0.zip
+cd codehero
 chmod +x setup.sh
 ./setup.sh
 ```
