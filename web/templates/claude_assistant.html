@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Claude Assistant - Fotios Claude</title>
+    <title>Claude Assistant - CodeHero</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
@@ -359,7 +359,7 @@
             } else if (mode === 'help') {
                 term.writeln('\x1b[38;5;141m === Platform Help === \x1b[0m');
                 term.writeln('');
-                term.writeln('\x1b[38;5;246m Click "Start Session" to get help with the Fotios Claude System. \x1b[0m');
+                term.writeln('\x1b[38;5;246m Click "Start Session" to get help with CodeHero. \x1b[0m');
                 term.writeln('\x1b[38;5;246m Claude has knowledge about: \x1b[0m');
                 term.writeln('\x1b[38;5;246m  - Platform usage and features \x1b[0m');
                 term.writeln('\x1b[38;5;246m  - Troubleshooting common issues \x1b[0m');
@@ -442,7 +442,7 @@
                     if (mode === 'help' && !blueprintSent) {
                         blueprintSent = true;
                         setTimeout(() => {
-                            const prompt = 'Read the file /opt/fotios-claude/config/PLATFORM_KNOWLEDGE.md to learn about the Fotios Claude System platform. You are now the platform support assistant. When I ask questions about the platform, use this knowledge to help me. Also check /opt/fotios-claude/CLAUDE_OPERATIONS.md, /opt/fotios-claude/docs/USER_GUIDE.md, and /opt/fotios-claude/CLAUDE_DEV_NOTES.md if needed. Tell me you are ready to help and ask what I need assistance with.';
+                            const prompt = 'Read the file /opt/fotios-claude/config/PLATFORM_KNOWLEDGE.md to learn about the CodeHero platform. You are now the platform support assistant. When I ask questions about the platform, use this knowledge to help me. Also check /opt/fotios-claude/CLAUDE_OPERATIONS.md, /opt/fotios-claude/docs/USER_GUIDE.md, and /opt/fotios-claude/CLAUDE_DEV_NOTES.md if needed. Tell me you are ready to help and ask what I need assistance with.';
                             sendInput(prompt + '\n');
                         }, 2000);
                     }
