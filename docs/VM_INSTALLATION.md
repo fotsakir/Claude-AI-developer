@@ -20,6 +20,7 @@ Step-by-step guide to install Claude-AI-developer on a Virtual Machine.
 - [Step 4: Install Claude-AI-developer](#step-4-install-claude-ai-developer)
 - [Step 5: Access the Dashboard](#step-5-access-the-dashboard)
 - [How to Find Your VM's IP Address](#how-to-find-your-vms-ip-address)
+- [Start, Stop & Delete VMs](#start-stop--delete-vms)
 
 ---
 
@@ -464,6 +465,136 @@ Look for the IP under `eth0`, `ens33`, or `enp0s3` (e.g., `192.168.1.100`)
 The IP may change after VM restart. Always check with the commands above before accessing the dashboard.
 
 **Dashboard URL format:** `https://YOUR_IP:9453`
+
+---
+
+## Start, Stop & Delete VMs
+
+### WSL2 (Windows)
+
+| Action | Command (PowerShell) |
+|--------|----------------------|
+| **Start** | `wsl -d Ubuntu-24.04` |
+| **Stop** | `wsl --terminate Ubuntu-24.04` |
+| **Stop all WSL** | `wsl --shutdown` |
+| **Delete/Uninstall** | `wsl --unregister Ubuntu-24.04` |
+| **List distros** | `wsl --list --verbose` |
+
+---
+
+### Multipass (macOS/Linux)
+
+| Action | Command |
+|--------|---------|
+| **Start** | `multipass start claude-dev` |
+| **Stop** | `multipass stop claude-dev` |
+| **Restart** | `multipass restart claude-dev` |
+| **Delete** | `multipass delete claude-dev` |
+| **Delete permanently** | `multipass delete claude-dev --purge` |
+| **List VMs** | `multipass list` |
+
+---
+
+### VirtualBox
+
+**GUI:**
+- **Start**: Select VM → Click "Start"
+- **Stop**: Machine menu → "ACPI Shutdown" or "Power Off"
+- **Delete**: Right-click VM → "Remove" → "Delete all files"
+
+**Command line:**
+```bash
+# Start VM
+VBoxManage startvm "claude-ai-developer"
+
+# Stop VM (graceful)
+VBoxManage controlvm "claude-ai-developer" acpipowerbutton
+
+# Stop VM (force)
+VBoxManage controlvm "claude-ai-developer" poweroff
+
+# Delete VM
+VBoxManage unregistervm "claude-ai-developer" --delete
+```
+
+---
+
+### VMware (Workstation/Fusion)
+
+**GUI:**
+- **Start**: Select VM → Click "Power On"
+- **Stop**: VM menu → "Shut Down Guest" or "Power Off"
+- **Delete**: Right-click VM → "Delete from Disk"
+
+**Command line (vmrun):**
+```bash
+# Start
+vmrun start "/path/to/vm.vmx"
+
+# Stop (graceful)
+vmrun stop "/path/to/vm.vmx" soft
+
+# Stop (force)
+vmrun stop "/path/to/vm.vmx" hard
+
+# Delete
+vmrun deleteVM "/path/to/vm.vmx"
+```
+
+---
+
+### Hyper-V (Windows)
+
+**GUI (Hyper-V Manager):**
+- **Start**: Right-click VM → "Start"
+- **Stop**: Right-click VM → "Shut Down" or "Turn Off"
+- **Delete**: Right-click VM → "Delete"
+
+**PowerShell:**
+```powershell
+# Start
+Start-VM -Name "claude-ai-developer"
+
+# Stop (graceful)
+Stop-VM -Name "claude-ai-developer"
+
+# Stop (force)
+Stop-VM -Name "claude-ai-developer" -Force
+
+# Delete
+Remove-VM -Name "claude-ai-developer" -Force
+# Also delete virtual hard disk manually from disk
+```
+
+---
+
+### UTM (macOS)
+
+**GUI:**
+- **Start**: Select VM → Click Play button
+- **Stop**: Click Stop button or VM menu → "Stop"
+- **Delete**: Right-click VM → "Delete"
+
+---
+
+### Parallels (macOS)
+
+**GUI:**
+- **Start**: Double-click VM or click Play
+- **Stop**: Actions menu → "Shut Down" or "Stop"
+- **Delete**: Right-click VM → "Remove" → "Move to Trash"
+
+**Command line (prlctl):**
+```bash
+# Start
+prlctl start "claude-ai-developer"
+
+# Stop
+prlctl stop "claude-ai-developer"
+
+# Delete
+prlctl delete "claude-ai-developer"
+```
 
 ---
 
