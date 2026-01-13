@@ -199,6 +199,25 @@ Full Linux terminal in your browser:
 - **Startups** - Ship faster with AI-assisted development
 - **Learning** - See how AI approaches coding problems
 
+## 🚀 Coming Soon: CodeHero PRO
+
+> **Enterprise Features & AI Ecosystem**
+
+We're building the next evolution of autonomous AI development:
+
+| Feature | Description |
+|---------|-------------|
+| **Multi-Agent Orchestration** | Multiple AI agents working together on complex projects |
+| **AI Code Review** | Automated PR reviews with security & quality analysis |
+| **Team Collaboration** | Role-based access, team dashboards, shared projects |
+| **Advanced Analytics** | Cost optimization, productivity metrics, ROI tracking |
+| **Enterprise SSO** | SAML, OAuth, Active Directory integration |
+| **Private Cloud** | Dedicated infrastructure, SLA guarantees |
+| **AI Ecosystem** | Connect multiple AI providers (OpenAI, Gemini, local LLMs) |
+| **Custom Workflows** | Define your own automation pipelines |
+
+**Interested?** [Contact us](https://routeplanner.gr/en/) for early access.
+
 ## Quick Start
 
 ### One-Click Install (Recommended)
