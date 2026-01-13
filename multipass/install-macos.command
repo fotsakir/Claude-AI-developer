@@ -92,38 +92,17 @@ echo "      - CPUs: 2"
 echo "      - OS: Ubuntu 24.04 LTS"
 echo ""
 
-# Launch VM in background so we can show progress
+# Launch VM (this will wait for cloud-init to complete)
 # Using conservative resources for compatibility
-multipass launch 24.04 --name claude-dev --memory 4G --disk 64G --cpus 2 --timeout 3600 --cloud-init "$CLOUD_INIT_PATH" &
-LAUNCH_PID=$!
-
-# Wait for VM to be running
-echo "      Waiting for VM to start..."
-while ! multipass list 2>/dev/null | grep -q "claude-dev.*Running"; do
-    sleep 3
-done
-echo "      VM started!"
+echo "[5/5] Installing software (this takes 15-25 minutes)..."
+echo "      Please wait..."
 echo ""
 
-# Show progress by displaying last lines periodically
-echo "[5/5] Installing software (15-20 minutes)..."
-echo ""
-
-# Just tail -f the log - it will keep running until we kill it
-multipass exec claude-dev -- tail -f /var/log/cloud-init-output.log 2>/dev/null &
-TAIL_PID=$!
-
-# Wait for the launch process to complete (means cloud-init is done)
-wait $LAUNCH_PID
-LAUNCH_EXIT=$?
-
-# Kill the tail
-kill $TAIL_PID 2>/dev/null
-wait $TAIL_PID 2>/dev/null
-
-if [ $LAUNCH_EXIT -ne 0 ]; then
+if ! multipass launch 24.04 --name claude-dev --memory 4G --disk 64G --cpus 2 --timeout 3600 --cloud-init "$CLOUD_INIT_PATH"; then
     echo ""
     echo "ERROR: VM creation failed!"
+    echo "Try running: multipass delete claude-dev --purge"
+    echo "Then run this script again."
     exit 1
 fi
 
