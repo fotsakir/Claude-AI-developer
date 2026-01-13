@@ -1651,8 +1651,19 @@
         // Auto-refresh stats every 30 seconds
         setInterval(loadUsageStats, 30000);
 
-        // Full page refresh every 60 seconds
-        setTimeout(() => location.reload(), 60000);
+        // Full page refresh every 60 seconds (only if no modal is open)
+        function schedulePageRefresh() {
+            setTimeout(() => {
+                const modalOpen = document.querySelector('.modal-overlay.show');
+                if (!modalOpen) {
+                    location.reload();
+                } else {
+                    // Modal is open, try again in 10 seconds
+                    schedulePageRefresh();
+                }
+            }, 60000);
+        }
+        schedulePageRefresh();
 
         // ============ CLAUDE ACTIVATION ============
 
