@@ -5,6 +5,13 @@ All notable changes to CodeHero will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.59.0] - 2026-01-13
+
+### Changed
+- **Activation Popup** - Claude activation now opens in separate popup window
+- **Dashboard Refresh** - Auto-refresh no longer interrupts open modals
+- **PRO Announcement** - Added CodeHero PRO coming soon section to README and website
+
 ## [2.58.0] - 2026-01-13
 
 ### Changed
