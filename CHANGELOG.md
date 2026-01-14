@@ -5,6 +5,16 @@ All notable changes to CodeHero will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.60.4] - 2026-01-14
+
+### Added
+- **PHP Extensions** - Added sqlite3, imap, apcu, igbinary, tidy, pgsql to setup.sh
+
+### Fixed
+- **OpenLiteSpeed Paths** - Fixed old fotios-claude paths to codehero in OLS configs
+- **PID Directory Permissions** - Fixed /var/run/codehero ownership in upgrade.sh
+- **PHP OPcache** - Disabled opcache for development in PHP 8.3 and 8.4
+
 ## [2.60.3] - 2026-01-13
 
 ### Added

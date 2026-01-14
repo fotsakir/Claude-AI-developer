@@ -1498,11 +1498,13 @@ def api_projects():
             conn.commit()
             project_id = cursor.lastrowid
 
-            # Create directories
+            # Create directories with proper permissions
             if web_path:
-                os.makedirs(web_path, exist_ok=True)
+                os.makedirs(web_path, mode=0o2775, exist_ok=True)
+                os.chmod(web_path, 0o2775)  # Ensure setgid and group write
             if app_path:
-                os.makedirs(app_path, exist_ok=True)
+                os.makedirs(app_path, mode=0o2775, exist_ok=True)
+                os.chmod(app_path, 0o2775)  # Ensure setgid and group write
 
             cursor.close(); conn.close()
 

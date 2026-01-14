@@ -1,19 +1,20 @@
 [Unit]
-Description=CodeHero Daemon (Multi-Worker)
+Description=CodeHero Daemon
 After=network.target mysql.service
 
 [Service]
 Type=simple
-User=claude-worker
-Group=claude-worker
-WorkingDirectory=/home/claude-worker
-Environment=HOME=/home/claude-worker
+User=claude
+Group=claude
+WorkingDirectory=/opt/codehero
 ExecStart=/usr/bin/python3 /opt/codehero/scripts/claude-daemon.py
 Restart=always
-RestartSec=10
+RestartSec=5
+StandardOutput=append:/var/log/codehero/daemon.log
+StandardError=append:/var/log/codehero/daemon.log
 
-# Allow write to projects and logs
-ReadWritePaths=/var/www/projects /opt/apps /var/log/codehero /var/run/codehero /home/claude-worker /tmp
+# Environment
+Environment=PYTHONUNBUFFERED=1
 
 [Install]
 WantedBy=multi-user.target

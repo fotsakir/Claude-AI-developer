@@ -1,16 +1,21 @@
 [Unit]
-Description=CodeHero Web Panel (Flask)
+Description=CodeHero Web Interface
 After=network.target mysql.service
 
 [Service]
 Type=simple
-User=root
-WorkingDirectory=/opt/codehero/web
-Environment=PYTHONUNBUFFERED=1
+User=claude
+Group=claude
+WorkingDirectory=/opt/codehero
 ExecStart=/usr/bin/python3 /opt/codehero/web/app.py
 ExecStopPost=/bin/bash -c 'fuser -k 5000/tcp 2>/dev/null || true'
 Restart=always
 RestartSec=5
+StandardOutput=append:/var/log/codehero/web.log
+StandardError=append:/var/log/codehero/web.log
+
+# Environment
+Environment=PYTHONUNBUFFERED=1
 
 [Install]
 WantedBy=multi-user.target

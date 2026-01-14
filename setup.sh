@@ -172,11 +172,15 @@ fi
 echo -e "${YELLOW}[5/14] Installing LSPHP (PHP 8.3 + 8.4)...${NC}"
 
 if [ ! -f /usr/local/lsws/lsphp83/bin/lsphp ]; then
-    apt-get install -y lsphp83 lsphp83-common lsphp83-mysql lsphp83-curl lsphp83-intl lsphp83-opcache lsphp83-redis lsphp83-imagick || true
+    apt-get install -y lsphp83 lsphp83-common lsphp83-mysql lsphp83-curl lsphp83-intl \
+        lsphp83-opcache lsphp83-redis lsphp83-imagick lsphp83-sqlite3 lsphp83-imap \
+        lsphp83-apcu lsphp83-igbinary lsphp83-tidy lsphp83-pgsql || true
 fi
 
 if [ ! -f /usr/local/lsws/lsphp84/bin/lsphp ]; then
-    apt-get install -y lsphp84 lsphp84-common lsphp84-mysql lsphp84-curl lsphp84-intl lsphp84-opcache lsphp84-redis lsphp84-imagick || true
+    apt-get install -y lsphp84 lsphp84-common lsphp84-mysql lsphp84-curl lsphp84-intl \
+        lsphp84-opcache lsphp84-redis lsphp84-imagick lsphp84-sqlite3 lsphp84-imap \
+        lsphp84-apcu lsphp84-igbinary lsphp84-tidy lsphp84-pgsql || true
 fi
 
 mkdir -p /usr/local/lsws/fcgi-bin

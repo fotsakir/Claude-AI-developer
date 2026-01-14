@@ -369,10 +369,99 @@ cp "${SOURCE_DIR}/CLAUDE.md" "${INSTALL_DIR}/" 2>/dev/null || true
 
 log_success "Files copied"
 
-# Step 6: Fix log file permissions (in case they were created as root)
-log_info "Fixing log file permissions..."
+# Step 6: Fix permissions
+log_info "Fixing permissions..."
+
+# Fix log file permissions (in case they were created as root)
 touch /var/log/codehero/daemon.log /var/log/codehero/web.log 2>/dev/null || true
 chown claude:claude /var/log/codehero/daemon.log /var/log/codehero/web.log 2>/dev/null || true
+
+# Fix projects folder permissions (setgid for proper group inheritance)
+if [ -d "/var/www/projects" ]; then
+    chown -R claude:claude /var/www/projects 2>/dev/null || true
+    chmod 2775 /var/www/projects 2>/dev/null || true
+    echo "  Fixed /var/www/projects permissions"
+fi
+
+# Fix apps folder permissions
+if [ -d "/opt/apps" ]; then
+    chown -R claude:claude /opt/apps 2>/dev/null || true
+    chmod 2775 /opt/apps 2>/dev/null || true
+    echo "  Fixed /opt/apps permissions"
+fi
+
+# Fix /var/run/codehero permissions (PID file directory)
+mkdir -p /var/run/codehero
+chown -R claude:claude /var/run/codehero 2>/dev/null || true
+echo "  Fixed /var/run/codehero permissions"
+
+# Ensure tmpfiles.d config exists for reboot persistence
+cat > /etc/tmpfiles.d/codehero.conf << TMPEOF
+# Create runtime directory for CodeHero
+d /var/run/codehero 0755 claude claude -
+TMPEOF
+echo "  Updated tmpfiles.d config"
+
+# Step 6b: Update systemd service files (fix user if incorrect)
+log_info "Updating systemd services..."
+CLAUDE_USER="claude"
+
+# Update daemon service if user is wrong
+if grep -q "User=claude-worker" /etc/systemd/system/codehero-daemon.service 2>/dev/null; then
+    cat > /etc/systemd/system/codehero-daemon.service << SVCEOF
+[Unit]
+Description=CodeHero Daemon
+After=network.target mysql.service codehero-web.service
+Wants=mysql.service
+
+[Service]
+Type=simple
+User=${CLAUDE_USER}
+Group=${CLAUDE_USER}
+WorkingDirectory=${INSTALL_DIR}
+ExecStart=/usr/bin/python3 ${INSTALL_DIR}/scripts/claude-daemon.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/codehero/daemon.log
+StandardError=append:/var/log/codehero/daemon.log
+Environment=PYTHONUNBUFFERED=1
+Environment=PATH=/home/${CLAUDE_USER}/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=HOME=/home/${CLAUDE_USER}
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+    echo "  Updated codehero-daemon.service (fixed user)"
+fi
+
+# Update web service if user is wrong
+if grep -q "User=root" /etc/systemd/system/codehero-web.service 2>/dev/null; then
+    cat > /etc/systemd/system/codehero-web.service << SVCEOF
+[Unit]
+Description=CodeHero Web Interface
+After=network.target mysql.service
+Wants=mysql.service
+
+[Service]
+Type=simple
+User=${CLAUDE_USER}
+Group=${CLAUDE_USER}
+WorkingDirectory=${INSTALL_DIR}
+ExecStart=/usr/bin/python3 ${INSTALL_DIR}/web/app.py
+ExecStopPost=/bin/bash -c 'fuser -k 5000/tcp 2>/dev/null || true'
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/codehero/web.log
+StandardError=append:/var/log/codehero/web.log
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+    echo "  Updated codehero-web.service (fixed user)"
+fi
+
+systemctl daemon-reload
 
 # Step 7: Restart services
 log_info "Restarting services..."
