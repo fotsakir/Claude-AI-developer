@@ -193,6 +193,7 @@ Full Linux terminal in your browser:
 
 ### Project Features
 - **Auto Database Provisioning** - MySQL database auto-created per project
+- **phpMyAdmin Integration** - Full database management with auto-login (port 9454)
 - **Project Archive/Reopen** - Archive completed projects, reopen when needed
 - **Global Context** - Server environment info shared with all projects
 - **Tech Stack Detection** - Knows installed tools (Node.js, PHP, Java, etc.)
@@ -388,6 +389,7 @@ The upgrade script will:
 |---------|-----|---------------|
 | **Admin Panel** | `https://YOUR_IP:9453` | admin / admin123 |
 | Web Projects | `https://YOUR_IP:9867` | - |
+| phpMyAdmin | `https://YOUR_IP:9454` | auto-login from project |
 
 ---
 
