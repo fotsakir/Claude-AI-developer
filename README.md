@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Dual-blue.svg" alt="License"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-2.60.4-green.svg" alt="Version"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-2.63.0-green.svg" alt="Version"></a>
   <img src="https://img.shields.io/badge/Ubuntu-22.04%20|%2024.04-orange.svg" alt="Ubuntu">
   <a href="https://anthropic.com"><img src="https://img.shields.io/badge/Powered%20by-Claude%20AI-blueviolet.svg" alt="Claude AI"></a>
   <a href="https://github.com/fotsakir/codehero/stargazers"><img src="https://img.shields.io/github/stars/fotsakir/codehero?style=social" alt="Stars"></a>
@@ -127,6 +127,26 @@ Claude can see exactly what you see:
 - **No more explaining** - Just click "👁️ See" and Claude sees the problem
 - **Automatic when needed** - Mention visual issues and Claude uses Playwright automatically
 
+#### Monaco Editor with LSP Support
+VS Code-quality code editing right in your browser:
+- **Monaco Editor** - The same editor that powers VS Code
+- **Intelligent Autocomplete** - Context-aware suggestions as you type
+- **Hover Documentation** - See function docs by hovering
+- **Go to Definition** - Ctrl+Click to jump to definitions
+- **Real-time Diagnostics** - Errors and warnings as you type
+- **Multi-language Support** - Python, JavaScript, TypeScript, PHP, Java, C#, Kotlin, HTML, CSS, JSON
+- **Optional LSP Servers** - Install only what you need with `setup_lsp.sh`
+
+#### Git Version Control
+Automatic version control for every project:
+- **Auto-commit** - When AI completes work, changes are committed automatically
+- **Commit Messages** - Format: `[TICKET-NUM] Title` with full metadata
+- **Git History Page** - View all commits with timeline and diff viewer
+- **Rollback** - Restore any previous version with one click (preserves history)
+- **Smart .gitignore** - Auto-generated based on project type (PHP, Python, Node, .NET)
+- **AI Context** - Claude sees recent commits and can self-correct based on history
+- **Initialize Existing** - Add Git to existing projects from the web UI
+
 #### Telegram - Work from Your Phone
 Full two-way communication via Telegram. Control your AI developer from anywhere:
 - **Instant Notifications** - Get alerts when tasks complete, fail, or get stuck
@@ -187,9 +207,78 @@ Full Linux terminal in your browser:
 
 ### Infrastructure
 - **Web Dashboard** - Beautiful dark-theme admin panel
-- **SSL Encryption** - All traffic encrypted via OpenLiteSpeed
+- **SSL Encryption** - All traffic encrypted via Nginx
 - **Self-Hosted** - Complete control over your data
 - **CLI Tool** - Manage projects and tickets from terminal
+
+## Supported Application Types
+
+CodeHero supports multiple project types with intelligent context and tooling:
+
+### Web Development
+- **PHP / WordPress** - Full PHP-FPM integration with Nginx
+- **Static HTML/CSS/JS** - Served directly via Nginx
+- **API Projects** - REST and GraphQL endpoints
+
+### .NET / ASP.NET Core
+- **Full .NET 8 SDK** support with automatic configuration
+- **Auto Nginx Proxy** - Each .NET app gets its own reverse proxy route
+- **Systemd Services** - Apps run as managed services with auto-restart
+- **Port Management** - Automatic port allocation (5001+)
+- **PowerShell, Mono, Wine** - Windows development tools available
+
+### Mobile Development (Android)
+
+#### Android Emulator with Web Visualization
+Run and test Android apps directly from your browser:
+- **Server-based Emulator** - Redroid (Android in Docker)
+- **Live Screen Mirror** - See and control the emulator via ws-scrcpy
+- **ADB Integration** - Install APKs, view logs, capture screenshots
+- **Framework Support** - Capacitor.js, React Native, Flutter, Native Android
+
+```
+📱 Your Browser → ws-scrcpy (HTTPS:8443) → Redroid Container
+                         ↓
+                   Live Android Screen
+                   Touch/Keyboard Input
+```
+
+#### Remote ADB Device
+Connect to physical Android devices or remote emulators:
+- **Remote ADB** - Connect to any device via IP:PORT
+- **Same Commands** - Install, debug, and test seamlessly
+- **No Local Setup** - Everything runs on the server
+
+### Backend / API
+- **Node.js** - Full Node 22.x with npm
+- **Python** - Python 3 with Flask, Django support
+- **Java** - GraalVM 24 with Gradle
+
+### Optional Setup Scripts
+After initial installation, run these scripts based on your needs:
+
+| Script | What it installs |
+|--------|------------------|
+| `setup_android.sh` | Docker, Redroid emulator, ws-scrcpy, ADB, Flutter, Gradle |
+| `setup_windows.sh` | .NET 8 SDK, PowerShell, Wine, Mono, NuGet |
+| `setup_devtools.sh` | Node.js, Java (GraalVM), multimedia tools (ffmpeg, ImageMagick, tesseract) |
+| `setup_lsp.sh` | Language servers for code editor (Python, JS/TS, PHP, Java, C#, Kotlin, HTML/CSS) |
+
+```bash
+# Android development (emulator + mobile frameworks)
+sudo /opt/codehero/scripts/setup_android.sh
+
+# Windows/.NET development
+sudo /opt/codehero/scripts/setup_windows.sh
+
+# Development tools (Node.js, Java, multimedia)
+sudo /opt/codehero/scripts/setup_devtools.sh
+
+# Code editor LSP (optional - for autocomplete, hover docs, etc.)
+sudo /opt/codehero/scripts/setup_lsp.sh
+```
+
+---
 
 ## Perfect For
 
@@ -198,6 +287,7 @@ Full Linux terminal in your browser:
 - **Agencies** - Manage multiple client projects efficiently
 - **Startups** - Ship faster with AI-assisted development
 - **Learning** - See how AI approaches coding problems
+- **Mobile Developers** - Test Android apps without local emulator setup
 
 ## Quick Start
 
@@ -245,8 +335,8 @@ apt-get update && apt-get install -y unzip wget net-tools
 
 # Download and extract
 cd /root
-wget https://github.com/fotsakir/codehero/releases/latest/download/codehero-2.60.3.zip
-unzip codehero-2.60.3.zip
+wget https://github.com/fotsakir/codehero/releases/latest/download/codehero-2.62.0.zip
+unzip codehero-2.62.0.zip
 cd codehero
 
 # Run setup
@@ -261,8 +351,9 @@ ifconfig
 
 The installer automatically sets up:
 - MySQL 8.0 database
-- OpenLiteSpeed web server with SSL
+- Nginx web server with SSL and PHP-FPM
 - Python Flask application
+- Claude Code CLI
 - Background daemon service
 - All required dependencies
 
@@ -271,7 +362,7 @@ The installer automatically sets up:
 ```bash
 # Download new version
 cd /root
-unzip codehero-2.60.3.zip
+unzip codehero-2.62.0.zip
 cd codehero
 
 # Preview changes (recommended)
@@ -297,7 +388,6 @@ The upgrade script will:
 |---------|-----|---------------|
 | **Admin Panel** | `https://YOUR_IP:9453` | admin / admin123 |
 | Web Projects | `https://YOUR_IP:9867` | - |
-| OLS WebAdmin | `https://YOUR_IP:7080` | admin / 123456 |
 
 ---
 
@@ -440,12 +530,12 @@ Tickets auto-close after 7 days in `awaiting_input` if no action taken.
                       Admin Panel  Web Projects
                             │           │
                     ┌───────┴───────────┴────────┐
-                    │      OpenLiteSpeed         │
+                    │          Nginx             │
                     │    (SSL Termination)       │
                     └───────┬───────────┬────────┘
                             │           │
                     ┌───────┴───┐ ┌─────┴───────┐
-                    │   Flask   │ │   LSPHP     │
+                    │   Flask   │ │  PHP-FPM    │
                     │  Web App  │ │  Projects   │
                     └───────┬───┘ └─────────────┘
                             │
@@ -498,7 +588,7 @@ REVIEW_DEADLINE_DAYS=7
 
 - **Backend**: Python 3, Flask, Flask-SocketIO
 - **Database**: MySQL 8.0
-- **Web Server**: OpenLiteSpeed with LSPHP
+- **Web Server**: Nginx with PHP-FPM
 - **AI**: Claude AI via Claude Code CLI
 - **OS**: Ubuntu 22.04 / 24.04 LTS
 
@@ -508,6 +598,7 @@ REVIEW_DEADLINE_DAYS=7
 |----------|-------------|
 | [One-Click Install](docs/MULTIPASS_INSTALL.md) | Easiest install for Windows, macOS, Linux |
 | [User Guide](docs/USER_GUIDE.md) | How to use the admin panel (with screenshots) |
+| [LSP Setup](docs/LSP_SETUP.md) | Install language servers for code editor features |
 | [Telegram Setup](docs/TELEGRAM_SETUP.md) | Get instant alerts on your phone |
 | [VM Installation](docs/VM_INSTALLATION.md) | Install on VMware, Hyper-V, VirtualBox, UTM, Parallels |
 | [Installed Packages](docs/INSTALLED_PACKAGES.md) | All tools & packages (ffmpeg, ImageMagick, OCR, etc.) |
@@ -570,4 +661,4 @@ This project uses a **Dual License** - free for personal use and small businesse
 
 ## Keywords
 
-`claude-ai` `anthropic` `ai-coding-assistant` `autonomous-agent` `code-generation` `ai-developer` `self-hosted` `ticket-system` `project-management` `flask` `mysql` `openlitespeed` `ubuntu` `devops` `automation` `open-source` `php` `python` `human-ai-collaboration` `future-of-programming` `proof-of-concept` `ai-pair-programming` `agentic-ai`
+`claude-ai` `anthropic` `ai-coding-assistant` `autonomous-agent` `code-generation` `ai-developer` `self-hosted` `ticket-system` `project-management` `flask` `mysql` `nginx` `ubuntu` `devops` `automation` `open-source` `php` `python` `human-ai-collaboration` `future-of-programming` `proof-of-concept` `ai-pair-programming` `agentic-ai`

@@ -27,12 +27,11 @@ source /etc/codehero/mysql.conf 2>/dev/null || true
 echo "Select what to change:"
 echo "  1) MySQL root password"
 echo "  2) MySQL application user password"
-echo "  3) OpenLiteSpeed WebAdmin password"
-echo "  4) Admin Panel password"
-echo "  5) All passwords"
-echo "  6) Exit"
+echo "  3) Admin Panel password"
+echo "  4) All passwords"
+echo "  5) Exit"
 echo ""
-read -p "Choice [1-6]: " CHOICE
+read -p "Choice [1-5]: " CHOICE
 
 change_mysql_root() {
     echo ""
@@ -94,36 +93,6 @@ change_mysql_app() {
     fi
 }
 
-change_ols_admin() {
-    echo ""
-    read -p "Enter new OLS admin username [admin]: " NEW_USER
-    NEW_USER="${NEW_USER:-admin}"
-    read -sp "Enter new OLS admin password: " NEW_PASS
-    echo ""
-    read -sp "Confirm password: " CONFIRM_PASS
-    echo ""
-
-    if [ "$NEW_PASS" != "$CONFIRM_PASS" ]; then
-        echo -e "${RED}Passwords do not match!${NC}"
-        return 1
-    fi
-
-    /usr/local/lsws/admin/misc/admpass.sh << EOF
-${NEW_USER}
-${NEW_PASS}
-${NEW_PASS}
-EOF
-
-    if [ $? -eq 0 ]; then
-        sed -i "s/OLS_ADMIN_USER=.*/OLS_ADMIN_USER=${NEW_USER}/" /etc/codehero/credentials.conf
-        sed -i "s/OLS_ADMIN_PASSWORD=.*/OLS_ADMIN_PASSWORD=${NEW_PASS}/" /etc/codehero/credentials.conf
-        echo -e "${GREEN}OLS WebAdmin password changed successfully${NC}"
-    else
-        echo -e "${RED}Failed to change OLS admin password${NC}"
-        return 1
-    fi
-}
-
 change_admin_panel() {
     echo ""
     echo -e "${YELLOW}Note: Admin Panel password is stored in the database${NC}"
@@ -167,19 +136,15 @@ case $CHOICE in
         change_mysql_app
         ;;
     3)
-        change_ols_admin
-        ;;
-    4)
         change_admin_panel
         ;;
-    5)
+    4)
         echo -e "${CYAN}Changing all passwords...${NC}"
         change_mysql_root
         change_mysql_app
-        change_ols_admin
         change_admin_panel
         ;;
-    6)
+    5)
         echo "Exiting..."
         exit 0
         ;;

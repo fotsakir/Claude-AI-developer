@@ -19,9 +19,9 @@ A complete list of packages and tools installed by the CodeHero.
 ### Web Server
 | Package | Description |
 |---------|-------------|
-| `openlitespeed` | High-performance web server |
-| `lsphp83` | PHP 8.3 for LiteSpeed |
-| `lsphp84` | PHP 8.4 for LiteSpeed |
+| `nginx` | High-performance web server |
+| `php8.3-fpm` | PHP 8.3 FastCGI Process Manager |
+| `php8.3-*` | PHP extensions (mysql, curl, intl, etc.) |
 
 ### Database
 | Package | Description |

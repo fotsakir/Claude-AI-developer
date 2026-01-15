@@ -934,6 +934,111 @@ Keep each item concise (under 100 chars). Focus on technical decisions and imple
     # BUILD COMPLETE CONTEXT
     # ═══════════════════════════════════════════════════════════════════════════
 
+    def build_android_context(self, ticket: Dict) -> str:
+        """Build Android development context when project is mobile type"""
+        project_type = ticket.get('project_type', '')
+        android_device_type = ticket.get('android_device_type', 'none')
+
+        mobile_types = ['capacitor', 'react_native', 'flutter', 'native_android']
+        if project_type not in mobile_types or android_device_type == 'none':
+            return ""
+
+        parts = ["\n=== ANDROID DEVELOPMENT ==="]
+        parts.append(f"Project Type: {project_type}")
+
+        if android_device_type == 'server':
+            parts.append("""
+Android Emulator: Server-based (Redroid)
+- ADB device: localhost:5556
+- Use 'adb connect localhost:5556' if disconnected
+- Install APK: adb -s localhost:5556 install app.apk
+- View logs: adb -s localhost:5556 logcat
+- Screen capture: adb -s localhost:5556 exec-out screencap -p > screen.png
+- The emulator runs in Docker, accessible via web interface""")
+        elif android_device_type == 'remote':
+            remote_host = ticket.get('android_remote_host', '')
+            remote_port = ticket.get('android_remote_port', 5555)
+            parts.append(f"""
+Android Device: Remote ADB
+- ADB device: {remote_host}:{remote_port}
+- Connect: adb connect {remote_host}:{remote_port}
+- Install APK: adb -s {remote_host}:{remote_port} install app.apk
+- View logs: adb -s {remote_host}:{remote_port} logcat""")
+
+        # Framework-specific guidance
+        if project_type == 'capacitor':
+            parts.append("""
+Capacitor.js Commands:
+- Build: npx cap build android
+- Sync: npx cap sync android
+- Open Android Studio: npx cap open android
+- Run on device: npx cap run android""")
+        elif project_type == 'react_native':
+            parts.append("""
+React Native Commands:
+- Start Metro: npx react-native start
+- Run Android: npx react-native run-android
+- Build APK: cd android && ./gradlew assembleRelease
+- Logs: npx react-native log-android""")
+        elif project_type == 'flutter':
+            parts.append("""
+Flutter Commands:
+- Run: flutter run
+- Build APK: flutter build apk
+- Build App Bundle: flutter build appbundle
+- Logs: flutter logs""")
+        elif project_type == 'native_android':
+            parts.append("""
+Android Native Commands:
+- Build: ./gradlew build
+- Install: ./gradlew installDebug
+- Run tests: ./gradlew test
+- Clean: ./gradlew clean""")
+
+        parts.append("============================\n")
+        return '\n'.join(parts)
+
+    def build_dotnet_context(self, ticket: Dict) -> str:
+        """Build .NET development context when project is dotnet type"""
+        project_type = ticket.get('project_type', '')
+
+        if project_type != 'dotnet':
+            return ""
+
+        dotnet_port = ticket.get('dotnet_port', 5001)
+        app_path = ticket.get('app_path', '')
+        project_code = ticket.get('code', '').lower()
+
+        parts = ["\n=== .NET DEVELOPMENT ==="]
+        parts.append(f"Project Type: ASP.NET Core / .NET 8")
+        parts.append(f"App Directory: {app_path}")
+        parts.append(f"Internal Port: {dotnet_port}")
+        parts.append(f"""
+.NET Commands:
+- Create console app: dotnet new console
+- Create web API: dotnet new webapi
+- Create MVC app: dotnet new mvc
+- Create Blazor app: dotnet new blazor
+- Build: dotnet build
+- Run: dotnet run
+- Run with port: dotnet run --urls=http://127.0.0.1:{dotnet_port}
+- Test: dotnet test
+- Publish: dotnet publish -c Release
+
+After building, the app will be accessible at:
+  https://SERVER_IP:9867/{project_code}/
+
+Service Management:
+- Start: sudo systemctl start codehero-dotnet-{project_code}
+- Stop: sudo systemctl stop codehero-dotnet-{project_code}
+- Status: sudo systemctl status codehero-dotnet-{project_code}
+- Logs: journalctl -u codehero-dotnet-{project_code} -f
+
+Important: After publishing, restart the service to apply changes.
+""")
+        parts.append("============================\n")
+        return '\n'.join(parts)
+
     def build_full_context(self, ticket: Dict, user_id: str = None) -> Dict:
         """Build complete context for Claude API call"""
         project_id = ticket.get('project_id')
@@ -960,13 +1065,23 @@ Keep each item concise (under 100 chars). Focus on technical decisions and imple
             if knowledge_context:
                 context_parts.append(knowledge_context)
 
-        # 4. Ticket extraction (if exists)
+        # 4. Android development context (for mobile projects)
+        android_context = self.build_android_context(ticket)
+        if android_context:
+            context_parts.append(android_context)
+
+        # 5. .NET development context (for dotnet projects)
+        dotnet_context = self.build_dotnet_context(ticket)
+        if dotnet_context:
+            context_parts.append(dotnet_context)
+
+        # 7. Ticket extraction (if exists)
         if ticket_id:
             extraction_context = self.build_extraction_context(ticket_id)
             if extraction_context:
                 context_parts.append(extraction_context)
 
-        # 5. Recent messages
+        # 8. Recent messages
         history = self.get_smart_history(ticket_id) if ticket_id else []
 
         return {

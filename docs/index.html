@@ -41,7 +41,7 @@
         "description": "The Developer That Never Rests. Self-hosted autonomous AI coding agent. Give it tasks. Walk away. Wake up to working code.",
         "url": "https://fotsakir.github.io/codehero/",
         "downloadUrl": "https://github.com/fotsakir/codehero/releases/latest",
-        "softwareVersion": "2.60.4",
+        "softwareVersion": "2.63.0",
         "applicationCategory": "DeveloperApplication",
         "operatingSystem": "Ubuntu 22.04, Ubuntu 24.04",
         "offers": {
@@ -76,7 +76,13 @@
             "Parallel project execution",
             "Real-time console",
             "Kill switch controls",
-            "Usage analytics - tokens, requests, duration per project/ticket"
+            "Usage analytics - tokens, requests, duration per project/ticket",
+            "Android Emulator - web-based screen mirroring with ws-scrcpy",
+            "Remote ADB - connect to physical devices or remote emulators",
+            ".NET / ASP.NET Core - auto Nginx proxy and systemd services",
+            "Mobile frameworks - Capacitor.js, React Native, Flutter, Native Android",
+            "Monaco Editor with LSP - VS Code-quality code editing with autocomplete, hover docs, go-to-definition",
+            "Git Version Control - auto-commit, history, diff viewer, rollback"
         ]
     }
     </script>
@@ -1314,9 +1320,9 @@
                         Install on <strong>Ubuntu 22.04/24.04</strong> VM (VirtualBox, VMware, Hyper-V, or cloud VPS).
                     </p>
                     <div style="position: relative; background: rgba(0,0,0,0.3); padding: 0.8rem 3rem 0.8rem 0.8rem; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; overflow-x: auto;">
-                        <button onclick="copyCode(this, 'wget https://github.com/fotsakir/codehero/releases/latest/download/codehero-2.60.4.zip\nunzip codehero-*.zip && cd codehero && ./setup.sh')" style="position: absolute; top: 6px; right: 6px; background: rgba(255,255,255,0.1); border: none; color: var(--text-muted); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">📋</button>
+                        <button onclick="copyCode(this, 'wget https://github.com/fotsakir/codehero/releases/latest/download/codehero-2.63.0.zip\nunzip codehero-*.zip && cd codehero && ./setup.sh')" style="position: absolute; top: 6px; right: 6px; background: rgba(255,255,255,0.1); border: none; color: var(--text-muted); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">📋</button>
                         <span style="color: var(--text-muted);"># On Ubuntu VM (as root)</span><br>
-                        <span style="color: var(--accent-cyan);">wget https://github.com/fotsakir/codehero/releases/latest/download/codehero-2.60.4.zip</span><br>
+                        <span style="color: var(--accent-cyan);">wget https://github.com/fotsakir/codehero/releases/latest/download/codehero-2.63.0.zip</span><br>
                         <span style="color: var(--accent-cyan);">unzip codehero-*.zip && cd codehero && ./setup.sh</span>
                     </div>
                     <p style="margin-top: 0.8rem; font-size: 0.8rem;">
@@ -1443,6 +1449,16 @@
                 <h3>Auto-Update</h3>
                 <p>Stay current effortlessly. Dashboard checks for updates automatically, shows release notes, and installs with one click.</p>
             </div>
+            <div class="feature-card" style="border: 1px solid var(--accent-green); background: rgba(16, 185, 129, 0.05);">
+                <div class="feature-icon">📝</div>
+                <h3>Monaco Editor + LSP</h3>
+                <p><strong>VS Code-quality editing</strong> in your browser. Autocomplete, hover docs, go-to-definition, real-time errors. Supports Python, JS/TS, PHP, Java, C#, Kotlin, HTML/CSS.</p>
+            </div>
+            <div class="feature-card" style="border: 1px solid var(--accent-cyan); background: rgba(34, 211, 238, 0.05);">
+                <div class="feature-icon">📚</div>
+                <h3>Git Version Control</h3>
+                <p><strong>Auto-commit</strong> when AI completes work. View commit history, diffs, and <strong>rollback</strong> to any previous state. Smart .gitignore per project type.</p>
+            </div>
         </div>
     </section>
 
@@ -1494,6 +1510,43 @@
                 <div class="feature-icon">📊</div>
                 <h3>Usage Analytics</h3>
                 <p>Real-time tracking of <strong>tokens, API requests, and work duration</strong> per project, per ticket, and daily/weekly/monthly summaries.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Supported Platforms Section -->
+    <section class="features" style="background: linear-gradient(180deg, transparent, rgba(99, 102, 241, 0.05));">
+        <h2 class="section-title">Supported Platforms</h2>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🌐</div>
+                <h3>Web Development</h3>
+                <p><strong>PHP, WordPress, HTML/CSS/JS</strong> - Full PHP-FPM + Nginx integration. Static files served directly.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🟣</div>
+                <h3>.NET / ASP.NET Core</h3>
+                <p><strong>.NET 8 SDK</strong> with auto Nginx reverse proxy, systemd services, and automatic port allocation. PowerShell, Mono, Wine included.</p>
+            </div>
+            <div class="feature-card" style="border-color: rgba(34, 211, 238, 0.4);">
+                <div class="feature-icon">📱</div>
+                <h3>Android Emulator</h3>
+                <p><strong>Live in your browser!</strong> Server-based Redroid emulator with ws-scrcpy web visualization. See and control Android directly.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🔌</div>
+                <h3>Remote ADB</h3>
+                <p>Connect to <strong>physical devices or remote emulators</strong> via IP:PORT. Install APKs, debug, capture screenshots - all from the server.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📲</div>
+                <h3>Mobile Frameworks</h3>
+                <p><strong>Capacitor.js, React Native, Flutter, Native Android</strong> - Full toolchain with Gradle, ADB, and build support.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">⚙️</div>
+                <h3>Backend / API</h3>
+                <p><strong>Node.js 22, Python 3, Java (GraalVM 24)</strong> - Build REST APIs, microservices, and backend systems.</p>
             </div>
         </div>
     </section>

@@ -49,7 +49,7 @@ CREATE TABLE `conversation_extractions` (
   KEY `idx_ticket` (`ticket_id`),
   KEY `idx_coverage` (`ticket_id`,`covers_msg_to_id`),
   CONSTRAINT `conversation_extractions_ibfk_1` FOREIGN KEY (`ticket_id`) REFERENCES `tickets` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Extracted knowledge from older conversation messages';
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Extracted knowledge from older conversation messages';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -74,7 +74,7 @@ CREATE TABLE `conversation_messages` (
   PRIMARY KEY (`id`),
   KEY `idx_ticket` (`ticket_id`),
   CONSTRAINT `conversation_messages_ibfk_1` FOREIGN KEY (`ticket_id`) REFERENCES `tickets` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2918 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -113,7 +113,7 @@ CREATE TABLE `developers` (
   `last_login` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `username` (`username`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -132,7 +132,7 @@ CREATE TABLE `execution_logs` (
   PRIMARY KEY (`id`),
   KEY `idx_session` (`session_id`),
   CONSTRAINT `execution_logs_ibfk_1` FOREIGN KEY (`session_id`) REFERENCES `execution_sessions` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2961 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -153,7 +153,7 @@ CREATE TABLE `execution_sessions` (
   PRIMARY KEY (`id`),
   KEY `ticket_id` (`ticket_id`),
   CONSTRAINT `execution_sessions_ibfk_1` FOREIGN KEY (`ticket_id`) REFERENCES `tickets` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=177 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -185,7 +185,7 @@ CREATE TABLE `project_knowledge` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_project` (`project_id`),
   CONSTRAINT `project_knowledge_ibfk_1` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Learned knowledge from working on the project - grows over time';
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Learned knowledge from working on the project - grows over time';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -215,7 +215,7 @@ CREATE TABLE `project_maps` (
   UNIQUE KEY `uk_project` (`project_id`),
   KEY `idx_expires` (`expires_at`),
   CONSTRAINT `project_maps_ibfk_1` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Static project structure map - generated once, refreshed periodically';
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Static project structure map - generated once, refreshed periodically';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -248,12 +248,76 @@ CREATE TABLE `projects` (
   `map_generated_at` timestamp NULL DEFAULT NULL,
   `knowledge_updated_at` timestamp NULL DEFAULT NULL,
   `ai_model` enum('opus','sonnet','haiku') DEFAULT 'sonnet',
+  `android_device_type` enum('none','server','remote') DEFAULT 'none',
+  `android_remote_host` varchar(255) DEFAULT NULL,
+  `android_remote_port` int DEFAULT '5555',
+  `android_screen_size` enum('phone','phone_small','tablet_7','tablet_10') DEFAULT 'phone',
+  `dotnet_port` int DEFAULT NULL,
+  `git_enabled` tinyint(1) DEFAULT '1' COMMENT 'Whether Git is enabled for this project',
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`),
   KEY `idx_status` (`status`),
   KEY `idx_code` (`code`),
   KEY `idx_db_name` (`db_name`)
-) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `project_git_repos`
+--
+
+DROP TABLE IF EXISTS `project_git_repos`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `project_git_repos` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `project_id` int NOT NULL,
+  `repo_path` varchar(500) NOT NULL COMMENT 'Path to the repository directory',
+  `path_type` enum('web','app') DEFAULT 'web' COMMENT 'Which path this repo tracks',
+  `initialized_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `last_commit_hash` varchar(40) DEFAULT NULL COMMENT 'Hash of the last commit',
+  `last_commit_at` timestamp NULL DEFAULT NULL,
+  `total_commits` int DEFAULT '0',
+  `status` enum('active','error','disabled') DEFAULT 'active',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_project_path` (`project_id`,`path_type`),
+  KEY `idx_project` (`project_id`),
+  CONSTRAINT `fk_git_repo_project` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `project_git_commits`
+--
+
+DROP TABLE IF EXISTS `project_git_commits`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `project_git_commits` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `project_id` int NOT NULL,
+  `repo_id` int NOT NULL,
+  `ticket_id` int DEFAULT NULL COMMENT 'Ticket that triggered this commit',
+  `session_id` int DEFAULT NULL COMMENT 'Session that triggered this commit',
+  `commit_hash` varchar(40) NOT NULL,
+  `short_hash` varchar(7) NOT NULL,
+  `message` text NOT NULL,
+  `author` varchar(255) DEFAULT 'CodeHero',
+  `files_changed` int DEFAULT '0',
+  `insertions` int DEFAULT '0',
+  `deletions` int DEFAULT '0',
+  `is_rollback` tinyint(1) DEFAULT '0' COMMENT 'Whether this is a rollback commit',
+  `rollback_to_hash` varchar(40) DEFAULT NULL COMMENT 'If rollback, which commit was reverted to',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_commit_hash` (`repo_id`,`commit_hash`),
+  KEY `idx_project` (`project_id`),
+  KEY `idx_ticket` (`ticket_id`),
+  KEY `idx_session` (`session_id`),
+  KEY `idx_created` (`created_at`),
+  CONSTRAINT `fk_commit_project` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_commit_repo` FOREIGN KEY (`repo_id`) REFERENCES `project_git_repos` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -301,7 +365,7 @@ CREATE TABLE `tickets` (
   KEY `idx_project_status` (`project_id`,`status`),
   KEY `idx_status` (`status`),
   CONSTRAINT `tickets_ibfk_1` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=60 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -333,7 +397,7 @@ CREATE TABLE `usage_stats` (
   CONSTRAINT `usage_stats_ibfk_1` FOREIGN KEY (`ticket_id`) REFERENCES `tickets` (`id`) ON DELETE CASCADE,
   CONSTRAINT `usage_stats_ibfk_2` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE,
   CONSTRAINT `usage_stats_ibfk_3` FOREIGN KEY (`session_id`) REFERENCES `execution_sessions` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=119 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -354,7 +418,7 @@ CREATE TABLE `user_messages` (
   PRIMARY KEY (`id`),
   KEY `idx_ticket` (`ticket_id`),
   KEY `idx_processed` (`processed`)
-) ENGINE=InnoDB AUTO_INCREMENT=61 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -394,7 +458,7 @@ CREATE TABLE `user_preferences` (
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_user` (`user_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='User-level preferences that apply across all projects';
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='User-level preferences that apply across all projects';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --

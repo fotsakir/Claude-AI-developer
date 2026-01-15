@@ -1,0 +1,18 @@
+[Unit]
+Description=CodeHero .NET App - {PROJECT_CODE}
+After=network.target
+
+[Service]
+Type=notify
+WorkingDirectory={APP_PATH}
+ExecStart=/usr/bin/dotnet {APP_PATH}/{PROJECT_CODE}.dll --urls=http://127.0.0.1:{DOTNET_PORT}
+Restart=always
+RestartSec=10
+KillSignal=SIGINT
+SyslogIdentifier=codehero-{PROJECT_CODE}
+User=claude
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
+
+[Install]
+WantedBy=multi-user.target

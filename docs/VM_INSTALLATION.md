@@ -361,7 +361,7 @@ chmod +x setup.sh
 ### Installation Process
 
 The installer will:
-1. Install MySQL, OpenLiteSpeed, Python, and all dependencies
+1. Install MySQL, Nginx, PHP-FPM, Python, and all dependencies
 2. Configure the database
 3. Set up the web interface
 4. Create system services

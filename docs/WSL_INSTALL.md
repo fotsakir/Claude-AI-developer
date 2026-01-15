@@ -200,12 +200,12 @@ The services start automatically when you open WSL. If they're not running:
 
 **PowerShell:**
 ```powershell
-wsl -d Ubuntu-24.04 --exec systemctl start mysql lshttpd codehero-web codehero-daemon
+wsl -d Ubuntu-24.04 --exec systemctl start mysql nginx php8.3-fpm codehero-web codehero-daemon
 ```
 
 **Or inside WSL:**
 ```bash
-systemctl start mysql lshttpd codehero-web codehero-daemon
+systemctl start mysql nginx php8.3-fpm codehero-web codehero-daemon
 ```
 
 ### Check Services Status
@@ -323,7 +323,7 @@ wsl -d Ubuntu-24.04
 
 3. **Start services if needed:**
    ```bash
-   systemctl start mysql lshttpd codehero-web codehero-daemon
+   systemctl start mysql nginx php8.3-fpm codehero-web codehero-daemon
    ```
 
 4. **Check firewall** (Windows may block):

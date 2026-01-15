@@ -10,7 +10,7 @@ CodeHero is a self-hosted autonomous AI coding platform powered by Claude AI to 
 
 - **Web App** (Flask + SocketIO) - Admin panel at port 9453
 - **Daemon** - Background worker that processes tickets using Claude Code CLI
-- **OpenLiteSpeed** - Web server with SSL termination
+- **Nginx** - Web server with SSL termination and PHP-FPM
 - **MySQL** - Database for projects, tickets, conversations
 
 ---
@@ -54,14 +54,15 @@ CodeHero is a self-hosted autonomous AI coding platform powered by Claude AI to 
 # Correct service names
 codehero-web      # Flask web interface
 codehero-daemon   # Background ticket processor
-mysql                  # Database
-lshttpd                # OpenLiteSpeed
+mysql             # Database
+nginx             # Web server
+php8.3-fpm        # PHP processor
 ```
 
 ### Commands
 ```bash
 # Check status
-systemctl status codehero-web codehero-daemon mysql lshttpd
+systemctl status codehero-web codehero-daemon mysql nginx php8.3-fpm
 
 # Restart after code changes
 sudo systemctl restart codehero-web codehero-daemon
@@ -77,9 +78,8 @@ tail -f /var/log/codehero/web.log
 | Port | Service | Purpose |
 |------|---------|---------|
 | 5000 | Flask (internal) | Web app |
-| 9453 | OpenLiteSpeed | Admin Panel (SSL) |
-| 9867 | OpenLiteSpeed | Project websites (SSL) |
-| 7080 | OpenLiteSpeed | WebAdmin |
+| 9453 | Nginx | Admin Panel (SSL) |
+| 9867 | Nginx | Project websites (SSL) |
 | 3306 | MySQL | Database |
 
 ---
@@ -324,12 +324,11 @@ sudo systemctl status codehero-web
 # 2. Check if listening
 ss -tlnp | grep 5000
 
-# 3. Check OpenLiteSpeed
-sudo /usr/local/lsws/bin/lswsctrl status
+# 3. Check Nginx
+sudo systemctl status nginx
 
 # 4. Restart
-sudo systemctl restart codehero-web
-sudo systemctl restart lsws
+sudo systemctl restart codehero-web nginx
 ```
 
 ### Tickets Stuck in in_progress
@@ -361,11 +360,11 @@ cat ~/.claude/.credentials.json
 # Check if Flask SocketIO is running
 netstat -tlnp | grep 5000
 
-# Check OpenLiteSpeed proxy config
-cat /usr/local/lsws/conf/vhosts/vhost-admin.conf
+# Check Nginx proxy config
+cat /etc/nginx/sites-available/codehero-admin
 
 # Restart services
-sudo systemctl restart codehero-web lsws
+sudo systemctl restart codehero-web nginx
 ```
 
 ---

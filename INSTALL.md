@@ -12,7 +12,7 @@
 
 ```bash
 cd /root
-unzip codehero-2.60.4.zip
+unzip codehero-2.63.0.zip
 cd codehero
 ```
 
@@ -39,18 +39,13 @@ chmod +x setup.sh
 
 This installs:
 - MySQL database
-- OpenLiteSpeed web server
+- Nginx web server with PHP-FPM
 - Python/Flask web application
+- Claude Code CLI
 - Claude daemon service
 - System user `claude`
 
-### 4. Install Claude Code CLI
-
-```bash
-/opt/codehero/scripts/install-claude-code.sh
-```
-
-### 5. Login to Claude Code
+### 4. Login to Claude Code
 
 ```bash
 su - claude
@@ -61,6 +56,33 @@ Follow the prompts to login with:
 - **API Key** - For developers with Anthropic API access
 - **Max Subscription** - For Claude Max subscribers
 
+### 5. (Optional) Install additional environments
+
+Run these scripts based on what you need:
+
+| Script | Purpose | What it installs |
+|--------|---------|------------------|
+| `setup_devtools.sh` | Development tools | Node.js 22, Java (GraalVM 24), multimedia (ffmpeg, ImageMagick, tesseract) |
+| `setup_android.sh` | Android development | Docker, Redroid emulator, ws-scrcpy, ADB, Flutter, Gradle |
+| `setup_windows.sh` | Windows/.NET development | .NET 8 SDK, PowerShell 7, Wine, Mono, NuGet |
+| `setup_lsp.sh` | Code Editor LSP | Language servers for Python, JS/TS, PHP, Java, C#, Kotlin, HTML/CSS |
+
+```bash
+# Development tools (Node.js, Java, multimedia)
+sudo /opt/codehero/scripts/setup_devtools.sh
+
+# Android development (emulator + mobile frameworks)
+sudo /opt/codehero/scripts/setup_android.sh
+
+# Windows/.NET development
+sudo /opt/codehero/scripts/setup_windows.sh
+
+# Code Editor LSP (optional - for autocomplete, hover docs, etc.)
+sudo /opt/codehero/scripts/setup_lsp.sh
+```
+
+**Android Emulator**: After running `setup_android.sh`, access at `https://YOUR_IP:8443`
+
 ## Access Points
 
 After installation:
@@ -69,7 +91,6 @@ After installation:
 |---------|-----|
 | Admin Panel | https://YOUR_IP:9453 |
 | Web Projects | https://YOUR_IP:9867 |
-| OLS WebAdmin | https://YOUR_IP:7080 |
 
 ## Post-Installation
 
@@ -82,7 +103,7 @@ sudo /opt/codehero/scripts/change-passwords.sh
 ### Check services
 
 ```bash
-systemctl status codehero-web codehero-daemon mysql lshttpd
+systemctl status codehero-web codehero-daemon mysql nginx php8.3-fpm
 ```
 
 ### Restart services
@@ -98,7 +119,7 @@ To upgrade from a previous version:
 ```bash
 # Download and extract new version
 cd /root
-unzip codehero-2.60.4.zip
+unzip codehero-2.63.0.zip
 cd codehero
 
 # Preview what will change (recommended)
@@ -163,4 +184,4 @@ curl -fsSL https://claude.ai/install.sh | sh
 
 ---
 
-**Version:** 2.60.4
+**Version:** 2.63.0

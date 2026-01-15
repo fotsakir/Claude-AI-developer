@@ -1,15 +1,15 @@
 #!/bin/bash
 # =====================================================
-# CODEHERO - Installation Script
+# CODEHERO - Installation Script (Core)
 # Version is read from VERSION file
 # =====================================================
 # Usage:
 #   sudo ./setup.sh          (from root or with sudo)
 #   sudo su -> ./setup.sh    (switch to root first)
 #
-# Configuration:
-#   Edit install.conf before running to customize
-#   passwords, ports, and directories.
+# This installs the core admin panel. For development
+# tools (Node.js, Java, Playwright, etc.) run:
+#   sudo ./setup_devtools.sh
 # =====================================================
 
 RED='\033[0;31m'
@@ -30,7 +30,7 @@ fi
 
 echo -e "${GREEN}"
 echo "╔═══════════════════════════════════════════════════════════╗"
-echo "║       CODEHERO - Installation                 ║"
+echo "║       CODEHERO - Core Installation              ║"
 echo "║              Version ${VERSION}                              ║"
 echo "╚═══════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
@@ -67,13 +67,10 @@ DB_PASSWORD="${DB_PASSWORD:-claudepass123}"
 MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-rootpass123}"
 ADMIN_USER="${ADMIN_USER:-admin}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin123}"
-OLS_ADMIN_USER="${OLS_ADMIN_USER:-admin}"
-OLS_ADMIN_PASSWORD="${OLS_ADMIN_PASSWORD:-123456}"
 FLASK_HOST="${FLASK_HOST:-127.0.0.1}"
 FLASK_PORT="${FLASK_PORT:-5000}"
 ADMIN_PORT="${ADMIN_PORT:-9453}"
 PROJECTS_PORT="${PROJECTS_PORT:-9867}"
-OLS_WEBADMIN_PORT="${OLS_WEBADMIN_PORT:-7080}"
 INSTALL_DIR="${INSTALL_DIR:-/opt/codehero}"
 CONFIG_DIR="${CONFIG_DIR:-/etc/codehero}"
 LOG_DIR="${LOG_DIR:-/var/log/codehero}"
@@ -98,9 +95,9 @@ echo "  Max Workers:     ${MAX_PARALLEL_PROJECTS}"
 echo ""
 
 # =====================================================
-# [1/14] CREATE CLAUDE USER
+# [1/12] CREATE CLAUDE USER
 # =====================================================
-echo -e "${YELLOW}[1/14] Setting up ${CLAUDE_USER} user with sudo access...${NC}"
+echo -e "${YELLOW}[1/12] Setting up ${CLAUDE_USER} user with sudo access...${NC}"
 
 if ! id "${CLAUDE_USER}" &>/dev/null; then
     useradd -m -s /bin/bash "${CLAUDE_USER}"
@@ -115,26 +112,37 @@ chmod 440 /etc/sudoers.d/${CLAUDE_USER}
 echo -e "${GREEN}Passwordless sudo configured for ${CLAUDE_USER}${NC}"
 
 # =====================================================
-# [2/14] SYSTEM DEPENDENCIES
+# [2/12] SYSTEM DEPENDENCIES
 # =====================================================
-echo -e "${YELLOW}[2/14] Installing system dependencies...${NC}"
+echo -e "${YELLOW}[2/12] Installing system dependencies...${NC}"
 apt-get update || true
 apt-get install -y python3 python3-pip openssl sudo wget curl gnupg lsb-release git || true
 
-# Multimedia & Processing Tools (for AI capabilities)
-echo "Installing multimedia tools..."
-apt-get install -y ffmpeg imagemagick tesseract-ocr tesseract-ocr-eng tesseract-ocr-ell \
-    poppler-utils ghostscript sox mediainfo webp optipng jpegoptim \
-    librsvg2-bin libvips-tools qpdf || true
+# =====================================================
+# [3/12] DISABLE AUTOMATIC UPDATES
+# =====================================================
+echo -e "${YELLOW}[3/12] Disabling automatic updates...${NC}"
 
-# Python multimedia libraries
-pip3 install --ignore-installed Pillow opencv-python-headless pydub pytesseract pdf2image --break-system-packages 2>&1 || \
-pip3 install --ignore-installed Pillow opencv-python-headless pydub pytesseract pdf2image 2>&1 || true
+systemctl stop unattended-upgrades 2>/dev/null || true
+systemctl disable unattended-upgrades 2>/dev/null || true
+systemctl stop apt-daily.timer 2>/dev/null || true
+systemctl disable apt-daily.timer 2>/dev/null || true
+systemctl stop apt-daily-upgrade.timer 2>/dev/null || true
+systemctl disable apt-daily-upgrade.timer 2>/dev/null || true
+
+cat > /etc/apt/apt.conf.d/20auto-upgrades << 'APTEOF'
+APT::Periodic::Update-Package-Lists "0";
+APT::Periodic::Unattended-Upgrade "0";
+APT::Periodic::Download-Upgradeable-Packages "0";
+APT::Periodic::AutocleanInterval "0";
+APTEOF
+
+echo -e "${GREEN}Automatic updates disabled${NC}"
 
 # =====================================================
-# [3/14] MYSQL
+# [4/12] MYSQL
 # =====================================================
-echo -e "${YELLOW}[3/14] Setting up MySQL...${NC}"
+echo -e "${YELLOW}[4/12] Setting up MySQL...${NC}"
 
 if command -v mysql &> /dev/null; then
     echo "MySQL already installed"
@@ -153,50 +161,31 @@ else
 fi
 
 # =====================================================
-# [4/14] OPENLITESPEED
+# [5/12] NGINX & PHP-FPM
 # =====================================================
-echo -e "${YELLOW}[4/14] Setting up OpenLiteSpeed...${NC}"
+echo -e "${YELLOW}[5/12] Setting up Nginx & PHP-FPM...${NC}"
 
-if [ -d /usr/local/lsws ] && [ -f /usr/local/lsws/bin/lshttpd ]; then
-    echo "OpenLiteSpeed already installed"
+if command -v nginx &> /dev/null; then
+    echo "Nginx already installed"
 else
-    if [ ! -f /etc/apt/sources.list.d/lst_debian_repo.list ]; then
-        wget -qO - https://repo.litespeed.sh | bash || true
-    fi
-    apt-get install -y openlitespeed || true
+    apt-get install -y nginx || true
+fi
+
+if [ ! -f /var/run/php/php8.3-fpm.sock ] && ! dpkg -l | grep -q php8.3-fpm; then
+    apt-get install -y php8.3-fpm php8.3-mysql php8.3-curl php8.3-intl \
+        php8.3-opcache php8.3-redis php8.3-imagick php8.3-sqlite3 php8.3-imap \
+        php8.3-apcu php8.3-igbinary php8.3-tidy php8.3-pgsql php8.3-cli || true
 fi
 
 # =====================================================
-# [5/14] LSPHP
+# [6/12] PYTHON PACKAGES
 # =====================================================
-echo -e "${YELLOW}[5/14] Installing LSPHP (PHP 8.3 + 8.4)...${NC}"
-
-if [ ! -f /usr/local/lsws/lsphp83/bin/lsphp ]; then
-    apt-get install -y lsphp83 lsphp83-common lsphp83-mysql lsphp83-curl lsphp83-intl \
-        lsphp83-opcache lsphp83-redis lsphp83-imagick lsphp83-sqlite3 lsphp83-imap \
-        lsphp83-apcu lsphp83-igbinary lsphp83-tidy lsphp83-pgsql || true
-fi
-
-if [ ! -f /usr/local/lsws/lsphp84/bin/lsphp ]; then
-    apt-get install -y lsphp84 lsphp84-common lsphp84-mysql lsphp84-curl lsphp84-intl \
-        lsphp84-opcache lsphp84-redis lsphp84-imagick lsphp84-sqlite3 lsphp84-imap \
-        lsphp84-apcu lsphp84-igbinary lsphp84-tidy lsphp84-pgsql || true
-fi
-
-mkdir -p /usr/local/lsws/fcgi-bin
-ln -sf /usr/local/lsws/lsphp83/bin/lsphp /usr/local/lsws/fcgi-bin/lsphp83 2>/dev/null || true
-ln -sf /usr/local/lsws/lsphp84/bin/lsphp /usr/local/lsws/fcgi-bin/lsphp84 2>/dev/null || true
-ln -sf /usr/local/lsws/lsphp83/bin/lsphp /usr/local/lsws/fcgi-bin/lsphp 2>/dev/null || true
-
-# =====================================================
-# [6/14] PYTHON PACKAGES
-# =====================================================
-echo -e "${YELLOW}[6/14] Installing Python packages...${NC}"
+echo -e "${YELLOW}[6/12] Installing Python packages...${NC}"
 pip3 install --ignore-installed flask flask-socketio flask-cors mysql-connector-python bcrypt eventlet --break-system-packages 2>&1 || \
 pip3 install --ignore-installed flask flask-socketio flask-cors mysql-connector-python bcrypt eventlet 2>&1 || true
 
-# Playwright and its system dependencies
-echo "Installing Playwright dependencies..."
+# Playwright (browser automation for visual verification)
+echo "  Installing Playwright browser dependencies..."
 apt-get install -y --no-install-recommends \
     libasound2t64 libatk-bridge2.0-0t64 libatk1.0-0t64 libatspi2.0-0t64 \
     libcairo2 libcups2t64 libdbus-1-3 libdrm2 libgbm1 libglib2.0-0t64 \
@@ -206,46 +195,46 @@ apt-get install -y --no-install-recommends \
     xfonts-cyrillic xfonts-scalable fonts-liberation fonts-ipafont-gothic \
     fonts-wqy-zenhei fonts-tlwg-loma-otf fonts-freefont-ttf 2>/dev/null || true
 
-pip3 install --ignore-installed playwright --break-system-packages 2>&1 || pip3 install --ignore-installed playwright 2>&1 || true
-su - ${CLAUDE_USER} -c "playwright install chromium" 2>/dev/null || playwright install chromium 2>/dev/null || true
+echo "  Installing Playwright Python package..."
+pip3 install --ignore-installed playwright --break-system-packages 2>&1 || \
+pip3 install --ignore-installed playwright 2>&1 || true
 
-# =====================================================
-# [7/14] NODE.JS
-# =====================================================
-echo -e "${YELLOW}[7/14] Installing Node.js...${NC}"
-if ! command -v node &> /dev/null; then
-    curl -fsSL https://deb.nodesource.com/setup_22.x 2>/dev/null | bash - || true
-    apt-get install -y nodejs || true
+echo "  Installing Chromium browser for Playwright..."
+su - ${CLAUDE_USER} -c "playwright install chromium" 2>/dev/null || \
+playwright install chromium 2>/dev/null || true
+
+if su - ${CLAUDE_USER} -c "python3 -c 'from playwright.sync_api import sync_playwright'" 2>/dev/null; then
+    echo -e "${GREEN}  ✓ Playwright installed${NC}"
+else
+    echo -e "${YELLOW}  ⚠ Playwright may need manual setup: playwright install chromium${NC}"
 fi
-node --version 2>/dev/null && echo "Node.js ready" || echo "Node.js skipped"
 
 # =====================================================
-# [8/14] GRAALVM (Java)
+# [7/12] CLAUDE CODE CLI
 # =====================================================
-echo -e "${YELLOW}[8/14] Installing GraalVM...${NC}"
-GRAALVM_DIR="/opt/graalvm"
-if [ ! -f "$GRAALVM_DIR/bin/java" ]; then
-    cd /tmp
-    if curl -fsSL "https://download.oracle.com/graalvm/24/latest/graalvm-jdk-24_linux-x64_bin.tar.gz" -o graalvm.tar.gz 2>/dev/null; then
-        mkdir -p $GRAALVM_DIR
-        tar -xzf graalvm.tar.gz -C $GRAALVM_DIR --strip-components=1 || true
-        rm -f graalvm.tar.gz
+echo -e "${YELLOW}[7/12] Installing Claude Code CLI...${NC}"
 
-        cat > /etc/profile.d/graalvm.sh << 'EOF'
-export GRAALVM_HOME=/opt/graalvm
-export JAVA_HOME=$GRAALVM_HOME
-export PATH=$GRAALVM_HOME/bin:$PATH
-EOF
-        ln -sf $GRAALVM_DIR/bin/java /usr/local/bin/java 2>/dev/null || true
-        ln -sf $GRAALVM_DIR/bin/javac /usr/local/bin/javac 2>/dev/null || true
-    fi
+# Install for claude user
+su - ${CLAUDE_USER} -c 'curl -fsSL https://claude.ai/install.sh | bash' 2>/dev/null || true
+
+# Add to PATH if not already
+if ! su - ${CLAUDE_USER} -c 'grep -q "\.local/bin" ~/.bashrc' 2>/dev/null; then
+    su - ${CLAUDE_USER} -c 'echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> ~/.bashrc'
 fi
-java --version 2>/dev/null | head -1 || echo "Java skipped"
+
+# Check if installed
+if su - ${CLAUDE_USER} -c 'which claude' &>/dev/null; then
+    CLAUDE_VERSION=$(su - ${CLAUDE_USER} -c 'claude --version 2>/dev/null' | head -1)
+    echo -e "${GREEN}  ✓ Claude Code CLI installed: ${CLAUDE_VERSION}${NC}"
+else
+    echo -e "${YELLOW}  ⚠ Claude Code CLI not found - install manually later${NC}"
+    echo "    Run as ${CLAUDE_USER}: curl -fsSL https://claude.ai/install.sh | bash"
+fi
 
 # =====================================================
-# [9/14] MYSQL DATABASE SETUP
+# [8/12] MYSQL DATABASE SETUP
 # =====================================================
-echo -e "${YELLOW}[9/14] Configuring MySQL database...${NC}"
+echo -e "${YELLOW}[8/12] Configuring MySQL database...${NC}"
 
 mkdir -p ${CONFIG_DIR}
 systemctl start mysql 2>/dev/null || service mysql start || true
@@ -287,10 +276,8 @@ if [ "$MYSQL_CONNECTED" = true ]; then
 
     if [ "$DB_EXISTS" = "1" ]; then
         echo -e "${GREEN}Database '${DB_NAME}' already exists - keeping existing data${NC}"
-        # Just ensure user has access
         $MYSQL_CMD -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';" 2>/dev/null || true
         $MYSQL_CMD -e "GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost';" 2>/dev/null || true
-        # Grant ability to create databases for projects (auto-database feature)
         $MYSQL_CMD -e "GRANT ALL PRIVILEGES ON *.* TO '${DB_USER}'@'localhost' WITH GRANT OPTION;" 2>/dev/null || true
         $MYSQL_CMD -e "FLUSH PRIVILEGES;" 2>/dev/null || true
     else
@@ -298,7 +285,6 @@ if [ "$MYSQL_CONNECTED" = true ]; then
         $MYSQL_CMD -e "CREATE DATABASE IF NOT EXISTS ${DB_NAME};" 2>/dev/null || true
         $MYSQL_CMD -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';" 2>/dev/null || true
         $MYSQL_CMD -e "GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost';" 2>/dev/null || true
-        # Grant ability to create databases for projects (auto-database feature)
         $MYSQL_CMD -e "GRANT ALL PRIVILEGES ON *.* TO '${DB_USER}'@'localhost' WITH GRANT OPTION;" 2>/dev/null || true
         $MYSQL_CMD -e "FLUSH PRIVILEGES;" 2>/dev/null || true
 
@@ -307,7 +293,6 @@ if [ "$MYSQL_CONNECTED" = true ]; then
             $MYSQL_CMD ${DB_NAME} < "${SCRIPT_DIR}/database/schema.sql" 2>/dev/null || true
             echo "Database schema imported"
 
-            # Update admin password from install.conf (schema has default hash)
             ADMIN_HASH=$(python3 -c "import bcrypt; print(bcrypt.hashpw('${ADMIN_PASSWORD}'.encode(), bcrypt.gensalt()).decode())" 2>/dev/null)
             if [ -n "$ADMIN_HASH" ]; then
                 $MYSQL_CMD ${DB_NAME} -e "UPDATE developers SET username='${ADMIN_USER}', password_hash='${ADMIN_HASH}' WHERE id=1;" 2>/dev/null || true
@@ -315,15 +300,15 @@ if [ "$MYSQL_CONNECTED" = true ]; then
             fi
         fi
     fi
-    echo -e "${GREEN}Database configured (with CREATE DATABASE privileges)${NC}"
+    echo -e "${GREEN}Database configured${NC}"
 else
     echo -e "${RED}WARNING: Could not configure MySQL automatically${NC}"
 fi
 
 # =====================================================
-# [10/14] SSL CERTIFICATE
+# [9/12] SSL CERTIFICATE
 # =====================================================
-echo -e "${YELLOW}[10/14] Generating SSL certificate...${NC}"
+echo -e "${YELLOW}[9/12] Generating SSL certificate...${NC}"
 mkdir -p ${CONFIG_DIR}/ssl
 
 if [ -f "${SSL_CERT}" ] && [ -f "${SSL_KEY}" ]; then
@@ -339,9 +324,9 @@ else
 fi
 
 # =====================================================
-# [11/14] DIRECTORIES & FILES
+# [10/12] DIRECTORIES & FILES
 # =====================================================
-echo -e "${YELLOW}[11/14] Setting up directories and copying files...${NC}"
+echo -e "${YELLOW}[10/12] Setting up directories and copying files...${NC}"
 
 # Create directories
 mkdir -p ${WEB_ROOT}
@@ -352,9 +337,8 @@ mkdir -p ${LOG_DIR}
 mkdir -p /var/run/codehero
 mkdir -p /var/backups/codehero
 
-# Create tmpfiles.d config so /var/run/codehero persists across reboots
+# Create tmpfiles.d config
 cat > /etc/tmpfiles.d/codehero.conf << TMPEOF
-# Create runtime directory for CodeHero
 d /var/run/codehero 0755 ${CLAUDE_USER} ${CLAUDE_USER} -
 TMPEOF
 
@@ -365,7 +349,7 @@ cp "${SCRIPT_DIR}/scripts/"*.sh ${INSTALL_DIR}/scripts/ 2>/dev/null || true
 cp "${SCRIPT_DIR}/web/app.py" ${INSTALL_DIR}/web/ 2>/dev/null || true
 cp "${SCRIPT_DIR}/web/templates/"*.html ${INSTALL_DIR}/web/templates/ 2>/dev/null || true
 
-# Copy config files for Claude (global context, knowledge base, templates)
+# Copy config files
 mkdir -p ${INSTALL_DIR}/config
 cp "${SCRIPT_DIR}/config/"*.md ${CONFIG_DIR}/ 2>/dev/null || true
 cp "${SCRIPT_DIR}/config/"*.md ${INSTALL_DIR}/config/ 2>/dev/null || true
@@ -379,7 +363,6 @@ cp "${SCRIPT_DIR}/CLAUDE.md" ${INSTALL_DIR}/ 2>/dev/null || true
 cp "${SCRIPT_DIR}/README.md" ${INSTALL_DIR}/ 2>/dev/null || true
 cp "${SCRIPT_DIR}/CHANGELOG.md" ${INSTALL_DIR}/ 2>/dev/null || true
 cp "${SCRIPT_DIR}/VERSION" ${INSTALL_DIR}/ 2>/dev/null || true
-echo "  Documentation and knowledge files copied"
 
 chmod +x ${INSTALL_DIR}/scripts/*.py 2>/dev/null || true
 chmod +x ${INSTALL_DIR}/scripts/*.sh 2>/dev/null || true
@@ -389,7 +372,6 @@ chown -R ${CLAUDE_USER}:${CLAUDE_USER} ${WEB_ROOT}
 chown -R ${CLAUDE_USER}:${CLAUDE_USER} ${APP_ROOT}
 chown -R ${CLAUDE_USER}:${CLAUDE_USER} ${INSTALL_DIR}
 chown -R ${CLAUDE_USER}:${CLAUDE_USER} ${LOG_DIR}
-# Pre-create log files with correct ownership (systemd creates as root otherwise)
 touch ${LOG_DIR}/daemon.log ${LOG_DIR}/web.log
 chown ${CLAUDE_USER}:${CLAUDE_USER} ${LOG_DIR}/daemon.log ${LOG_DIR}/web.log
 chown -R ${CLAUDE_USER}:${CLAUDE_USER} /var/run/codehero
@@ -413,7 +395,7 @@ cat > ${WEB_ROOT}/index.html << 'HTMLEOF'
 <body>
     <h1>CodeHero - Projects</h1>
     <div class="info">
-        <p>Project URL: <code>https://server:${PROJECTS_PORT}/PROJECT_CODE/</code></p>
+        <p>Project URL: <code>https://server:9867/PROJECT_CODE/</code></p>
     </div>
 </body>
 </html>
@@ -424,72 +406,131 @@ chown ${CLAUDE_USER}:${CLAUDE_USER} ${WEB_ROOT}/index.html
 ln -sf ${INSTALL_DIR}/scripts/claude-cli.py /usr/local/bin/claude-cli
 
 # =====================================================
-# [12/14] OPENLITESPEED CONFIGURATION
+# [11/12] NGINX & CONFIGURATION FILES
 # =====================================================
-echo -e "${YELLOW}[12/14] Configuring OpenLiteSpeed...${NC}"
+echo -e "${YELLOW}[11/12] Configuring Nginx and creating config files...${NC}"
 
-cp /usr/local/lsws/conf/httpd_config.conf /usr/local/lsws/conf/httpd_config.conf.bak 2>/dev/null || true
+# Create Nginx site configs
+cat > /etc/nginx/sites-available/codehero-admin << 'NGINXADMIN'
+# CodeHero Admin Panel - Port 9453 (HTTPS)
+server {
+    listen 9453 ssl http2;
+    listen [::]:9453 ssl http2;
+    server_name _;
 
-mkdir -p /usr/local/lsws/conf/vhosts/vhost-admin
-mkdir -p /usr/local/lsws/conf/vhosts/vhost-projects
+    ssl_certificate /etc/codehero/ssl/cert.pem;
+    ssl_certificate_key /etc/codehero/ssl/key.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
 
-cp "${SCRIPT_DIR}/openlitespeed/httpd_config.conf" /usr/local/lsws/conf/httpd_config.conf
-cp "${SCRIPT_DIR}/openlitespeed/vhost-admin.conf" /usr/local/lsws/conf/vhosts/vhost-admin/vhconf.conf
-cp "${SCRIPT_DIR}/openlitespeed/vhost-projects.conf" /usr/local/lsws/conf/vhosts/vhost-projects/vhconf.conf
+    access_log /var/log/nginx/codehero-admin-access.log;
+    error_log /var/log/nginx/codehero-admin-error.log;
+    client_max_body_size 500M;
 
-chown -R lsadm:nogroup /usr/local/lsws/conf/
-chmod -R 750 /usr/local/lsws/conf/
+    location / {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+    }
 
-# Set OLS admin password
-/usr/local/lsws/admin/misc/admpass.sh << OLSEOF
-${OLS_ADMIN_USER}
-${OLS_ADMIN_PASSWORD}
-${OLS_ADMIN_PASSWORD}
-OLSEOF
+    location /socket.io {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 86400s;
+    }
 
+    location /android/ {
+        proxy_pass https://127.0.0.1:8443/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_ssl_verify off;
+        proxy_read_timeout 86400s;
+    }
 
-# =====================================================
-# [13/14] CONFIGURATION FILES
-# =====================================================
-echo -e "${YELLOW}[13/14] Creating configuration files...${NC}"
+    location = /android {
+        return 301 /android/;
+    }
+}
+NGINXADMIN
+
+cat > /etc/nginx/sites-available/codehero-projects << 'NGINXPROJECTS'
+# CodeHero Web Projects - Port 9867 (HTTPS)
+server {
+    listen 9867 ssl http2;
+    listen [::]:9867 ssl http2;
+    server_name _;
+
+    ssl_certificate /etc/codehero/ssl/cert.pem;
+    ssl_certificate_key /etc/codehero/ssl/key.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    root /var/www/projects;
+    index index.html index.php;
+
+    access_log /var/log/nginx/codehero-projects-access.log;
+    error_log /var/log/nginx/codehero-projects-error.log;
+    client_max_body_size 500M;
+
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        include fastcgi_params;
+        fastcgi_read_timeout 300s;
+    }
+
+    location ~ /\.ht {
+        deny all;
+    }
+
+    location ~* \.(jpg|jpeg|png|gif|ico|css|js|woff|woff2|ttf|svg)$ {
+        expires 7d;
+        add_header Cache-Control "public, immutable";
+    }
+}
+NGINXPROJECTS
+
+# Enable sites
+ln -sf /etc/nginx/sites-available/codehero-admin /etc/nginx/sites-enabled/
+ln -sf /etc/nginx/sites-available/codehero-projects /etc/nginx/sites-enabled/
+rm -f /etc/nginx/sites-enabled/default
+
+nginx -t 2>/dev/null && echo -e "${GREEN}Nginx configuration valid${NC}" || echo -e "${RED}Nginx configuration error${NC}"
 
 # Main system config
 cat > ${CONFIG_DIR}/system.conf << CONFEOF
-# =====================================================
-# CodeHero Configuration
-# Generated: $(date)
-# Version: ${VERSION}
-# =====================================================
-
-# Database
+# CodeHero Configuration - Generated: $(date)
 DB_HOST=${DB_HOST}
 DB_NAME=${DB_NAME}
 DB_USER=${DB_USER}
 DB_PASSWORD=${DB_PASSWORD}
-
-# Flask Web Panel
 WEB_HOST=${FLASK_HOST}
 WEB_PORT=${FLASK_PORT}
 SECRET_KEY=${SECRET_KEY}
-
-# Ports
 ADMIN_PORT=${ADMIN_PORT}
 PROJECTS_PORT=${PROJECTS_PORT}
-
-# SSL
 SSL_CERT=${SSL_CERT}
 SSL_KEY=${SSL_KEY}
-
-# Directories
 INSTALL_DIR=${INSTALL_DIR}
 WEB_ROOT=${WEB_ROOT}
 APP_ROOT=${APP_ROOT}
-
-# Daemon Settings
 MAX_PARALLEL_PROJECTS=${MAX_PARALLEL_PROJECTS}
 REVIEW_DEADLINE_DAYS=${REVIEW_DEADLINE_DAYS}
-
-# Telegram Notifications
 TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
 TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
 NOTIFY_TICKET_COMPLETED=${NOTIFY_TICKET_COMPLETED:-yes}
@@ -502,54 +543,24 @@ chown ${CLAUDE_USER}:${CLAUDE_USER} ${CONFIG_DIR}/system.conf
 
 # Credentials file
 cat > ${CONFIG_DIR}/credentials.conf << CREDEOF
-# =====================================================
-# CODEHERO - All Credentials
-# Generated: $(date)
-# =====================================================
-
-# MySQL Root
+# CODEHERO Credentials - Generated: $(date)
 MYSQL_ROOT_USER=root
 MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-
-# MySQL Application
 MYSQL_APP_USER=${DB_USER}
 MYSQL_APP_PASSWORD=${DB_PASSWORD}
 MYSQL_DATABASE=${DB_NAME}
-
-# Admin Panel (Flask) - https://IP:${ADMIN_PORT}
 ADMIN_USER=${ADMIN_USER}
 ADMIN_PASSWORD=${ADMIN_PASSWORD}
-
-# OpenLiteSpeed WebAdmin - https://IP:${OLS_WEBADMIN_PORT}
-OLS_ADMIN_USER=${OLS_ADMIN_USER}
-OLS_ADMIN_PASSWORD=${OLS_ADMIN_PASSWORD}
-
-# System User (passwordless sudo)
 CLAUDE_USER=${CLAUDE_USER}
-
-# =====================================================
-# URLS
-# =====================================================
-# Admin Panel:     https://YOUR_IP:${ADMIN_PORT}
-# Web Projects:    https://YOUR_IP:${PROJECTS_PORT}
-# OLS WebAdmin:    https://YOUR_IP:${OLS_WEBADMIN_PORT}
-
-# =====================================================
-# FILE LOCATIONS
-# =====================================================
-# Application:     ${INSTALL_DIR}
-# Config:          ${CONFIG_DIR}
-# Logs:            ${LOG_DIR}
-# Web Projects:    ${WEB_ROOT}
-# App Projects:    ${APP_ROOT}
+# URLs: https://YOUR_IP:${ADMIN_PORT} | https://YOUR_IP:${PROJECTS_PORT}
 CREDEOF
 chmod 600 ${CONFIG_DIR}/credentials.conf
 chown root:root ${CONFIG_DIR}/credentials.conf
 
 # =====================================================
-# [14/14] SYSTEMD SERVICES
+# [12/12] SYSTEMD SERVICES
 # =====================================================
-echo -e "${YELLOW}[14/14] Setting up systemd services...${NC}"
+echo -e "${YELLOW}[12/12] Setting up systemd services...${NC}"
 
 # Web Service
 cat > /etc/systemd/system/codehero-web.service << SVCEOF
@@ -587,6 +598,8 @@ Type=simple
 User=${CLAUDE_USER}
 Group=${CLAUDE_USER}
 WorkingDirectory=${INSTALL_DIR}
+ExecStartPre=/bin/mkdir -p /var/run/codehero
+ExecStartPre=/bin/chown ${CLAUDE_USER}:${CLAUDE_USER} /var/run/codehero
 ExecStart=/usr/bin/python3 ${INSTALL_DIR}/scripts/claude-daemon.py
 Restart=always
 RestartSec=5
@@ -607,7 +620,8 @@ if [ "${ENABLE_AUTOSTART}" = "yes" ]; then
     systemctl enable mysql 2>/dev/null || true
     systemctl enable codehero-web 2>/dev/null || true
     systemctl enable codehero-daemon 2>/dev/null || true
-    systemctl enable lshttpd 2>/dev/null || true
+    systemctl enable nginx 2>/dev/null || true
+    systemctl enable php8.3-fpm 2>/dev/null || true
     echo -e "${GREEN}Auto-start enabled for all services${NC}"
 fi
 
@@ -617,53 +631,12 @@ fi
 echo -e "${CYAN}Starting services...${NC}"
 
 systemctl start mysql 2>/dev/null || true
-systemctl start codehero-web 2>/dev/null || true
-/usr/local/lsws/bin/lswsctrl stop 2>/dev/null || true
-sleep 1
-/usr/local/lsws/bin/lswsctrl start 2>/dev/null || true
-
-# Start daemon
-systemctl start codehero-daemon 2>/dev/null || true
+systemctl restart php8.3-fpm 2>/dev/null || true
+systemctl restart codehero-web 2>/dev/null || true
+systemctl restart nginx 2>/dev/null || true
+systemctl restart codehero-daemon 2>/dev/null || true
 
 sleep 3
-
-# =====================================================
-# CLAUDE CODE CLI INSTALLATION
-# =====================================================
-echo ""
-echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════╗"
-echo "║           CLAUDE CODE CLI                                 ║"
-echo "╚═══════════════════════════════════════════════════════════╝${NC}"
-echo ""
-echo "Installing Claude Code CLI for user ${CLAUDE_USER}..."
-
-# Install Claude Code CLI
-if [ -f "${INSTALL_DIR}/scripts/install-claude-code.sh" ]; then
-    chmod +x "${INSTALL_DIR}/scripts/install-claude-code.sh"
-    # Run installation (without starting claude interactively)
-    su - ${CLAUDE_USER} -c 'curl -fsSL https://claude.ai/install.sh | bash' 2>/dev/null || true
-    # Add ~/.local/bin to PATH if not already there
-    if ! su - ${CLAUDE_USER} -c 'grep -q "\.local/bin" ~/.bashrc' 2>/dev/null; then
-        su - ${CLAUDE_USER} -c 'echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> ~/.bashrc'
-    fi
-fi
-
-# Check if installed
-if su - ${CLAUDE_USER} -c 'which claude' &>/dev/null; then
-    echo -e "${GREEN}Claude Code CLI installed successfully${NC}"
-    CLAUDE_VERSION=$(su - ${CLAUDE_USER} -c 'claude --version 2>/dev/null' | head -1)
-    echo -e "  Version: ${CYAN}${CLAUDE_VERSION}${NC}"
-else
-    echo -e "${YELLOW}Claude Code CLI installation skipped or failed${NC}"
-    echo "  You can install manually later with:"
-    echo -e "  ${CYAN}curl -fsSL https://claude.ai/install.sh | bash${NC}"
-fi
-
-echo ""
-echo -e "${CYAN}Claude Activation:${NC}"
-echo "  Activate Claude via the Admin Panel web interface."
-echo "  Go to Admin Panel -> Click 'Activate Claude' button"
-echo ""
 
 # =====================================================
 # STATUS CHECK
@@ -672,42 +645,39 @@ echo ""
 echo "Service Status:"
 pgrep -f "app.py" > /dev/null && echo -e "  Flask Web:       ${GREEN}running${NC}" || echo -e "  Flask Web:       ${RED}not running${NC}"
 pgrep -f "claude-daemon" > /dev/null && echo -e "  Daemon:          ${GREEN}running${NC}" || echo -e "  Daemon:          ${YELLOW}stopped${NC}"
-pgrep -f "litespeed" > /dev/null && echo -e "  OpenLiteSpeed:   ${GREEN}running${NC}" || echo -e "  OpenLiteSpeed:   ${RED}not running${NC}"
+systemctl is-active nginx > /dev/null 2>&1 && echo -e "  Nginx:           ${GREEN}running${NC}" || echo -e "  Nginx:           ${RED}not running${NC}"
+systemctl is-active php8.3-fpm > /dev/null 2>&1 && echo -e "  PHP-FPM:         ${GREEN}running${NC}" || echo -e "  PHP-FPM:         ${RED}not running${NC}"
 systemctl is-active mysql > /dev/null 2>&1 && echo -e "  MySQL:           ${GREEN}running${NC}" || echo -e "  MySQL:           ${YELLOW}check status${NC}"
+su - ${CLAUDE_USER} -c 'which claude' &>/dev/null && echo -e "  Claude CLI:      ${GREEN}installed${NC}" || echo -e "  Claude CLI:      ${YELLOW}not found${NC}"
 
 SERVER_IP=$(hostname -I | awk '{print $1}')
 
 echo ""
 echo -e "${GREEN}╔═══════════════════════════════════════════════════════════╗"
-echo "║              INSTALLATION COMPLETE!                       ║"
+echo "║              CORE INSTALLATION COMPLETE!                    ║"
 echo "╚═══════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "${CYAN}URLs:${NC}"
 echo -e "  Admin Panel:     ${GREEN}https://${SERVER_IP}:${ADMIN_PORT}${NC}"
 echo -e "  Web Projects:    ${GREEN}https://${SERVER_IP}:${PROJECTS_PORT}${NC}"
-echo -e "  OLS WebAdmin:    ${GREEN}https://${SERVER_IP}:${OLS_WEBADMIN_PORT}${NC}"
 echo ""
 echo -e "${CYAN}Credentials:${NC}"
 echo "  Admin Panel:     ${ADMIN_USER} / ${ADMIN_PASSWORD}"
-echo "  OLS WebAdmin:    ${OLS_ADMIN_USER} / ${OLS_ADMIN_PASSWORD}"
 echo "  MySQL Root:      root / ${MYSQL_ROOT_PASSWORD}"
 echo "  MySQL App:       ${DB_USER} / ${DB_PASSWORD}"
 echo ""
 echo -e "${CYAN}System User:${NC}"
 echo "  Username:        ${CLAUDE_USER}"
 echo "  Sudo:            passwordless (sudo su - ${CLAUDE_USER})"
-echo "  Home:            /home/${CLAUDE_USER}"
-echo ""
-echo -e "${CYAN}File Locations:${NC}"
-echo "  Application:     ${INSTALL_DIR}"
-echo "  Config:          ${CONFIG_DIR}"
-echo "  Web Projects:    ${WEB_ROOT}"
 echo ""
 echo -e "${YELLOW}All credentials saved to:${NC}"
 echo "  ${CONFIG_DIR}/credentials.conf"
 echo ""
-echo -e "${YELLOW}To change passwords later:${NC}"
-echo "  sudo ${INSTALL_DIR}/scripts/change-passwords.sh"
+echo -e "${CYAN}To activate Claude Code:${NC}"
+echo "  Go to Admin Panel -> Click 'Activate Claude' button"
+echo ""
+echo -e "${YELLOW}To install development tools (Node.js, Java, Playwright):${NC}"
+echo "  sudo ./setup_devtools.sh"
 echo ""
 echo -e "${YELLOW}Services will auto-start on reboot.${NC}"
 echo ""

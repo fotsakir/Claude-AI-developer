@@ -5,8 +5,8 @@ This context applies to ALL projects processed by Claude.
 ## Server Environment
 
 - **Operating System**: Ubuntu 24.04 LTS
-- **Web Server**: OpenLiteSpeed
-- **PHP Versions**: LSPHP 8.3 (default), LSPHP 8.4
+- **Web Server**: Nginx with PHP-FPM
+- **PHP Version**: PHP 8.3 (via PHP-FPM)
 - **Node.js**: v22.x
 - **Java**: GraalVM 24
 
@@ -17,15 +17,14 @@ This context applies to ALL projects processed by Claude.
 | Admin Panel | 9453 | HTTPS |
 | Web Projects | 9867 | HTTPS |
 | MySQL | 3306 | TCP (localhost only) |
-| OLS WebAdmin | 7080 | HTTPS |
 | SSH | 22, 9966 | TCP |
 
 ## File Locations
 
 - **PHP Projects**: `/var/www/projects/[project-code]/`
 - **App Projects**: `/opt/apps/[project-code]/`
-- **OLS Config**: `/usr/local/lsws/conf/`
-- **PHP Binary**: `/usr/local/lsws/lsphp83/bin/php` or `/usr/local/lsws/lsphp84/bin/php`
+- **Nginx Config**: `/etc/nginx/sites-available/`
+- **PHP Binary**: `/usr/bin/php` or `/usr/bin/php8.3`
 
 ## Installed Tools
 
@@ -38,8 +37,8 @@ This context applies to ALL projects processed by Claude.
 - MySQL 8.0 (server and client)
 
 ### PHP
-- LSPHP 8.3 with extensions: mysql, curl, intl, opcache, redis, imagick
-- LSPHP 8.4 with extensions: mysql, curl, intl, opcache, redis, imagick
+- PHP 8.3 with extensions: mysql, curl, intl, opcache, redis, imagick
+- PHP-FPM for web serving
 - Composer (if installed separately - check with `which composer`)
 
 ### JavaScript
@@ -68,6 +67,14 @@ This context applies to ALL projects processed by Claude.
 ### Java
 - GraalVM 24 (JAVA_HOME=/opt/graalvm)
 - java, javac available in PATH
+
+### .NET / Windows Development
+- .NET SDK 8.0 (LTS)
+- PowerShell 7.5
+- Wine 11.0 (run Windows .exe)
+- Mono 6.12 (.NET Framework runtime)
+- Supports: Console apps, ASP.NET Core, Web APIs, Blazor, Class libraries
+- Commands: `dotnet new`, `dotnet build`, `dotnet run`, `dotnet test`, `pwsh`
 
 ## Testing Tools
 
@@ -121,7 +128,7 @@ Then read the screenshot to see what the user sees. This helps you:
 
 1. **Check before installing**: Most tools are already installed. Always verify with `which [tool]` or `[tool] --version` before attempting installation
 2. **Do NOT run `apt-get install`** for packages that are already installed
-3. **PHP version**: Default is 8.3, use 8.4 only if specifically requested
+3. **PHP version**: Default is 8.3
 4. **Project isolation**: Each project has its own directory and optionally its own MySQL database
 5. SSL certificates are managed by Let's Encrypt or self-signed - do not modify SSL config
 
@@ -137,10 +144,13 @@ To connect: `mysql -h [host] -u [user] -p[password] [database]`
 node --version
 
 # Check PHP
-/usr/local/lsws/lsphp83/bin/php --version
+php --version
 
 # Check Java
 java --version
+
+# Check .NET
+dotnet --version
 
 # Check Playwright
 python3 -c "from playwright.sync_api import sync_playwright; print('Playwright OK')"

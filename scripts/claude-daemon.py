@@ -12,6 +12,12 @@ import time
 import json
 import os
 import sys
+
+# Add scripts directory to Python path for module imports
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, SCRIPT_DIR)
+
 import signal
 import smtplib
 import threading
@@ -34,6 +40,16 @@ try:
 except ImportError:
     SMART_CONTEXT_ENABLED = False
     print("[WARNING] SmartContextManager not available - using basic context")
+
+# Import Git Manager
+try:
+    from git_manager import GitManager, get_git_manager
+    GIT_ENABLED = True
+except ImportError:
+    GIT_ENABLED = False
+    GitManager = None
+    get_git_manager = None
+    print("[WARNING] GitManager not available - Git auto-commit disabled")
 
 BACKUP_DIR = "/var/backups/codehero"
 MAX_BACKUPS = 30
@@ -294,7 +310,9 @@ class ProjectWorker(threading.Thread):
                 SELECT t.*, p.web_path, p.app_path, p.name as project_name, p.code as project_code,
                        p.project_type, p.tech_stack, p.context as project_context, t.context as ticket_context,
                        p.db_name, p.db_user, p.db_password, p.db_host,
-                       p.ai_model as project_ai_model, t.ai_model as ticket_ai_model
+                       p.ai_model as project_ai_model, t.ai_model as ticket_ai_model,
+                       p.android_device_type, p.android_remote_host, p.android_remote_port, p.android_screen_size,
+                       p.dotnet_port
                 FROM tickets t
                 JOIN projects p ON t.project_id = p.id
                 WHERE t.project_id = %s AND t.status IN ('open', 'new', 'pending')
@@ -385,6 +403,104 @@ class ProjectWorker(threading.Thread):
                     WHERE id = %s
                 """, (status, result[:1000] if result else None, ticket_id))
             conn.commit()
+
+            # Git auto-commit when ticket completes (awaiting_input)
+            if actual_status == 'awaiting_input' and GIT_ENABLED:
+                try:
+                    # Get project info for Git
+                    cursor.execute("""
+                        SELECT p.id, p.web_path, p.app_path, p.project_type, p.tech_stack,
+                               t.ticket_number, t.title,
+                               COALESCE(
+                                   (SELECT SUM(es.tokens_used) FROM execution_sessions es WHERE es.ticket_id = t.id),
+                                   0
+                               ) as tokens_used,
+                               COALESCE(
+                                   (SELECT TIMESTAMPDIFF(SECOND, MIN(es2.started_at), MAX(es2.ended_at))
+                                    FROM execution_sessions es2 WHERE es2.ticket_id = t.id),
+                                   0
+                               ) as duration_seconds
+                        FROM tickets t
+                        JOIN projects p ON t.project_id = p.id
+                        WHERE t.id = %s
+                    """, (ticket_id,))
+                    project_info = cursor.fetchone()
+
+                    if project_info:
+                        # Determine repo path (prefer web_path, fallback to app_path)
+                        git_path = project_info.get('web_path') or project_info.get('app_path')
+
+                        if git_path and os.path.exists(git_path):
+                            gm = GitManager(
+                                git_path,
+                                project_info.get('project_type', 'web'),
+                                project_info.get('tech_stack', '')
+                            )
+
+                            if gm.is_initialized():
+                                success, msg, commit_hash = gm.auto_commit(
+                                    ticket_number=project_info.get('ticket_number', ''),
+                                    title=project_info.get('title', 'Automated commit'),
+                                    session_id=self.current_session_id,
+                                    status=actual_status,
+                                    duration_seconds=project_info.get('duration_seconds', 0),
+                                    tokens_used=project_info.get('tokens_used', 0)
+                                )
+
+                                if success and commit_hash:
+                                    # Get or create repo record
+                                    cursor.execute("""
+                                        SELECT id FROM project_git_repos
+                                        WHERE project_id = %s AND repo_path = %s
+                                    """, (project_info['id'], git_path))
+                                    repo_record = cursor.fetchone()
+
+                                    if not repo_record:
+                                        # Create repo record if missing
+                                        cursor.execute("""
+                                            INSERT INTO project_git_repos
+                                            (project_id, repo_path, path_type, status)
+                                            VALUES (%s, %s, 'web', 'active')
+                                        """, (project_info['id'], git_path))
+                                        conn.commit()
+                                        repo_id = cursor.lastrowid
+                                    else:
+                                        repo_id = repo_record['id']
+
+                                    # Get commit stats
+                                    commit_detail = gm.get_commit_detail(commit_hash)
+                                    files_changed = commit_detail.get('files_changed', 0) if commit_detail else 0
+                                    insertions = commit_detail.get('insertions', 0) if commit_detail else 0
+                                    deletions = commit_detail.get('deletions', 0) if commit_detail else 0
+
+                                    # Store commit in database
+                                    cursor.execute("""
+                                        INSERT INTO project_git_commits
+                                        (project_id, repo_id, ticket_id, session_id, commit_hash, short_hash,
+                                         message, files_changed, insertions, deletions)
+                                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                    """, (
+                                        project_info['id'], repo_id, ticket_id, self.current_session_id,
+                                        commit_hash, commit_hash[:7],
+                                        f"[{project_info.get('ticket_number', '')}] {project_info.get('title', '')}",
+                                        files_changed, insertions, deletions
+                                    ))
+
+                                    # Update repo stats
+                                    cursor.execute("""
+                                        UPDATE project_git_repos
+                                        SET last_commit_hash = %s, last_commit_at = NOW(),
+                                            total_commits = total_commits + 1
+                                        WHERE id = %s
+                                    """, (commit_hash, repo_id))
+                                    conn.commit()
+
+                                    self.log(f"Git auto-commit created: {commit_hash[:7]}", "INFO")
+                                elif not success:
+                                    self.log(f"Git auto-commit skipped: {msg}", "DEBUG")
+                except Exception as e:
+                    self.log(f"Git auto-commit error: {e}", "WARNING")
+
             cursor.close()
             conn.close()
 
@@ -724,6 +840,28 @@ Password: {ticket['db_password']}
 ======================
 """
 
+        # Git version control context
+        git_context = ""
+        if GIT_ENABLED:
+            try:
+                git_path = ticket.get('web_path') or ticket.get('app_path')
+                if git_path and os.path.exists(git_path):
+                    gm = GitManager(
+                        git_path,
+                        ticket.get('project_type', 'web'),
+                        ticket.get('tech_stack', '')
+                    )
+                    if gm.is_initialized():
+                        git_info = gm.get_context_for_claude(max_commits=5)
+                        if git_info:
+                            git_context = f"""
+=== GIT VERSION CONTROL ===
+{git_info}
+===========================
+"""
+            except Exception as e:
+                self.log(f"Error getting Git context: {e}", "DEBUG")
+
         # Allowed paths
         allowed_paths = []
         if ticket.get('web_path'): allowed_paths.append(ticket['web_path'])
@@ -732,7 +870,7 @@ Password: {ticket['db_password']}
 
         system = f"""You are working on project: {ticket['project_name']}
 {paths_str}{tech_info}
-{global_context_str}{smart_context_str}{db_info}{project_context}{ticket_context}
+{global_context_str}{smart_context_str}{db_info}{project_context}{ticket_context}{git_context}
 Ticket: {ticket['ticket_number']} - {ticket['title']}
 
 IMPORTANT: You can ONLY create/modify files within: {allowed_str}
@@ -826,8 +964,16 @@ Complete this task. When finished, say "TASK COMPLETED" with a summary."""
     def run_claude(self, ticket, prompt):
         """Run Claude Code within project directory"""
 
-        # Determine working directory
-        work_path = ticket.get('web_path') or ticket.get('app_path') or '/var/www/projects'
+        # Determine working directory based on project type
+        project_type = ticket.get('project_type', 'web')
+        mobile_types = ['capacitor', 'react_native', 'flutter', 'native_android', 'app', 'api', 'dotnet']
+
+        if project_type in mobile_types:
+            # For mobile/app projects, prefer app_path
+            work_path = ticket.get('app_path') or ticket.get('web_path') or '/opt/apps'
+        else:
+            # For web projects, prefer web_path
+            work_path = ticket.get('web_path') or ticket.get('app_path') or '/var/www/projects'
         work_path = os.path.abspath(work_path)
 
         # Create directories if needed
@@ -848,6 +994,7 @@ Complete this task. When finished, say "TASK COMPLETED" with a summary."""
             '--dangerously-skip-permissions',
             '-p', prompt
         ]
+        self.log(f"Starting Claude in {work_path}")
         try:
             # Load API key from .env if exists
             claude_env = os.environ.copy()
@@ -919,10 +1066,14 @@ Complete this task. When finished, say "TASK COMPLETED" with a summary."""
                         process.terminate()
                         return 'stuck'
             
-            return result if result else ('success' if process.returncode == 0 else 'failed')
-            
+            final_result = result if result else ('success' if process.returncode == 0 else 'failed')
+            self.log(f"Claude finished - returncode: {process.returncode}, result: {result}, final: {final_result}", "DEBUG")
+            return final_result
+
         except Exception as e:
-            self.log(f"Error running Claude: {e}", "ERROR")
+            import traceback
+            self.log(f"Error running Claude: {e}")
+            self.log(f"Traceback: {traceback.format_exc()}")
             return 'failed'
     
     def process_ticket(self, ticket):

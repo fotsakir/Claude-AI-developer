@@ -520,6 +520,9 @@
                 <div class="tab active" onclick="switchTab('conversation')">Conversation</div>
                 <div class="tab" onclick="switchTab('console')">Console</div>
                 {% if ticket.preview_url %}<div class="tab" onclick="switchTab('preview')">Live Preview</div>{% endif %}
+                {% if ticket.project_type in ['capacitor', 'react_native', 'flutter', 'native_android'] and ticket.android_device_type != 'none' %}
+                <div class="tab" onclick="switchTab('emulator')">Emulator</div>
+                {% endif %}
             </div>
 
             <div class="tab-content active" id="tab-conversation">
@@ -602,6 +605,30 @@
                     <button onclick="window.open('{{ ticket.preview_url }}', '_blank')" style="padding:6px 16px;background:var(--accent-cyan);border:none;color:#000;border-radius:6px;cursor:pointer;margin-left:8px;font-size:12px;font-weight:600">Open</button>
                 </div>
                 <iframe id="preview-frame" src="" style="flex:1;border:none;background:#fff;width:100%"></iframe>
+            </div>
+            {% endif %}
+
+            {% if ticket.project_type in ['capacitor', 'react_native', 'flutter', 'native_android'] and ticket.android_device_type != 'none' %}
+            <div class="tab-content" id="tab-emulator" style="flex-direction:column">
+                <div class="view-toggle">
+                    <div style="display:flex;align-items:center;gap:12px">
+                        <span id="emulator-status-indicator" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--text-muted)"></span>
+                        <span id="emulator-status-text" style="color:var(--text-muted);font-size:13px">Checking...</span>
+                    </div>
+                    <div style="margin-left:auto;display:flex;gap:8px">
+                        <button id="btn-start-emulator" onclick="startEmulator()" style="padding:6px 16px;background:var(--accent-green);border:none;color:#fff;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">Start Emulator</button>
+                        <button id="btn-stop-emulator" onclick="stopEmulator()" style="padding:6px 16px;background:var(--accent-red);border:none;color:#fff;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;display:none">Stop Emulator</button>
+                        <button onclick="refreshEmulatorStatus()" style="padding:6px 16px;background:var(--bg-card);border:1px solid var(--border-subtle);color:var(--text-primary);border-radius:6px;cursor:pointer;font-size:12px">Refresh</button>
+                    </div>
+                </div>
+                <div id="emulator-content" style="flex:1;display:flex;justify-content:center;align-items:center;background:var(--bg-primary)">
+                    <div id="emulator-stopped-message" style="text-align:center;color:var(--text-muted)">
+                        <p style="font-size:48px;margin-bottom:16px">📱</p>
+                        <p style="font-size:16px;font-weight:500">Emulator is stopped</p>
+                        <p style="font-size:13px;margin-top:8px">Click "Start Emulator" to begin</p>
+                    </div>
+                    <iframe id="emulator-frame" src="" style="display:none;border:none;width:100%;height:100%"></iframe>
+                </div>
             </div>
             {% endif %}
 
@@ -702,6 +729,29 @@
 
             <div class="sidebar-section">
                 <h3>Files</h3>
+                {% if ticket.web_path and ticket.app_path %}
+                <div class="path-tabs-mini" style="display:flex;gap:4px;margin-bottom:8px;">
+                    <button class="path-tab-mini active" data-path="web" onclick="switchPathTab('web')">🌐 Web</button>
+                    <button class="path-tab-mini" data-path="app" onclick="switchPathTab('app')">📱 App</button>
+                </div>
+                <style>
+                    .path-tab-mini {
+                        padding: 4px 10px;
+                        background: transparent;
+                        border: 1px solid var(--border-subtle);
+                        border-radius: 4px;
+                        color: var(--text-muted);
+                        cursor: pointer;
+                        font-size: 11px;
+                    }
+                    .path-tab-mini:hover { background: rgba(99, 102, 241, 0.1); }
+                    .path-tab-mini.active {
+                        background: var(--accent-primary);
+                        color: white;
+                        border-color: var(--accent-primary);
+                    }
+                </style>
+                {% endif %}
                 <div class="upload-mini">
                     <div class="upload-mini-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
                         <input type="file" id="fileInput" multiple onchange="handleUpload(this.files)">
@@ -721,6 +771,19 @@
         const ticketStatus = '{{ ticket.status }}';
         const projectId = {{ ticket.project_id }};
         const previewUrl = '{{ ticket.preview_url|default("", true) }}';
+
+        // Path switching for file uploads
+        let currentPathType = 'web';
+        const webPath = '{{ ticket.web_path or "" }}';
+        const appPath = '{{ ticket.app_path or "" }}';
+
+        function switchPathTab(pathType) {
+            currentPathType = pathType;
+            document.querySelectorAll('.path-tab-mini').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.path === pathType);
+            });
+            loadFileList();
+        }
 
         function popoutEditor() {
             const width = 1200;
@@ -757,7 +820,7 @@
         loadTicketStats();
         setInterval(loadTicketStats, 30000);
 
-        const socket = io({ transports: ['polling'], upgrade: false });
+        const socket = io({ transports: ['websocket', 'polling'] });
         const conversation = document.getElementById('conversation');
         const input = document.getElementById('message-input');
 
@@ -1052,12 +1115,25 @@
         function switchTab(tabName) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+
+            // Find the correct tab by text content
             const tabs = document.querySelectorAll('.tab');
-            const tabIndex = tabName === 'conversation' ? 0 : tabName === 'console' ? 1 : 2;
-            if (tabs[tabIndex]) tabs[tabIndex].classList.add('active');
-            document.getElementById(`tab-${tabName}`).classList.add('active');
+            tabs.forEach(tab => {
+                if (tab.textContent.toLowerCase().includes(tabName.toLowerCase()) ||
+                    (tabName === 'conversation' && tab.textContent === 'Conversation') ||
+                    (tabName === 'console' && tab.textContent === 'Console') ||
+                    (tabName === 'preview' && tab.textContent === 'Live Preview') ||
+                    (tabName === 'emulator' && tab.textContent === 'Emulator')) {
+                    tab.classList.add('active');
+                }
+            });
+
+            const tabContent = document.getElementById(`tab-${tabName}`);
+            if (tabContent) tabContent.classList.add('active');
+
             if (tabName === 'console') refreshConsole();
             else if (tabName === 'preview') loadPreview();
+            else if (tabName === 'emulator') refreshEmulatorStatus();
         }
 
         let previewRefreshInterval = null;
@@ -1107,6 +1183,111 @@
                 });
             }
         });
+
+        // ============ EMULATOR FUNCTIONS ============
+        const emulatorScreenSize = '{{ ticket.android_screen_size or "phone" }}';
+
+        async function refreshEmulatorStatus() {
+            try {
+                const res = await fetch('/api/emulator/status');
+                const data = await res.json();
+                updateEmulatorUI(data);
+            } catch (err) {
+                console.error('Emulator status error:', err);
+            }
+        }
+
+        function updateEmulatorUI(data) {
+            const indicator = document.getElementById('emulator-status-indicator');
+            const statusText = document.getElementById('emulator-status-text');
+            const startBtn = document.getElementById('btn-start-emulator');
+            const stopBtn = document.getElementById('btn-stop-emulator');
+            const stoppedMsg = document.getElementById('emulator-stopped-message');
+            const frame = document.getElementById('emulator-frame');
+
+            if (!indicator || !statusText) return;
+
+            if (data.status === 'running') {
+                indicator.style.background = 'var(--accent-green)';
+                statusText.textContent = data.adb_connected ? 'Running (ADB connected)' : 'Running (ADB connecting...)';
+                statusText.style.color = 'var(--accent-green)';
+                if (startBtn) startBtn.style.display = 'none';
+                if (stopBtn) stopBtn.style.display = 'block';
+                if (stoppedMsg) stoppedMsg.style.display = 'none';
+                if (frame && data.stream_url) {
+                    frame.src = data.stream_url;
+                    frame.style.display = 'block';
+                }
+            } else {
+                indicator.style.background = 'var(--text-muted)';
+                statusText.textContent = 'Stopped';
+                statusText.style.color = 'var(--text-muted)';
+                if (startBtn) startBtn.style.display = 'block';
+                if (stopBtn) stopBtn.style.display = 'none';
+                if (stoppedMsg) stoppedMsg.style.display = 'block';
+                if (frame) {
+                    frame.src = '';
+                    frame.style.display = 'none';
+                }
+            }
+        }
+
+        async function startEmulator() {
+            const startBtn = document.getElementById('btn-start-emulator');
+            const statusText = document.getElementById('emulator-status-text');
+            if (startBtn) startBtn.disabled = true;
+            if (statusText) {
+                statusText.textContent = 'Starting emulator...';
+                statusText.style.color = 'var(--accent-yellow)';
+            }
+
+            try {
+                const res = await fetch('/api/emulator/start', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ screen_size: emulatorScreenSize })
+                });
+                const data = await res.json();
+                if (data.status === 'running') {
+                    // Wait a bit for ws-scrcpy to be ready
+                    setTimeout(refreshEmulatorStatus, 3000);
+                } else if (data.status === 'error') {
+                    if (statusText) {
+                        statusText.textContent = 'Error: ' + data.message;
+                        statusText.style.color = 'var(--accent-red)';
+                    }
+                    if (startBtn) startBtn.disabled = false;
+                }
+            } catch (err) {
+                if (statusText) {
+                    statusText.textContent = 'Error: ' + err.message;
+                    statusText.style.color = 'var(--accent-red)';
+                }
+                if (startBtn) startBtn.disabled = false;
+            }
+        }
+
+        async function stopEmulator() {
+            const stopBtn = document.getElementById('btn-stop-emulator');
+            const statusText = document.getElementById('emulator-status-text');
+            if (stopBtn) stopBtn.disabled = true;
+            if (statusText) {
+                statusText.textContent = 'Stopping emulator...';
+                statusText.style.color = 'var(--accent-yellow)';
+            }
+
+            try {
+                const res = await fetch('/api/emulator/stop', { method: 'POST' });
+                const data = await res.json();
+                setTimeout(refreshEmulatorStatus, 1000);
+            } catch (err) {
+                if (statusText) {
+                    statusText.textContent = 'Error: ' + err.message;
+                    statusText.style.color = 'var(--accent-red)';
+                }
+            }
+            if (stopBtn) stopBtn.disabled = false;
+        }
 
         let isFormatted = true;
 
@@ -1288,6 +1469,7 @@
             for (let file of files) formData.append('files', file);
             formData.append('ticket_id', ticketId);
             formData.append('subdir', 'ticket_files');
+            formData.append('path_type', currentPathType);
 
             uploadResult.style.display = 'block';
             uploadResult.className = 'upload-mini-result';
@@ -1348,7 +1530,7 @@
         async function loadFileList() {
             const fileListEl = document.getElementById('fileListMini');
             try {
-                const resp = await fetch(`/api/project/${projectId}/files?subdir=ticket_files`);
+                const resp = await fetch(`/api/project/${projectId}/files?subdir=ticket_files&path_type=${currentPathType}`);
                 const result = await resp.json();
                 if (!result.success || result.files.length === 0) {
                     fileListEl.innerHTML = '<div class="file-list-empty">No files</div>';
@@ -1379,7 +1561,7 @@
                 const resp = await fetch(`/api/project/${projectId}/files/delete`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({path: path})
+                    body: JSON.stringify({path: path, path_type: currentPathType})
                 });
                 const result = await resp.json();
                 if (result.success) loadFileList();

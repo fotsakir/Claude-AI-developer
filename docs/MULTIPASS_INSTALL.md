@@ -476,7 +476,7 @@ sudo snap connect multipass:libvirt
 
 3. **Start services if needed:**
    ```bash
-   multipass exec claude-dev -- sudo systemctl start mysql lshttpd codehero-web codehero-daemon
+   multipass exec claude-dev -- sudo systemctl start mysql nginx php8.3-fpm codehero-web codehero-daemon
    ```
 
 4. **Check IP:**

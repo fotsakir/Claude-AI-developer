@@ -365,8 +365,7 @@
         // Initialize socket connection
         function initSocket() {
             socket = io({
-                transports: ['polling'],
-                upgrade: false
+                transports: ['websocket', 'polling']
             });
 
             socket.on('connect', () => {

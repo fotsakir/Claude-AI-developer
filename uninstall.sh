@@ -25,7 +25,7 @@ echo -e "${NC}"
 
 echo ""
 echo "This will remove:"
-echo "  - OpenLiteSpeed and all PHP versions"
+echo "  - Nginx and PHP-FPM"
 echo "  - MySQL server and all databases"
 echo "  - Node.js"
 echo "  - GraalVM"
@@ -46,28 +46,28 @@ read -p "Also remove claude user? (yes/no): " REMOVE_USER
 
 echo ""
 echo -e "${YELLOW}[1/8] Stopping services...${NC}"
-# Stop new service names
+# Stop CodeHero services
 systemctl stop codehero-web 2>/dev/null || true
 systemctl stop codehero-daemon 2>/dev/null || true
 systemctl disable codehero-web 2>/dev/null || true
 systemctl disable codehero-daemon 2>/dev/null || true
-# Stop old service names (for backwards compatibility)
-systemctl stop fotios-web 2>/dev/null || true
-systemctl stop fotios-daemon 2>/dev/null || true
-systemctl disable fotios-web 2>/dev/null || true
-systemctl disable fotios-daemon 2>/dev/null || true
-/usr/local/lsws/bin/lswsctrl stop 2>/dev/null || true
+# Stop Nginx and PHP-FPM
+systemctl stop nginx 2>/dev/null || true
+systemctl stop php8.3-fpm 2>/dev/null || true
+systemctl disable nginx 2>/dev/null || true
+systemctl disable php8.3-fpm 2>/dev/null || true
+# Stop MySQL
 systemctl stop mysql 2>/dev/null || true
 
 # Kill any remaining processes
 pkill -f "app.py" 2>/dev/null || true
 pkill -f "claude-daemon" 2>/dev/null || true
-pkill -f "lshttpd" 2>/dev/null || true
+pkill -f "nginx" 2>/dev/null || true
 
-echo -e "${YELLOW}[2/8] Removing OpenLiteSpeed...${NC}"
-apt-get purge -y openlitespeed lsphp* 2>/dev/null || true
-rm -rf /usr/local/lsws 2>/dev/null || true
-rm -f /etc/apt/sources.list.d/lst_debian_repo.list 2>/dev/null || true
+echo -e "${YELLOW}[2/8] Removing Nginx and PHP-FPM...${NC}"
+apt-get purge -y nginx nginx-common php8.3-fpm php8.3-* 2>/dev/null || true
+rm -rf /etc/nginx 2>/dev/null || true
+rm -rf /var/log/nginx 2>/dev/null || true
 
 echo -e "${YELLOW}[3/8] Removing MySQL...${NC}"
 apt-get purge -y mysql-server mysql-client mysql-common mysql-community-* 2>/dev/null || true

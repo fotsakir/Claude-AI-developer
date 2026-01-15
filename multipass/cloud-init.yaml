@@ -430,7 +430,6 @@ write_files:
       echo "  ACCESS POINTS:"
       echo "  Dashboard:    https://$IP:9453"
       echo "  Web Projects: https://$IP:9867"
-      echo "  OLS Admin:    https://$IP:7080"
       echo ""
       echo "  LOGIN:"
       echo "  Username:  admin"

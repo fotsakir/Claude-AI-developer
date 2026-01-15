@@ -554,8 +554,7 @@
 
     <script>
         const socket = io({
-            transports: ['polling'],
-            upgrade: false
+            transports: ['websocket', 'polling']
         });
         const conversation = document.getElementById('conversation');
         const liveLog = document.getElementById('live-log');

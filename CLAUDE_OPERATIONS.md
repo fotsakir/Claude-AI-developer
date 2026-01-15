@@ -22,9 +22,9 @@ sudo systemctl start|stop|restart|status codehero-web
 # Daemon (Ticket Processor)
 sudo systemctl start|stop|restart|status codehero-daemon
 
-# OpenLiteSpeed
-sudo systemctl restart lsws
-sudo /usr/local/lsws/bin/lswsctrl status
+# Nginx
+sudo systemctl restart nginx
+sudo systemctl status nginx
 ```
 
 ---
@@ -41,7 +41,7 @@ echo "Services:" && \
 systemctl is-active mysql > /dev/null 2>&1 && echo "  MySQL:           ✓ running" || echo "  MySQL:           ✗ NOT RUNNING" && \
 systemctl is-active codehero-web > /dev/null 2>&1 && echo "  Flask Web:       ✓ running" || echo "  Flask Web:       ✗ NOT RUNNING" && \
 systemctl is-active codehero-daemon > /dev/null 2>&1 && echo "  Daemon:          ✓ running" || echo "  Daemon:          ✗ NOT RUNNING" && \
-pgrep -f "litespeed" > /dev/null && echo "  OpenLiteSpeed:   ✓ running" || echo "  OpenLiteSpeed:   ✗ NOT RUNNING" && \
+systemctl is-active nginx > /dev/null 2>&1 && echo "  Nginx:           ✓ running" || echo "  Nginx:           ✗ NOT RUNNING" && \
 echo "" && \
 echo "Ports:" && \
 ss -tlnp | grep -q ":5000 " && echo "  :5000 (Flask):   ✓ listening" || echo "  :5000 (Flask):   ✗ NOT listening" && \
@@ -105,17 +105,17 @@ journalctl -u codehero-daemon -n 20
 sudo systemctl start codehero-daemon
 ```
 
-#### 4. OpenLiteSpeed
+#### 4. Nginx
 ```bash
 # Check if running
-sudo /usr/local/lsws/bin/lswsctrl status
-pgrep -f litespeed
+sudo systemctl status nginx
+pgrep -f nginx
 
 # Check if ports are listening
-ss -tlnp | grep -E ":(9453|9867|7080)"
+ss -tlnp | grep -E ":(9453|9867)"
 
 # If not running:
-sudo /usr/local/lsws/bin/lswsctrl start
+sudo systemctl start nginx
 ```
 
 #### 5. Test Web Access
@@ -134,10 +134,11 @@ curl -s -k https://localhost:9453/login | grep -o "<title>.*</title>"
 # Start all services in order
 sudo systemctl start mysql
 sleep 2
+sudo systemctl start nginx php8.3-fpm
+sleep 2
 sudo systemctl start codehero-web
 sleep 2
 sudo systemctl start codehero-daemon
-sudo /usr/local/lsws/bin/lswsctrl start
 ```
 
 #### Daemon stuck or not processing
@@ -157,10 +158,11 @@ sudo systemctl restart codehero-daemon
 systemctl is-enabled mysql
 systemctl is-enabled codehero-web
 systemctl is-enabled codehero-daemon
-systemctl is-enabled lshttpd
+systemctl is-enabled nginx
+systemctl is-enabled php8.3-fpm
 
 # Enable if not:
-sudo systemctl enable mysql codehero-web codehero-daemon lshttpd
+sudo systemctl enable mysql codehero-web codehero-daemon nginx php8.3-fpm
 ```
 
 ### Expected Output When Everything is OK
@@ -171,7 +173,7 @@ Services:
   MySQL:           ✓ running
   Flask Web:       ✓ running
   Daemon:          ✓ running
-  OpenLiteSpeed:   ✓ running
+  Nginx:           ✓ running
 
 Ports:
   :5000 (Flask):   ✓ listening
@@ -221,8 +223,8 @@ sudo nano /etc/codehero/global-context.md
 ### Example Content
 ```markdown
 ## Server Environment
-- Web Server: OpenLiteSpeed
-- PHP Version: LSPHP 8.1
+- Web Server: Nginx with PHP-FPM
+- PHP Version: PHP 8.3
 
 ## NOT Installed
 - Node.js / npm
@@ -253,7 +255,8 @@ sudo nano /etc/codehero/global-context.md
 |---------|------|-------------|
 | codehero-web | 5000 (internal) | Flask + SocketIO |
 | codehero-daemon | - | Background ticket processor |
-| lsws | 9453, 9867 | OpenLiteSpeed (SSL proxy) |
+| nginx | 9453, 9867 | Nginx (SSL proxy) |
+| php8.3-fpm | - | PHP FastCGI Process Manager |
 
 ### Database Tables
 | Table | Purpose |
@@ -586,15 +589,14 @@ sudo systemctl status codehero-web
 # 2. Check if Flask is listening
 netstat -tlnp | grep 5000
 
-# 3. Check OpenLiteSpeed
-sudo /usr/local/lsws/bin/lswsctrl status
+# 3. Check Nginx
+sudo systemctl status nginx
 
-# 4. Check OLS proxy config
-cat /usr/local/lsws/conf/vhosts/vhost-admin.conf
+# 4. Check Nginx proxy config
+cat /etc/nginx/sites-available/codehero-admin
 
 # 5. Restart services
-sudo systemctl restart codehero-web
-sudo systemctl restart lsws
+sudo systemctl restart codehero-web nginx
 ```
 
 ### Database Connection Issues

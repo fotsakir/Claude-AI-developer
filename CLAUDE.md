@@ -129,7 +129,7 @@ The zip files are BACKUPS. Keep them all:
 
 Check that services are running:
 ```bash
-systemctl status codehero-web codehero-daemon mysql lshttpd
+systemctl status codehero-web codehero-daemon mysql nginx php8.3-fpm
 ```
 
 ## Detailed Development Notes

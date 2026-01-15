@@ -478,7 +478,7 @@
             font-weight: 500;
         }
 
-        .form-group input, .form-group textarea, .form-group select {
+        .form-group input:not([type="radio"]):not([type="checkbox"]), .form-group textarea, .form-group select {
             width: 100%;
             padding: 12px;
             border: 1px solid var(--border-subtle);
@@ -490,10 +490,17 @@
             transition: all 0.2s ease;
         }
 
-        .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+        .form-group input:not([type="radio"]):not([type="checkbox"]):focus, .form-group textarea:focus, .form-group select:focus {
             border-color: var(--accent-primary);
             outline: none;
             box-shadow: var(--glow-primary);
+        }
+
+        .form-group input[type="radio"] {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--accent-primary);
+            cursor: pointer;
         }
 
         .form-group small {
@@ -711,6 +718,47 @@
                     </div>
                 </div>
 
+                <div class="form-section" id="android-settings" style="display:none">
+                    <h4>Android Emulator</h4>
+                    <div class="form-group">
+                        <label>Android Device</label>
+                        <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+                            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                                <input type="radio" name="android_device_type" value="none" checked onchange="toggleRemoteAdb()">
+                                <span>None (no Android testing)</span>
+                            </label>
+                            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                                <input type="radio" name="android_device_type" value="server" onchange="toggleRemoteAdb()">
+                                <span>Server Emulator (Redroid)</span>
+                            </label>
+                            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                                <input type="radio" name="android_device_type" value="remote" onchange="toggleRemoteAdb()">
+                                <span>Remote ADB (your device/emulator)</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-row" id="remote-adb-settings" style="display:none;margin-top:12px">
+                        <div class="form-group">
+                            <label>Remote Host</label>
+                            <input type="text" name="android_remote_host" placeholder="192.168.1.100">
+                        </div>
+                        <div class="form-group">
+                            <label>Remote Port</label>
+                            <input type="number" name="android_remote_port" value="5555" placeholder="5555">
+                        </div>
+                    </div>
+                    <div class="form-group" id="screen-size-settings" style="display:none;margin-top:12px">
+                        <label>Screen Size</label>
+                        <select name="android_screen_size">
+                            <option value="phone">Phone (1080x1920)</option>
+                            <option value="phone_small">Phone Small (720x1280)</option>
+                            <option value="tablet_7">Tablet 7" (1200x1920)</option>
+                            <option value="tablet_10">Tablet 10" (1600x2560)</option>
+                        </select>
+                        <small>Screen size for server emulator</small>
+                    </div>
+                </div>
+
                 <div class="form-group">
                     <label>Description</label>
                     <textarea name="description" rows="2" placeholder="E-commerce site with user accounts, product catalog, and checkout..."></textarea>
@@ -723,7 +771,7 @@
                         <div class="form-group">
                             <label>Web Path</label>
                             <input type="text" name="web_path" id="web_path" placeholder="/var/www/projects/mysite">
-                            <small>Where web files live (HTML, PHP, CSS). Served by OpenLiteSpeed.</small>
+                            <small>Where web files live (HTML, PHP, CSS). Served by Nginx.</small>
                         </div>
                         <div class="form-group">
                             <label>App Path</label>
@@ -833,6 +881,47 @@
                     </div>
                 </div>
 
+                <div class="form-section" id="edit-android-settings" style="display:none">
+                    <h4>Android Emulator</h4>
+                    <div class="form-group">
+                        <label>Android Device</label>
+                        <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+                            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                                <input type="radio" name="edit_android_device_type" value="none" id="edit_android_none" onchange="toggleEditRemoteAdb()">
+                                <span>None (no Android testing)</span>
+                            </label>
+                            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                                <input type="radio" name="edit_android_device_type" value="server" id="edit_android_server" onchange="toggleEditRemoteAdb()">
+                                <span>Server Emulator (Redroid)</span>
+                            </label>
+                            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                                <input type="radio" name="edit_android_device_type" value="remote" id="edit_android_remote" onchange="toggleEditRemoteAdb()">
+                                <span>Remote ADB (your device/emulator)</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-row" id="edit-remote-adb-settings" style="display:none;margin-top:12px">
+                        <div class="form-group">
+                            <label>Remote Host</label>
+                            <input type="text" name="android_remote_host" id="edit_android_remote_host" placeholder="192.168.1.100">
+                        </div>
+                        <div class="form-group">
+                            <label>Remote Port</label>
+                            <input type="number" name="android_remote_port" id="edit_android_remote_port" value="5555" placeholder="5555">
+                        </div>
+                    </div>
+                    <div class="form-group" id="edit-screen-size-settings" style="display:none;margin-top:12px">
+                        <label>Screen Size</label>
+                        <select name="android_screen_size" id="edit_android_screen_size">
+                            <option value="phone">Phone (1080x1920)</option>
+                            <option value="phone_small">Phone Small (720x1280)</option>
+                            <option value="tablet_7">Tablet 7" (1200x1920)</option>
+                            <option value="tablet_10">Tablet 10" (1600x2560)</option>
+                        </select>
+                        <small>Screen size for server emulator</small>
+                    </div>
+                </div>
+
                 <div class="form-group">
                     <label>Description</label>
                     <textarea name="description" id="edit_description" rows="2"></textarea>
@@ -910,6 +999,45 @@
         function closeModal() { document.getElementById('modal').classList.remove('active'); }
         function closeEditModal() { document.getElementById('editModal').classList.remove('active'); }
 
+        // Android/mobile project types
+        const mobileProjectTypes = ['capacitor', 'react_native', 'flutter', 'native_android'];
+
+        function toggleAndroidSettings() {
+            const projectType = document.getElementById('project_type').value;
+            const androidSettings = document.getElementById('android-settings');
+            if (mobileProjectTypes.includes(projectType)) {
+                androidSettings.style.display = 'block';
+            } else {
+                androidSettings.style.display = 'none';
+            }
+        }
+
+        function toggleRemoteAdb() {
+            const deviceType = document.querySelector('input[name="android_device_type"]:checked')?.value;
+            const remoteSettings = document.getElementById('remote-adb-settings');
+            const screenSettings = document.getElementById('screen-size-settings');
+            remoteSettings.style.display = deviceType === 'remote' ? 'flex' : 'none';
+            screenSettings.style.display = deviceType === 'server' ? 'block' : 'none';
+        }
+
+        function toggleEditAndroidSettings() {
+            const projectType = document.getElementById('edit_project_type').value;
+            const androidSettings = document.getElementById('edit-android-settings');
+            if (mobileProjectTypes.includes(projectType)) {
+                androidSettings.style.display = 'block';
+            } else {
+                androidSettings.style.display = 'none';
+            }
+        }
+
+        function toggleEditRemoteAdb() {
+            const deviceType = document.querySelector('input[name="edit_android_device_type"]:checked')?.value;
+            const remoteSettings = document.getElementById('edit-remote-adb-settings');
+            const screenSettings = document.getElementById('edit-screen-size-settings');
+            remoteSettings.style.display = deviceType === 'remote' ? 'flex' : 'none';
+            screenSettings.style.display = deviceType === 'server' ? 'block' : 'none';
+        }
+
         // Auto-generate paths when code changes
         function updateAutoFields() {
             const code = document.getElementById('project_code').value.toLowerCase();
@@ -948,6 +1076,7 @@
         async function createProject(e) {
             e.preventDefault();
             const form = e.target;
+            const androidDeviceType = document.querySelector('input[name="android_device_type"]:checked')?.value || 'none';
             const data = {
                 name: form.name.value,
                 code: form.code.value.toUpperCase(),
@@ -959,7 +1088,11 @@
                 preview_url: form.preview_url.value,
                 context: form.context.value,
                 ai_model: form.ai_model.value,
-                skip_database: form.skip_database.checked
+                skip_database: form.skip_database.checked,
+                android_device_type: androidDeviceType,
+                android_remote_host: form.android_remote_host?.value || null,
+                android_remote_port: form.android_remote_port?.value ? parseInt(form.android_remote_port.value) : 5555,
+                android_screen_size: form.android_screen_size?.value || 'phone'
             };
 
             try {
@@ -999,6 +1132,19 @@
                 document.getElementById('edit_context').value = p.context || '';
                 document.getElementById('edit_ai_model').value = p.ai_model || 'sonnet';
 
+                // Android settings
+                const deviceType = p.android_device_type || 'none';
+                document.getElementById('edit_android_none').checked = deviceType === 'none';
+                document.getElementById('edit_android_server').checked = deviceType === 'server';
+                document.getElementById('edit_android_remote').checked = deviceType === 'remote';
+                document.getElementById('edit_android_remote_host').value = p.android_remote_host || '';
+                document.getElementById('edit_android_remote_port').value = p.android_remote_port || 5555;
+                document.getElementById('edit_android_screen_size').value = p.android_screen_size || 'phone';
+
+                // Toggle visibility based on project type
+                toggleEditAndroidSettings();
+                toggleEditRemoteAdb();
+
                 document.getElementById('editModal').classList.add('active');
             } catch (err) {
                 alert('Error loading project: ' + err.message);
@@ -1009,6 +1155,7 @@
             e.preventDefault();
             const form = e.target;
             const projectId = form.id.value;
+            const androidDeviceType = document.querySelector('input[name="edit_android_device_type"]:checked')?.value || 'none';
             const data = {
                 name: form.name.value,
                 project_type: form.project_type.value,
@@ -1021,7 +1168,11 @@
                 db_user: form.db_user.value,
                 db_password: form.db_password.value,
                 context: form.context.value,
-                ai_model: form.ai_model.value
+                ai_model: form.ai_model.value,
+                android_device_type: androidDeviceType,
+                android_remote_host: document.getElementById('edit_android_remote_host').value || null,
+                android_remote_port: parseInt(document.getElementById('edit_android_remote_port').value) || 5555,
+                android_screen_size: document.getElementById('edit_android_screen_size').value || 'phone'
             };
 
             try {

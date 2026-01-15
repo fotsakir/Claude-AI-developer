@@ -907,6 +907,7 @@
                         <a href="/project/{{ project.id }}/editor" class="btn btn-green" style="flex:1">Code Editor</a>
                         <button onclick="popoutEditor()" class="btn btn-green" title="Open in new window">⧉</button>
                     </div>
+                    <a href="/project/{{ project.id }}/git" class="btn btn-secondary" style="text-align:center;">Git History</a>
                     <button onclick="exportProject()" class="btn btn-cyan">Export Project</button>
                     {% if project.status == 'archived' %}
                     <button onclick="reopenProject()" class="btn btn-green">Reopen Project</button>
@@ -939,10 +940,41 @@
         <!-- Upload Section -->
         <div class="panel">
             <h3>Upload Files</h3>
+
+            <!-- Path Tabs -->
+            {% if project.web_path and project.app_path %}
+            <div class="path-tabs" style="display:flex;gap:8px;margin-bottom:16px;">
+                <button class="path-tab active" data-path="web" onclick="switchPathTab('web')">
+                    🌐 Web Path
+                </button>
+                <button class="path-tab" data-path="app" onclick="switchPathTab('app')">
+                    📱 App Path
+                </button>
+            </div>
+            <style>
+                .path-tabs { border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
+                .path-tab {
+                    padding: 8px 16px;
+                    background: transparent;
+                    border: 1px solid var(--border-color);
+                    border-radius: 6px 6px 0 0;
+                    color: var(--text-secondary);
+                    cursor: pointer;
+                    font-size: 14px;
+                }
+                .path-tab:hover { background: rgba(99, 102, 241, 0.1); }
+                .path-tab.active {
+                    background: var(--accent-primary);
+                    color: white;
+                    border-color: var(--accent-primary);
+                }
+            </style>
+            {% endif %}
+
             <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
                 <input type="file" id="fileInput" multiple onchange="handleFiles(this.files)">
                 <p>Click or drag files here to upload</p>
-                <div class="hint">Files will be uploaded to: {{ project.web_path or project.app_path or 'No path configured' }}</div>
+                <div class="hint" id="uploadPathHint">Files will be uploaded to: {{ project.web_path or project.app_path or 'No path configured' }}</div>
             </div>
             <div class="upload-subdir">
                 <span>Subdirectory:</span>
@@ -1105,6 +1137,32 @@
     <script>
         const projectId = {{ project.id if project else 0 }};
 
+        // Path switching for file browser
+        let currentPathType = 'web'; // 'web' or 'app'
+        const webPath = '{{ project.web_path or "" }}';
+        const appPath = '{{ project.app_path or "" }}';
+        let currentSubdir = '';
+
+        function switchPathTab(pathType) {
+            currentPathType = pathType;
+            currentSubdir = '';
+
+            // Update tab styling
+            document.querySelectorAll('.path-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.path === pathType);
+            });
+
+            // Update upload hint
+            const hint = document.getElementById('uploadPathHint');
+            if (hint) {
+                const path = pathType === 'web' ? webPath : appPath;
+                hint.textContent = 'Files will be uploaded to: ' + (path || 'No path configured');
+            }
+
+            // Reload file list for new path
+            loadFiles('');
+        }
+
         // Load project usage stats
         function formatNumber(num) {
             if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
@@ -1239,6 +1297,7 @@
             if (subdir) {
                 formData.append('subdir', subdir);
             }
+            formData.append('path_type', currentPathType);
 
             uploadProgress.classList.add('active');
             uploadResult.className = 'upload-result';
@@ -1271,7 +1330,6 @@
         }
 
         // === FILE BROWSER ===
-        let currentSubdir = '';
 
         function popoutFileExplorer() {
             const width = 800;
@@ -1305,7 +1363,8 @@
             fileList.innerHTML = '<div class="file-loading">Loading...</div>';
 
             try {
-                const url = `/api/project/${projectId}/files${subdir ? '?subdir=' + encodeURIComponent(subdir) : ''}`;
+                let url = `/api/project/${projectId}/files?path_type=${currentPathType}`;
+                if (subdir) url += '&subdir=' + encodeURIComponent(subdir);
                 const resp = await fetch(url);
                 const result = await resp.json();
 
@@ -1378,7 +1437,7 @@
                 const resp = await fetch(`/api/project/${projectId}/files/delete`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({path: path})
+                    body: JSON.stringify({path: path, path_type: currentPathType})
                 });
                 const result = await resp.json();
 
