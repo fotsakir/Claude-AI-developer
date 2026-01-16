@@ -177,6 +177,65 @@ if [ ! -f /var/run/php/php8.3-fpm.sock ] && ! dpkg -l | grep -q php8.3-fpm; then
         php8.3-apcu php8.3-igbinary php8.3-tidy php8.3-pgsql php8.3-cli || true
 fi
 
+# Install phpMyAdmin for database management
+echo "  Installing phpMyAdmin..."
+if ! dpkg -l | grep -q phpmyadmin; then
+    DEBIAN_FRONTEND=noninteractive apt-get install -y phpmyadmin || true
+fi
+
+# Configure phpMyAdmin signon authentication for auto-login (only if phpMyAdmin installed)
+if [ -d /usr/share/phpmyadmin ]; then
+    echo "  Configuring phpMyAdmin signon..."
+    cat > /usr/share/phpmyadmin/signon.php << 'PMASIGNON' || true
+<?php
+/**
+ * CodeHero phpMyAdmin Single Sign-On Script
+ * Auto-login with project database credentials
+ */
+session_name('PMA_signon');
+session_start();
+
+// Get credentials from query parameters (base64 encoded for safety)
+$user = isset($_GET['u']) ? base64_decode($_GET['u']) : '';
+$pass = isset($_GET['p']) ? base64_decode($_GET['p']) : '';
+$db = isset($_GET['db']) ? base64_decode($_GET['db']) : '';
+
+if (empty($user)) {
+    die('Missing credentials');
+}
+
+// Store credentials in session for phpMyAdmin
+$_SESSION['PMA_single_signon_user'] = $user;
+$_SESSION['PMA_single_signon_password'] = $pass;
+$_SESSION['PMA_single_signon_host'] = 'localhost';
+
+// Redirect to phpMyAdmin with selected database
+$redirect = 'index.php';
+if (!empty($db)) {
+    $redirect .= '?db=' . urlencode($db);
+}
+
+header('Location: ' . $redirect);
+exit;
+PMASIGNON
+
+    mkdir -p /etc/phpmyadmin/conf.d || true
+    cat > /etc/phpmyadmin/conf.d/codehero-signon.php << 'PMACONFIG' || true
+<?php
+/**
+ * CodeHero phpMyAdmin Single Sign-On Configuration
+ */
+
+// Override default server config to use signon auth
+$cfg['Servers'][1]['auth_type'] = 'signon';
+$cfg['Servers'][1]['SignonSession'] = 'PMA_signon';
+$cfg['Servers'][1]['SignonURL'] = '/signon.php';
+$cfg['Servers'][1]['LogoutURL'] = '/';
+PMACONFIG
+else
+    echo "  phpMyAdmin not installed, skipping signon config"
+fi
+
 # =====================================================
 # [6/12] PYTHON PACKAGES
 # =====================================================
@@ -504,6 +563,49 @@ server {
     }
 }
 NGINXPROJECTS
+
+# phpMyAdmin nginx configuration (port 9454) - only if phpMyAdmin installed
+if [ -d /usr/share/phpmyadmin ]; then
+    cat > /etc/nginx/sites-available/codehero-phpmyadmin << 'NGINXPMA' || true
+# CodeHero phpMyAdmin - Database Administration
+# Port: 9454 (HTTPS)
+
+server {
+    listen 9454 ssl http2;
+    server_name _;
+
+    ssl_certificate /etc/codehero/ssl/cert.pem;
+    ssl_certificate_key /etc/codehero/ssl/key.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
+
+    root /usr/share/phpmyadmin;
+    index index.php index.html;
+
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+
+    location / {
+        try_files $uri $uri/ /index.php?$args;
+    }
+
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    }
+
+    location ~ /\.ht {
+        deny all;
+    }
+
+    location /setup {
+        deny all;
+    }
+}
+NGINXPMA
+    ln -sf /etc/nginx/sites-available/codehero-phpmyadmin /etc/nginx/sites-enabled/ || true
+fi
 
 # Enable sites
 ln -sf /etc/nginx/sites-available/codehero-admin /etc/nginx/sites-enabled/

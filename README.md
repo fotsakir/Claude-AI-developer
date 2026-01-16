@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Dual-blue.svg" alt="License"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-2.63.0-green.svg" alt="Version"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-2.66.0-green.svg" alt="Version"></a>
   <img src="https://img.shields.io/badge/Ubuntu-22.04%20|%2024.04-orange.svg" alt="Ubuntu">
   <a href="https://anthropic.com"><img src="https://img.shields.io/badge/Powered%20by-Claude%20AI-blueviolet.svg" alt="Claude AI"></a>
   <a href="https://github.com/fotsakir/codehero/stargazers"><img src="https://img.shields.io/github/stars/fotsakir/codehero?style=social" alt="Stars"></a>
@@ -161,6 +161,7 @@ Full two-way communication via Telegram. Control your AI developer from anywhere
 - **Parallel Execution** - Process tickets from different projects simultaneously
 - **Real-Time Console** - Watch Claude write code live in your browser
 - **Interactive Chat** - Guide Claude or ask questions during execution
+- **Voice Input** - Speak instead of typing in ticket chat (auto-stops after 10s silence)
 
 ### Ticket Management
 - **Ticket Workflow** - Structured flow: Open → In Progress → Awaiting Input → Done
@@ -193,6 +194,8 @@ Full Linux terminal in your browser:
 
 ### Project Features
 - **Auto Database Provisioning** - MySQL database auto-created per project
+- **phpMyAdmin Integration** - Full database management with auto-login (port 9454)
+- **Voice Input** - Speak to create projects and tickets (name, description fields)
 - **Project Archive/Reopen** - Archive completed projects, reopen when needed
 - **Global Context** - Server environment info shared with all projects
 - **Tech Stack Detection** - Knows installed tools (Node.js, PHP, Java, etc.)
@@ -335,8 +338,8 @@ apt-get update && apt-get install -y unzip wget net-tools
 
 # Download and extract
 cd /root
-wget https://github.com/fotsakir/codehero/releases/latest/download/codehero-2.62.0.zip
-unzip codehero-2.62.0.zip
+wget https://github.com/fotsakir/codehero/releases/latest/download/codehero-2.66.0.zip
+unzip codehero-2.66.0.zip
 cd codehero
 
 # Run setup
@@ -362,7 +365,7 @@ The installer automatically sets up:
 ```bash
 # Download new version
 cd /root
-unzip codehero-2.62.0.zip
+unzip codehero-2.66.0.zip
 cd codehero
 
 # Preview changes (recommended)
@@ -388,6 +391,7 @@ The upgrade script will:
 |---------|-----|---------------|
 | **Admin Panel** | `https://YOUR_IP:9453` | admin / admin123 |
 | Web Projects | `https://YOUR_IP:9867` | - |
+| phpMyAdmin | `https://YOUR_IP:9454` | auto-login from project |
 
 ---
 
@@ -657,7 +661,7 @@ This project uses a **Dual License** - free for personal use and small businesse
 
 **Fotios Tsakiridis** ([@fotsakir](https://github.com/fotsakir))
 
-[Smartnav Telematic Services Cyprus Ltd](https://smartnav.eu)
+[Smartnav Telematic Services Cyprus Ltd](https://routeplanner.gr)
 
 ## Keywords
 

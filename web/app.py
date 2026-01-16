@@ -1383,6 +1383,32 @@ def project_git_history(project_id):
     return render_template('project_git.html', project=project)
 
 
+@app.route('/project/<int:project_id>/phpmyadmin')
+@login_required
+def project_phpmyadmin(project_id):
+    """Redirect to phpMyAdmin with project database credentials"""
+    import base64
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT db_name, db_user, db_password, db_host FROM projects WHERE id = %s", (project_id,))
+    project = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    if not project or not project.get('db_name'):
+        return "Project has no database configured", 404
+
+    # Encode credentials for signon
+    user = base64.b64encode((project.get('db_user') or 'root').encode()).decode()
+    password = base64.b64encode((project.get('db_password') or '').encode()).decode()
+    db = base64.b64encode(project['db_name'].encode()).decode()
+
+    # Get host without port for phpMyAdmin URL
+    host = request.host.split(':')[0]
+
+    return redirect(f"https://{host}:9454/signon.php?u={user}&p={password}&db={db}")
+
+
 @app.route('/api/project/<int:project_id>/git/commits', methods=['GET'])
 @login_required
 def api_git_commits(project_id):
@@ -2197,7 +2223,8 @@ def ticket_detail(ticket_id):
                    p.web_path, p.app_path,
                    COALESCE(p.web_path, p.app_path) as project_path,
                    p.preview_url, p.ai_model as project_ai_model,
-                   p.project_type, p.android_device_type, p.android_screen_size
+                   p.project_type, p.android_device_type, p.android_screen_size,
+                   p.db_name, p.db_user, p.db_host
             FROM tickets t JOIN projects p ON t.project_id = p.id
             WHERE t.id = %s
         """, (ticket_id,))

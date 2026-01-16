@@ -5,6 +5,65 @@ All notable changes to CodeHero will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.66.0] - 2026-01-15
+
+### Added
+- **Voice Input (Speech-to-Text)** - Microphone button for voice input
+  - Ticket chat - speak instead of typing messages to Claude
+  - Project creation - voice input for project name and description
+  - New ticket - voice input for ticket description
+  - Uses browser's Web Speech API (Chrome, Edge, Safari)
+  - Visual feedback with red pulsing animation while recording
+  - Tooltip hint "Recording... Click to stop"
+  - Auto-stops after 10 seconds of silence
+
+## [2.65.0] - 2026-01-15
+
+### Added
+- **phpMyAdmin Integration** - Database management tool alongside built-in editor
+  - Auto-login with project database credentials (signon authentication)
+  - phpMyAdmin button in Project Detail page
+  - phpMyAdmin button in Ticket Detail page
+  - Nginx reverse proxy on port 9454 (HTTPS)
+  - Automatic installation in setup.sh and upgrade.sh
+- **Git History in Ticket Page** - Access Git history directly from tickets
+
+### Improved
+- **Chat Auto-scroll** - Only auto-scrolls when user is at bottom of conversation
+- **Live Preview Scroll** - Preserves scroll position when preview refreshes
+- **Consistent Button Styling** - All action buttons now have uniform appearance
+
+### Technical
+- Safe phpMyAdmin installation (continues if fails with `|| true`)
+- Conditional signon config (only if phpMyAdmin directory exists)
+
+## [2.64.1] - 2026-01-15
+
+### Fixed
+- Prevent personal email leakage in composer.json/package.json (added global context rule)
+- Set neutral git config (noreply@codehero.local) for project commits
+- Fixed author URL in README (smartnav.eu → routeplanner.gr)
+
+## [2.64.0] - 2026-01-15
+
+### Added
+- **MCP Server for Claude Assistant** - Claude can now manage projects and tickets directly
+  - `codehero_list_projects` - List all projects with stats
+  - `codehero_get_project` - Get project details and tickets
+  - `codehero_create_project` - Create new projects
+  - `codehero_list_tickets` - List tickets for a project
+  - `codehero_get_ticket` - Get ticket details and conversation
+  - `codehero_create_ticket` - Create new tickets
+  - `codehero_update_ticket` - Update ticket status/priority, add replies
+  - `codehero_dashboard_stats` - Get dashboard overview
+
+### New Capability
+- Claude Assistant can now autonomously manage the platform
+- Create projects based on user conversations
+- Create and assign tickets for work items
+- Monitor project progress and status
+- Respond to ticket updates programmatically
+
 ## [2.63.0] - 2026-01-15
 
 ### Added

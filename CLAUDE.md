@@ -81,6 +81,74 @@ git push origin vX.Y.Z
 gh release create vX.Y.Z /home/claude/codehero-X.Y.Z.zip --title "vX.Y.Z - Description" --notes "Release notes here"
 ```
 
+## New Release Checklist (FOLLOW THIS ORDER!)
+
+Όταν φτιάχνεις νέα έκδοση, ακολούθησε αυτά τα βήματα με τη σειρά:
+
+### Step 1: Update VERSION
+```bash
+echo "X.Y.Z" > /home/claude/codehero/VERSION
+```
+
+### Step 2: Update Documentation Files
+```bash
+# README.md - Update badge version AND zip filename
+# INSTALL.md - Update zip filename AND footer version
+# docs/index.html - Update softwareVersion AND zip filename
+# Use "replace all" for zip filename changes
+```
+
+### Step 3: Update CHANGELOG.md
+Add new entry at the TOP with:
+- `## [X.Y.Z] - YYYY-MM-DD`
+- `### Added` / `### Improved` / `### Fixed` sections
+
+### Step 4: Copy to Production
+```bash
+sudo cp /home/claude/codehero/VERSION /opt/codehero/
+sudo cp /home/claude/codehero/CHANGELOG.md /opt/codehero/
+sudo cp /home/claude/codehero/README.md /opt/codehero/
+sudo cp /home/claude/codehero/INSTALL.md /opt/codehero/
+sudo cp -r /home/claude/codehero/docs/* /opt/codehero/docs/
+```
+
+### Step 5: Create ZIP (don't delete old ones!)
+```bash
+cd /home/claude
+zip -r codehero-X.Y.Z.zip codehero -x "*.pyc" -x "*__pycache__*" -x "*.git*"
+```
+
+### Step 6: Git Commit, Tag, Push
+```bash
+git add -A
+git commit -m "Release vX.Y.Z - Short Description"
+git tag -a vX.Y.Z -m "Release vX.Y.Z - Short Description"
+git push origin main
+git push origin vX.Y.Z
+```
+
+### Step 7: Create GitHub Release
+```bash
+gh release create vX.Y.Z /home/claude/codehero-X.Y.Z.zip \
+  --title "vX.Y.Z - Short Description" \
+  --notes "## What's New
+
+### Added
+- Feature 1
+- Feature 2
+
+## Upgrade
+\`\`\`bash
+cd /root
+wget https://github.com/fotsakir/codehero/releases/latest/download/codehero-X.Y.Z.zip
+unzip codehero-X.Y.Z.zip
+cd codehero
+sudo ./upgrade.sh
+\`\`\`"
+```
+
+---
+
 ## Service Names (IMPORTANT!)
 
 The correct names are:
@@ -147,5 +215,5 @@ For helping users design projects:
 ```
 
 ---
-**Last updated:** 2026-01-12
-**Version:** 2.53.0
+**Last updated:** 2026-01-15
+**Version:** 2.65.0
