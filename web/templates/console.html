@@ -484,7 +484,7 @@
     <div class="noise"></div>
 
     <div class="header">
-        <h1>CodeHero</h1>
+        <h1>CodeHero <span style="font-size:14px;color:var(--text-muted);font-weight:normal">v{{ version }}</span></h1>
         <div class="nav">
             <a href="/dashboard">Dashboard</a>
             <a href="/projects">Projects</a>
@@ -492,6 +492,7 @@
             <a href="/console" class="active">Console</a>
             <a href="/terminal">Terminal</a>
             <a href="/history">History</a>
+            <a href="/packages">Packages</a>
         </div>
         <div class="nav-right">
             <div class="status">
@@ -511,8 +512,9 @@
                 <select id="ticket-select">
                     <option value="">No active tickets</option>
                 </select>
-                <input type="text" id="message-input" placeholder="Message or command: /stop (pause & correct), /skip (reopen), /done (force complete)" />
+                <input type="text" id="message-input" placeholder="Message or command: /stop (pause & correct)" />
                 <button onclick="sendMessage()">Send</button>
+                <button onclick="killSwitch()" id="kill-btn" title="Kill Switch - Stop Claude immediately" style="background:#dc2626;color:#fff;font-weight:600;display:none">⏹ Stop</button>
             </div>
         </div>
 
@@ -544,10 +546,8 @@
                 <h3>Commands</h3>
                 <div class="commands">
                     <p><code>/stop</code> Pause & wait for correction</p>
-                    <p><code>/skip</code> Stop & reopen ticket</p>
-                    <p><code>/done</code> Force complete</p>
                 </div>
-                <p style="color:var(--text-muted);font-size:11px;margin-top:12px">Tip: Messages sent while Claude works will be read when done</p>
+                <p style="color:var(--text-muted);font-size:11px;margin-top:12px">Tip: Use the ⏹ Stop button or type /stop to pause. Messages sent while working will be read when Claude finishes.</p>
             </div>
         </div>
     </div>
@@ -713,6 +713,28 @@
                 .then(data => addLog('info', data.message));
         }
 
+        // Kill Switch - Stop Claude immediately for selected ticket
+        function killSwitch() {
+            const ticketSelect = document.getElementById('ticket-select');
+            const ticketId = ticketSelect.value;
+
+            if (!ticketId) {
+                addLog('error', 'No active ticket selected');
+                return;
+            }
+
+            fetch(`/api/ticket/${ticketId}/kill`, { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        addLog('warning', data.message);
+                    } else {
+                        addLog('error', 'Error: ' + data.message);
+                    }
+                })
+                .catch(() => addLog('error', 'Error stopping process'));
+        }
+
         function setView(view, btn) {
             currentView = view;
             document.querySelectorAll('.view-toggle button').forEach(b => b.classList.remove('active'));
@@ -740,8 +762,10 @@
                     const currentSelection = ticketSelect.value;
                     document.getElementById('worker-count').textContent = tickets.length;
 
+                    const killBtn = document.getElementById('kill-btn');
                     if (tickets.length === 0) {
                         ticketSelect.innerHTML = '<option value="">No active tickets</option>';
+                        if (killBtn) killBtn.style.display = 'none';
                     } else {
                         ticketSelect.innerHTML = tickets.map(t =>
                             `<option value="${t.id}">${t.ticket_number} - ${t.project_name}</option>`
@@ -749,6 +773,7 @@
                         if (currentSelection && tickets.some(t => t.id == currentSelection)) {
                             ticketSelect.value = currentSelection;
                         }
+                        if (killBtn) killBtn.style.display = 'inline-block';
                     }
 
                     if (tickets.length === 0) {

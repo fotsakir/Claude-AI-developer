@@ -41,7 +41,7 @@
         "description": "The Developer That Never Rests. Self-hosted autonomous AI coding agent. Give it tasks. Walk away. Wake up to working code.",
         "url": "https://fotsakir.github.io/codehero/",
         "downloadUrl": "https://github.com/fotsakir/codehero/releases/latest",
-        "softwareVersion": "2.66.0",
+        "softwareVersion": "2.69.0",
         "applicationCategory": "DeveloperApplication",
         "operatingSystem": "Ubuntu 22.04, Ubuntu 24.04",
         "offers": {
@@ -1321,9 +1321,9 @@
                         Install on <strong>Ubuntu 22.04/24.04</strong> VM (VirtualBox, VMware, Hyper-V, or cloud VPS).
                     </p>
                     <div style="position: relative; background: rgba(0,0,0,0.3); padding: 0.8rem 3rem 0.8rem 0.8rem; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; overflow-x: auto;">
-                        <button onclick="copyCode(this, 'wget https://github.com/fotsakir/codehero/releases/latest/download/codehero-2.66.0.zip\nunzip codehero-*.zip && cd codehero && ./setup.sh')" style="position: absolute; top: 6px; right: 6px; background: rgba(255,255,255,0.1); border: none; color: var(--text-muted); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">📋</button>
+                        <button onclick="copyCode(this, 'wget https://github.com/fotsakir/codehero/releases/latest/download/codehero-2.69.0.zip\nunzip codehero-*.zip && cd codehero && ./setup.sh')" style="position: absolute; top: 6px; right: 6px; background: rgba(255,255,255,0.1); border: none; color: var(--text-muted); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">📋</button>
                         <span style="color: var(--text-muted);"># On Ubuntu VM (as root)</span><br>
-                        <span style="color: var(--accent-cyan);">wget https://github.com/fotsakir/codehero/releases/latest/download/codehero-2.66.0.zip</span><br>
+                        <span style="color: var(--accent-cyan);">wget https://github.com/fotsakir/codehero/releases/latest/download/codehero-2.69.0.zip</span><br>
                         <span style="color: var(--accent-cyan);">unzip codehero-*.zip && cd codehero && ./setup.sh</span>
                     </div>
                     <p style="margin-top: 0.8rem; font-size: 0.8rem;">
@@ -1499,8 +1499,8 @@
             </div>
             <div class="feature-card">
                 <div class="feature-icon">🛑</div>
-                <h3>Kill Switch Commands</h3>
-                <p>Instant control while Claude works: /stop to pause, /skip to restart, /done to finish - shows immediately.</p>
+                <h3>Kill Switch</h3>
+                <p>Instant control while Claude works: click the Stop button or type /stop to pause immediately.</p>
             </div>
             <div class="feature-card">
                 <div class="feature-icon">💾</div>
@@ -1516,6 +1516,53 @@
                 <div class="feature-icon">📊</div>
                 <h3>Usage Analytics</h3>
                 <p>Real-time tracking of <strong>tokens, API requests, and work duration</strong> per project, per ticket, and daily/weekly/monthly summaries.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Advanced Ticket System Section -->
+    <section class="features" style="background: linear-gradient(180deg, rgba(139, 92, 246, 0.03), transparent);">
+        <h2 class="section-title">Advanced Ticket System</h2>
+        <div class="features-grid">
+            <div class="feature-card" style="border: 1px solid var(--accent-secondary); background: rgba(139, 92, 246, 0.05);">
+                <div class="feature-icon">🏷️</div>
+                <h3>Ticket Types</h3>
+                <p>Categorize work: <strong>Feature, Bug, Task, Improvement, Docs, R&D, Debug</strong>. Color-coded badges for quick visual scanning.</p>
+            </div>
+            <div class="feature-card" style="border: 1px solid var(--accent-cyan); background: rgba(34, 211, 238, 0.05);">
+                <div class="feature-icon">🔢</div>
+                <h3>Ticket Sequencing</h3>
+                <p>Define execution order with <strong>sequence numbers</strong>. Tickets run in order: 1, 2, 3... Drag-and-drop reordering in the UI.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🔗</div>
+                <h3>Dependencies</h3>
+                <p>Set ticket dependencies: "Ticket B depends on A". <strong>Daemon waits</strong> for dependencies to complete before starting.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📦</div>
+                <h3>Sub-tickets</h3>
+                <p>Break complex tickets into <strong>smaller sub-tickets</strong>. Parent completes when all children finish. Hierarchical organization.</p>
+            </div>
+            <div class="feature-card" style="border: 1px solid var(--accent-green); background: rgba(16, 185, 129, 0.05);">
+                <div class="feature-icon">🔄</div>
+                <h3>Auto-Retry</h3>
+                <p>Failed tickets automatically retry up to <strong>3 times</strong>. Configurable retry count per ticket. No manual intervention needed.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">⚡</div>
+                <h3>Start Now / Force Queue</h3>
+                <p>Jump the queue with <strong>"Start Now"</strong> button. Ticket moves to front and starts immediately after current one finishes.</p>
+            </div>
+            <div class="feature-card" style="border: 1px solid var(--accent-cyan); background: rgba(34, 211, 238, 0.05);">
+                <div class="feature-icon">📈</div>
+                <h3>Progress Dashboard</h3>
+                <p>Visual project progress: <strong>completion %, ticket flow, statistics</strong> by type. AI Assistant built-in for project-specific help.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🤖</div>
+                <h3>Bulk Ticket Creation</h3>
+                <p>AI generates complete ticket plans with <strong>dependencies and sequences</strong>. "Plan with AI" creates entire project structure.</p>
             </div>
         </div>
     </section>

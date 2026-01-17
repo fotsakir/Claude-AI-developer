@@ -247,7 +247,7 @@
     </div>
 
     <div class="header">
-        <h1>CodeHero</h1>
+        <h1>CodeHero <span style="font-size:14px;color:var(--text-muted);font-weight:normal">v{{ version }}</span></h1>
         {% if not popup %}
         <div class="nav">
             <a href="/dashboard">Dashboard</a>
@@ -256,6 +256,7 @@
             <a href="/console">Console</a>
             <a href="/terminal" class="active">Terminal</a>
             <a href="/history">History</a>
+            <a href="/packages">Packages</a>
         </div>
         {% endif %}
         <div class="nav-right">

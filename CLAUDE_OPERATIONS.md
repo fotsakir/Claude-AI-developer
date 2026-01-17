@@ -882,9 +882,7 @@ Helps users design projects before coding.
 Commands show immediately in conversation and console.
 
 **Commands:**
-- `/stop` - Pause and wait for correction
-- `/skip` - Stop and reopen ticket
-- `/done` - Force complete ticket
+- `/stop` - Pause and wait for correction (or use Stop button)
 
 **Implementation:**
 ```python

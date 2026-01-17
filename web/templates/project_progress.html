@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#6366f1">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <title>Progress - {{ project.name if project else 'Project' }} - CodeHero</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #07070d;
+            --bg-secondary: #0d0d16;
+            --bg-card: rgba(18, 18, 32, 0.7);
+            --bg-card-hover: rgba(25, 25, 45, 0.8);
+            --border-subtle: rgba(99, 102, 241, 0.15);
+            --border-glow: rgba(99, 102, 241, 0.4);
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-primary: #6366f1;
+            --accent-secondary: #8b5cf6;
+            --accent-cyan: #22d3ee;
+            --accent-green: #10b981;
+            --accent-orange: #f59e0b;
+            --accent-red: #ef4444;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header .project-badge {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-cyan));
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .back-link {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: color 0.2s;
+        }
+
+        .back-link:hover {
+            color: var(--accent-cyan);
+        }
+
+        /* Progress Overview */
+        .progress-overview {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .progress-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .progress-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .progress-percent {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--accent-cyan);
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 24px;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-primary), var(--accent-cyan));
+            border-radius: 12px;
+            transition: width 0.5s ease;
+        }
+
+        .progress-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 16px;
+        }
+
+        .progress-stat {
+            text-align: center;
+            padding: 12px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+        }
+
+        .progress-stat .value {
+            font-size: 24px;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .progress-stat .label {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 4px;
+            text-transform: uppercase;
+        }
+
+        .stat-completed { color: var(--accent-green); }
+        .stat-failed { color: var(--accent-red); }
+        .stat-inprogress { color: var(--accent-cyan); }
+        .stat-pending { color: var(--accent-orange); }
+        .stat-awaiting { color: var(--accent-secondary); }
+
+        /* Grid layout */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 1000px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .card h3 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--text-secondary);
+        }
+
+        /* Type breakdown */
+        .type-breakdown {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .type-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .type-badge {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            min-width: 80px;
+            text-align: center;
+        }
+
+        .type-feature { background: rgba(139, 92, 246, 0.2); color: #a78bfa; }
+        .type-bug { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+        .type-debug { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+        .type-rnd { background: rgba(167, 139, 250, 0.2); color: #c4b5fd; }
+        .type-task { background: rgba(100, 116, 139, 0.2); color: #94a3b8; }
+        .type-improvement { background: rgba(34, 211, 238, 0.2); color: #22d3ee; }
+        .type-docs { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+
+        .type-progress {
+            flex: 1;
+            height: 8px;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .type-progress-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .type-count {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: var(--text-secondary);
+            min-width: 50px;
+            text-align: right;
+        }
+
+        /* Ticket lists */
+        .ticket-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .ticket-item {
+            padding: 10px 14px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .ticket-item:hover {
+            background: var(--bg-card-hover);
+        }
+
+        .ticket-number {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--accent-cyan);
+        }
+
+        .ticket-title {
+            flex: 1;
+            font-size: 12px;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .status-badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-badge.in_progress { background: rgba(34, 211, 238, 0.2); color: var(--accent-cyan); }
+        .status-badge.failed { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+        .status-badge.timeout { background: rgba(245, 158, 11, 0.2); color: var(--accent-orange); }
+
+        .empty-message {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 13px;
+            padding: 20px;
+        }
+
+        /* Action buttons */
+        .action-btn {
+            padding: 6px 14px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .action-btn.primary {
+            background: var(--accent-primary);
+            color: white;
+        }
+
+        .action-btn.primary:hover {
+            background: var(--accent-secondary);
+        }
+
+        .action-btn.warning {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--accent-orange);
+        }
+
+        .action-btn.warning:hover {
+            background: rgba(245, 158, 11, 0.3);
+        }
+
+        /* Sequence flow */
+        .sequence-flow {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+            padding: 16px 0;
+        }
+
+        .seq-node {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+            font-family: 'JetBrains Mono', monospace;
+            border: 2px solid;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .seq-node:hover {
+            transform: scale(1.1);
+        }
+
+        .seq-node.completed {
+            background: rgba(16, 185, 129, 0.2);
+            border-color: var(--accent-green);
+            color: var(--accent-green);
+        }
+
+        .seq-node.current {
+            background: rgba(34, 211, 238, 0.2);
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+            animation: pulse 2s infinite;
+        }
+
+        .seq-node.pending {
+            background: var(--bg-secondary);
+            border-color: var(--border-subtle);
+            color: var(--text-muted);
+        }
+
+        .seq-node.failed {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: var(--accent-red);
+            color: var(--accent-red);
+        }
+
+        .seq-arrow {
+            color: var(--border-subtle);
+            font-size: 16px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.4); }
+            50% { box-shadow: 0 0 0 8px rgba(34, 211, 238, 0); }
+        }
+
+        /* Refresh info */
+        .refresh-info {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 11px;
+            margin-top: 24px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+        }
+
+        /* Suggestion buttons */
+        .suggestion-btn {
+            padding: 8px 14px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .suggestion-btn:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--accent-primary);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>
+                <span class="project-badge">{{ project.code if project else 'PROJ' }}</span>
+                {{ project.name if project else 'Project' }} Progress
+            </h1>
+            <a href="/project/{{ project.id if project else '' }}" class="back-link">
+                <span>&larr;</span> Back to Project
+            </a>
+        </div>
+
+        <div class="progress-overview" id="overview">
+            <div class="loading">Loading progress data...</div>
+        </div>
+
+        <div class="dashboard-grid">
+            <div class="left-column">
+                <div class="card" style="margin-bottom: 24px">
+                    <h3>Ticket Types</h3>
+                    <div class="type-breakdown" id="typeBreakdown">
+                        <div class="loading">Loading...</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>Sequence Flow</h3>
+                    <div class="sequence-flow" id="sequenceFlow">
+                        <div class="loading">Loading...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-column">
+                <div class="card" style="margin-bottom: 24px">
+                    <h3 style="display: flex; align-items: center; justify-content: space-between">
+                        Current Ticket
+                        <span id="currentTicketNum" style="font-family: 'JetBrains Mono'; color: var(--accent-cyan)"></span>
+                    </h3>
+                    <div id="currentTicket">
+                        <div class="empty-message">No ticket in progress</div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-bottom: 24px">
+                    <h3>Failed / Timeout Tickets</h3>
+                    <div class="ticket-list" id="failedTickets">
+                        <div class="empty-message">No failed tickets</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>Blocked Tickets</h3>
+                    <div class="ticket-list" id="blockedTickets">
+                        <div class="empty-message">No blocked tickets</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Assistant Panel -->
+        <div class="card" style="margin-top: 24px;">
+            <h3 style="display: flex; align-items: center; justify-content: space-between;">
+                <span>🤖 AI Project Assistant</span>
+                <button class="action-btn primary" onclick="openAssistant()">Open Chat</button>
+            </h3>
+            <div class="assistant-suggestions">
+                <p style="color: var(--text-muted); font-size: 12px; margin-bottom: 12px;">Quick actions:</p>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    <button class="suggestion-btn" onclick="askAssistant('Πώς πάει το project;')">📊 Project Status</button>
+                    <button class="suggestion-btn" onclick="askAssistant('Τι tickets έχουν κολλήσει;')">🚧 Blocked Tickets</button>
+                    <button class="suggestion-btn" onclick="askAssistant('Retry τα failed tickets')">🔄 Retry Failed</button>
+                    <button class="suggestion-btn" onclick="askAssistant('Πρόσθεσε νέο ticket')">➕ Add Ticket</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="refresh-info">
+            Auto-refreshes every 30 seconds &bull; Last updated: <span id="lastUpdated">-</span>
+        </div>
+    </div>
+
+    <script>
+        const projectId = {{ project.id if project else 0 }};
+
+        async function loadProgress() {
+            try {
+                const resp = await fetch(`/api/project/${projectId}/progress`);
+                const data = await resp.json();
+
+                if (data.error) {
+                    console.error('Error loading progress:', data.error);
+                    return;
+                }
+
+                renderOverview(data);
+                renderTypeBreakdown(data.by_type);
+                renderCurrentTicket(data.current_ticket);
+                renderFailedTickets(data.failed_tickets);
+                renderBlockedTickets(data.blocked_tickets);
+                loadSequenceFlow();
+
+                document.getElementById('lastUpdated').textContent = new Date().toLocaleTimeString();
+            } catch (e) {
+                console.error('Error:', e);
+            }
+        }
+
+        function renderOverview(data) {
+            const html = `
+                <div class="progress-header">
+                    <h2>${data.project_name}</h2>
+                    <span class="progress-percent">${data.progress_percent}%</span>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" style="width: ${data.progress_percent}%"></div>
+                </div>
+                <div class="progress-stats">
+                    <div class="progress-stat">
+                        <div class="value">${data.total_tickets}</div>
+                        <div class="label">Total</div>
+                    </div>
+                    <div class="progress-stat">
+                        <div class="value stat-completed">${data.completed}</div>
+                        <div class="label">Completed</div>
+                    </div>
+                    <div class="progress-stat">
+                        <div class="value stat-inprogress">${data.in_progress}</div>
+                        <div class="label">In Progress</div>
+                    </div>
+                    <div class="progress-stat">
+                        <div class="value stat-pending">${data.pending}</div>
+                        <div class="label">Pending</div>
+                    </div>
+                    <div class="progress-stat">
+                        <div class="value stat-awaiting">${data.awaiting_input}</div>
+                        <div class="label">Awaiting</div>
+                    </div>
+                    <div class="progress-stat">
+                        <div class="value stat-failed">${data.failed + data.timeout}</div>
+                        <div class="label">Failed</div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('overview').innerHTML = html;
+        }
+
+        function renderTypeBreakdown(byType) {
+            if (!byType || Object.keys(byType).length === 0) {
+                document.getElementById('typeBreakdown').innerHTML = '<div class="empty-message">No type data</div>';
+                return;
+            }
+
+            const colors = {
+                feature: '#a78bfa',
+                bug: '#f87171',
+                debug: '#fbbf24',
+                rnd: '#c4b5fd',
+                task: '#94a3b8',
+                improvement: '#22d3ee',
+                docs: '#34d399'
+            };
+
+            let html = '';
+            for (const [type, stats] of Object.entries(byType)) {
+                const percent = stats.total > 0 ? (stats.completed / stats.total * 100) : 0;
+                html += `
+                    <div class="type-row">
+                        <span class="type-badge type-${type}">${type}</span>
+                        <div class="type-progress">
+                            <div class="type-progress-fill" style="width: ${percent}%; background: ${colors[type]}"></div>
+                        </div>
+                        <span class="type-count">${stats.completed}/${stats.total}</span>
+                    </div>
+                `;
+            }
+            document.getElementById('typeBreakdown').innerHTML = html;
+        }
+
+        function renderCurrentTicket(ticketNum) {
+            const container = document.getElementById('currentTicket');
+            const numSpan = document.getElementById('currentTicketNum');
+
+            if (!ticketNum) {
+                container.innerHTML = '<div class="empty-message">No ticket in progress</div>';
+                numSpan.textContent = '';
+                return;
+            }
+
+            numSpan.textContent = ticketNum;
+            container.innerHTML = `
+                <div class="ticket-item" onclick="window.location.href='/ticket/'+getTicketId('${ticketNum}')">
+                    <span class="ticket-number">${ticketNum}</span>
+                    <span class="status-badge in_progress">Running</span>
+                </div>
+            `;
+        }
+
+        function renderFailedTickets(tickets) {
+            const container = document.getElementById('failedTickets');
+
+            if (!tickets || tickets.length === 0) {
+                container.innerHTML = '<div class="empty-message">No failed tickets</div>';
+                return;
+            }
+
+            let html = '';
+            for (const ticketNum of tickets) {
+                html += `
+                    <div class="ticket-item">
+                        <span class="ticket-number">${ticketNum}</span>
+                        <span class="status-badge failed">Failed</span>
+                        <button class="action-btn warning" onclick="retryTicket('${ticketNum}')">Retry</button>
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+        }
+
+        function renderBlockedTickets(tickets) {
+            const container = document.getElementById('blockedTickets');
+
+            if (!tickets || tickets.length === 0) {
+                container.innerHTML = '<div class="empty-message">No blocked tickets</div>';
+                return;
+            }
+
+            let html = '';
+            for (const ticketNum of tickets) {
+                html += `
+                    <div class="ticket-item">
+                        <span class="ticket-number">${ticketNum}</span>
+                        <span class="status-badge" style="background: rgba(100, 116, 139, 0.2); color: var(--text-muted)">Blocked</span>
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+        }
+
+        async function loadSequenceFlow() {
+            try {
+                const resp = await fetch(`/api/tickets?project_id=${projectId}&status=all&limit=50`);
+                const data = await resp.json();
+
+                if (!data.tickets || data.tickets.length === 0) {
+                    document.getElementById('sequenceFlow').innerHTML = '<div class="empty-message">No tickets</div>';
+                    return;
+                }
+
+                // Sort by sequence order if set, otherwise by id
+                const tickets = data.tickets.sort((a, b) => {
+                    if (a.sequence_order && b.sequence_order) return a.sequence_order - b.sequence_order;
+                    if (a.sequence_order) return -1;
+                    if (b.sequence_order) return 1;
+                    return a.id - b.id;
+                });
+
+                let html = '';
+                tickets.forEach((t, i) => {
+                    let nodeClass = 'pending';
+                    if (t.status === 'done' || t.status === 'skipped' || t.status === 'awaiting_input') nodeClass = 'completed';
+                    else if (t.status === 'in_progress') nodeClass = 'current';
+                    else if (t.status === 'failed' || t.status === 'timeout') nodeClass = 'failed';
+
+                    const label = t.sequence_order || (i + 1);
+                    if (i > 0) html += '<span class="seq-arrow">&rarr;</span>';
+                    html += `<div class="seq-node ${nodeClass}" title="${t.ticket_number}: ${t.title}" onclick="goToTicket(${t.id})">${label}</div>`;
+                });
+
+                document.getElementById('sequenceFlow').innerHTML = html;
+            } catch (e) {
+                console.error('Error loading sequence:', e);
+            }
+        }
+
+        async function retryTicket(ticketNum) {
+            if (!confirm('Retry this failed ticket?')) return;
+
+            try {
+                // Get ticket ID from ticket number
+                const resp = await fetch(`/api/tickets?ticket_number=${ticketNum}`);
+                const tickets = await resp.json();
+
+                if (!tickets || tickets.length === 0) {
+                    alert('Ticket not found');
+                    return;
+                }
+
+                const ticketId = tickets[0].id;
+
+                const retryResp = await fetch(`/api/ticket/${ticketId}/retry`, { method: 'POST' });
+                const result = await retryResp.json();
+
+                if (result.success) {
+                    alert('Ticket reset for retry!');
+                    loadProgress();
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        function goToTicket(ticketId) {
+            window.location.href = '/ticket/' + ticketId;
+        }
+
+        function getTicketId(ticketNum) {
+            // This is a placeholder - in a real implementation, we'd look up the ID
+            return ticketNum;
+        }
+
+        // AI Assistant functions
+        function openAssistant() {
+            const width = 1000;
+            const height = 700;
+            const left = (screen.width - width) / 2;
+            const top = (screen.height - height) / 2;
+            window.open('/claude-assistant?popup=1&project_id=' + projectId, 'claude_assistant',
+                `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=no`);
+        }
+
+        function askAssistant(question) {
+            const projectName = '{{ project.name if project else "Project" }}';
+            const projectCode = '{{ project.code if project else "PROJ" }}';
+
+            // Build context from current progress data
+            const progressEl = document.querySelector('.progress-percent');
+            const progress = progressEl ? progressEl.textContent : '?';
+
+            const context = `Project: ${projectName} (${projectCode}), Progress: ${progress}`;
+
+            // Open assistant with pre-filled context
+            const width = 1000;
+            const height = 700;
+            const left = (screen.width - width) / 2;
+            const top = (screen.height - height) / 2;
+
+            // Store the question in sessionStorage for the assistant to pick up
+            sessionStorage.setItem('assistantContext', JSON.stringify({
+                projectId: projectId,
+                projectName: projectName,
+                projectCode: projectCode,
+                question: question
+            }));
+
+            window.open('/claude-assistant?popup=1&project_id=' + projectId, 'claude_assistant',
+                `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=no`);
+        }
+
+        // Initial load
+        loadProgress();
+
+        // Auto-refresh every 30 seconds
+        setInterval(loadProgress, 30000);
+    </script>
+</body>
+</html>

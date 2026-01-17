@@ -347,6 +347,69 @@
         .priority-dot.medium { background: var(--accent-cyan); }
         .priority-dot.low { background: var(--accent-green); }
 
+        /* Type badges */
+        .type-badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .type-badge.feature { background: rgba(139, 92, 246, 0.2); color: #a78bfa; }
+        .type-badge.bug { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+        .type-badge.debug { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+        .type-badge.rnd { background: rgba(167, 139, 250, 0.2); color: #c4b5fd; }
+        .type-badge.task { background: rgba(100, 116, 139, 0.2); color: #94a3b8; }
+        .type-badge.improvement { background: rgba(34, 211, 238, 0.2); color: #22d3ee; }
+        .type-badge.docs { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+
+        /* Sequence badge */
+        .sequence-badge {
+            background: rgba(99, 102, 241, 0.15);
+            color: var(--accent-primary);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Forced badge */
+        .forced-badge {
+            background: rgba(245, 158, 11, 0.3);
+            color: #fbbf24;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        /* Dependencies badge */
+        .deps-badge {
+            background: rgba(139, 92, 246, 0.15);
+            color: var(--accent-secondary);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 500;
+        }
+
+        /* Retry badge */
+        .retry-badge {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--accent-red);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 500;
+        }
+
         @media (max-width: 768px) {
             .search-box input { width: 200px; }
             .ticket-meta { gap: 12px; }
@@ -362,7 +425,7 @@
     </div>
 
     <div class="header">
-        <h1>CodeHero</h1>
+        <h1>CodeHero <span style="font-size:14px;color:var(--text-muted);font-weight:normal">v{{ version }}</span></h1>
         <div class="nav">
             <a href="/dashboard">Dashboard</a>
             <a href="/projects">Projects</a>
@@ -370,6 +433,7 @@
             <a href="/console">Console</a>
             <a href="/terminal">Terminal</a>
             <a href="/history">History</a>
+            <a href="/packages">Packages</a>
         </div>
         <div class="nav-right">
             <a href="/logout" class="nav-link">Logout</a>
@@ -401,6 +465,18 @@
                     <div class="ticket-info">
                         <div class="ticket-header">
                             <span class="ticket-number">{{ t.ticket_number }}</span>
+                            {% if t.ticket_type %}
+                            <span class="type-badge {{ t.ticket_type }}">{{ t.ticket_type }}</span>
+                            {% endif %}
+                            {% if t.is_forced %}
+                            <span class="forced-badge">⚡ FORCED</span>
+                            {% endif %}
+                            {% if t.sequence_order %}
+                            <span class="sequence-badge">#{{ t.sequence_order }}</span>
+                            {% endif %}
+                            {% if t.retry_count and t.retry_count > 0 %}
+                            <span class="retry-badge">↻ {{ t.retry_count }}/{{ t.max_retries or 3 }}</span>
+                            {% endif %}
                             <span class="project-badge">{{ t.project_code }} - {{ t.project_name }}</span>
                         </div>
                         <div class="ticket-title">{{ t.title }}</div>

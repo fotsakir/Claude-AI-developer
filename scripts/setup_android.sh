@@ -26,9 +26,9 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # =====================================================
-# [1/8] DOCKER
+# [1/9] DOCKER
 # =====================================================
-echo -e "${YELLOW}[1/8] Docker...${NC}"
+echo -e "${YELLOW}[1/9] Docker...${NC}"
 
 if command -v docker &> /dev/null; then
     echo -e "${BLUE}  ✓ Already installed${NC}"
@@ -53,9 +53,53 @@ else
 fi
 
 # =====================================================
-# [2/8] REDROID (Android 15)
+# [2/9] BINDER KERNEL MODULE (Required for Redroid)
 # =====================================================
-echo -e "${YELLOW}[2/8] Redroid (Android 15)...${NC}"
+echo -e "${YELLOW}[2/9] Binder kernel module...${NC}"
+
+if [ -d /dev/binderfs ] && [ -e /dev/binderfs/binder-control ]; then
+    echo -e "${BLUE}  ✓ Already configured${NC}"
+else
+    echo -e "  Loading binder module..."
+
+    # Load the binder module
+    modprobe binder_linux devices=binder,hwbinder,vndbinder 2>/dev/null || {
+        echo -e "${RED}  ✗ Binder module not available in kernel${NC}"
+        echo -e "${YELLOW}  Redroid requires a kernel with binder support${NC}"
+    }
+
+    # Mount binderfs
+    mkdir -p /dev/binderfs
+    mount -t binder binder /dev/binderfs 2>/dev/null || true
+
+    # Configure to load at boot
+    if [ ! -f /etc/modules-load.d/redroid.conf ]; then
+        echo 'binder_linux' > /etc/modules-load.d/redroid.conf
+        echo -e "  Created /etc/modules-load.d/redroid.conf"
+    fi
+
+    if [ ! -f /etc/modprobe.d/redroid.conf ]; then
+        echo 'options binder_linux devices=binder,hwbinder,vndbinder' > /etc/modprobe.d/redroid.conf
+        echo -e "  Created /etc/modprobe.d/redroid.conf"
+    fi
+
+    # Add to fstab if not already there
+    if ! grep -q "binderfs" /etc/fstab 2>/dev/null; then
+        echo 'binder /dev/binderfs binder defaults 0 0' >> /etc/fstab
+        echo -e "  Added binderfs to /etc/fstab"
+    fi
+
+    if [ -e /dev/binderfs/binder-control ]; then
+        echo -e "${GREEN}  ✓ Configured${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ Binder may not work - check kernel support${NC}"
+    fi
+fi
+
+# =====================================================
+# [3/9] REDROID (Android 15)
+# =====================================================
+echo -e "${YELLOW}[3/9] Redroid (Android 15)...${NC}"
 
 # Check if container exists and is running
 if docker ps --format '{{.Names}}' | grep -q "^redroid$"; then
@@ -79,9 +123,9 @@ else
 fi
 
 # =====================================================
-# [3/8] ADB & ANDROID TOOLS
+# [4/9] ADB & ANDROID TOOLS
 # =====================================================
-echo -e "${YELLOW}[3/8] ADB & Android tools...${NC}"
+echo -e "${YELLOW}[4/9] ADB & Android tools...${NC}"
 
 MISSING_TOOLS=""
 command -v adb &> /dev/null || MISSING_TOOLS="$MISSING_TOOLS adb"
@@ -106,9 +150,9 @@ su - claude -c "adb connect localhost:5556" 2>/dev/null || true
 echo -e "${GREEN}  ✓ ADB connected${NC}"
 
 # =====================================================
-# [4/8] JAVA JDK (for Android)
+# [5/9] JAVA JDK (for Android)
 # =====================================================
-echo -e "${YELLOW}[4/8] Java JDK 17 (for Android)...${NC}"
+echo -e "${YELLOW}[5/9] Java JDK 17 (for Android)...${NC}"
 
 if [ -d /usr/lib/jvm/java-17-openjdk-amd64 ]; then
     echo -e "${BLUE}  ✓ Already installed${NC}"
@@ -118,19 +162,18 @@ else
     echo -e "${GREEN}  ✓ Installed${NC}"
 fi
 
-# Setup environment (check if already configured)
-if [ ! -f /etc/profile.d/android-dev.sh ] || ! grep -q "ANDROID_JAVA_HOME" /etc/profile.d/android-dev.sh 2>/dev/null; then
-    echo -e "  Configuring environment..."
-    cat >> /etc/profile.d/android-dev.sh << 'EOF'
-# Android Development - Java 17 (separate from system GraalVM)
-export ANDROID_JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+# Set Java 17 as default (compatible with Gradle/Android)
+echo -e "  Setting Java 17 as default..."
+update-alternatives --set java /usr/lib/jvm/java-17-openjdk-amd64/bin/java 2>/dev/null || true
+update-alternatives --set javac /usr/lib/jvm/java-17-openjdk-amd64/bin/javac 2>/dev/null || true
 
-# Function to switch to Android Java when needed
-android-java() {
-    export JAVA_HOME=$ANDROID_JAVA_HOME
-    export PATH=$JAVA_HOME/bin:$PATH
-    echo "Switched to Android Java: $(java -version 2>&1 | head -1)"
-}
+# Setup environment (check if already configured)
+if [ ! -f /etc/profile.d/android-dev.sh ] || ! grep -q "JAVA_HOME" /etc/profile.d/android-dev.sh 2>/dev/null; then
+    echo -e "  Configuring environment..."
+    cat > /etc/profile.d/android-dev.sh << 'EOF'
+# Android Development - Java 17 (compatible with Gradle/Android)
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+export PATH=$JAVA_HOME/bin:$PATH
 EOF
     echo -e "${GREEN}  ✓ Environment configured${NC}"
 else
@@ -138,22 +181,27 @@ else
 fi
 
 # =====================================================
-# [5/8] GRADLE
+# [6/9] GRADLE 8.5
 # =====================================================
-echo -e "${YELLOW}[5/8] Gradle...${NC}"
+echo -e "${YELLOW}[6/9] Gradle 8.5...${NC}"
 
-if command -v gradle &> /dev/null; then
+GRADLE_VERSION="8.5"
+if [ -d /opt/gradle-${GRADLE_VERSION} ] && [ -x /opt/gradle-${GRADLE_VERSION}/bin/gradle ]; then
     echo -e "${BLUE}  ✓ Already installed${NC}"
 else
-    echo -e "  Installing Gradle..."
-    apt-get install -y gradle
+    echo -e "  Downloading Gradle ${GRADLE_VERSION}..."
+    cd /opt
+    wget -q https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip
+    unzip -q -o gradle-${GRADLE_VERSION}-bin.zip
+    rm -f gradle-${GRADLE_VERSION}-bin.zip
+    ln -sf /opt/gradle-${GRADLE_VERSION}/bin/gradle /usr/local/bin/gradle
     echo -e "${GREEN}  ✓ Installed${NC}"
 fi
 
 # =====================================================
-# [6/8] FLUTTER SDK
+# [7/9] FLUTTER SDK
 # =====================================================
-echo -e "${YELLOW}[6/8] Flutter SDK...${NC}"
+echo -e "${YELLOW}[7/9] Flutter SDK...${NC}"
 
 if [ -d /opt/flutter ] && [ -x /opt/flutter/bin/flutter ]; then
     echo -e "${BLUE}  ✓ Already installed${NC}"
@@ -180,9 +228,9 @@ else
 fi
 
 # =====================================================
-# [7/8] WS-SCRCPY
+# [8/9] WS-SCRCPY
 # =====================================================
-echo -e "${YELLOW}[7/8] ws-scrcpy...${NC}"
+echo -e "${YELLOW}[8/9] ws-scrcpy...${NC}"
 
 # Check npm
 if ! command -v npm &> /dev/null; then
@@ -224,9 +272,9 @@ server:
 EOF
 
 # =====================================================
-# [8/8] SYSTEMD SERVICES
+# [9/9] SYSTEMD SERVICES
 # =====================================================
-echo -e "${YELLOW}[8/8] Systemd services...${NC}"
+echo -e "${YELLOW}[9/9] Systemd services...${NC}"
 
 # Create systemd services
 SERVICES_UPDATED=false
@@ -324,3 +372,6 @@ echo ""
 echo -e "Environment:"
 echo -e "  source /etc/profile.d/android-dev.sh"
 echo ""
+echo -e "${GREEN}========================================${NC}"
+echo -e "${GREEN}  Android setup complete!${NC}"
+echo -e "${GREEN}========================================${NC}"

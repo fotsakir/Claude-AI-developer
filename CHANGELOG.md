@@ -5,6 +5,116 @@ All notable changes to CodeHero will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.69.0] - 2026-01-17
+
+### Added
+- **Ticket Types** - Categorize work with color-coded badges
+  - feature (purple), bug (red), debug (orange), rnd (violet)
+  - task (gray), improvement (cyan), docs (green)
+- **Ticket Sequencing** - Define execution order with sequence numbers
+  - Lower numbers run first (1, 2, 3...)
+  - Sequenced tickets run before non-sequenced
+- **Ticket Dependencies** - Make tickets wait for others to complete
+  - Multi-select dependencies in ticket form
+  - Option to count "awaiting input" as completed (relaxed mode)
+- **Sub-tickets** - Break complex tasks into smaller pieces
+  - Parent/child ticket hierarchy
+  - Parent tracks overall progress
+- **Auto-Retry** - Failed tickets automatically retry up to 3 times
+  - Configurable max_retries per ticket
+  - retry_count tracking
+- **Start Now Button** - Jump ticket to front of queue
+  - Sets is_forced=TRUE for immediate processing
+  - For sub-tickets, starts parent instead
+- **Progress Dashboard** - Visual project progress at `/project/<id>/progress`
+  - Completion percentage with progress bar
+  - Ticket counts by status and type
+  - Sequence flow visualization
+  - Built-in AI Project Assistant
+- **AI Project Assistant** - Context-aware help from progress page
+  - Knows current project, can list tickets, retry failed, add new
+  - Quick action buttons for common tasks
+- **Bulk Ticket Creation** - MCP tool `codehero_bulk_create_tickets`
+  - Create multiple tickets with sequence and dependencies
+  - Used by "Plan with AI" for project planning
+- **MCP Tools** - New tools for ticket management
+  - `codehero_start_ticket` - Start ticket immediately
+  - `codehero_retry_ticket` - Retry failed ticket
+  - `codehero_delete_ticket` - Delete a ticket
+
+### Improved
+- **Package Manager** - Enhanced with collapsible categories
+  - Configuration Scripts section at top (expanded by default)
+  - All other categories collapsed by default
+  - "Package Manager Guide" with detailed instructions
+  - Documentation for each Configuration Script (Android, LSP, Windows)
+  - Config file locations and setup explanations
+- **New Ticket Form** - Redesigned with better UX
+  - Wider modal (900px) with 2-column layout
+  - Compact tips bar with link to documentation
+  - 4-column row for Type, Priority, Sequence, AI Model
+  - All options visible without scrolling
+- **Edit Ticket Form** - Quick reference bar with hints
+- **Documentation** - Comprehensive ticket guide in USER_GUIDE.md
+  - Ticket types, sequencing, dependencies explained
+  - Tips for writing good tickets with examples
+- **Features Page** - New "Advanced Ticket System" section
+  - 8 feature cards showcasing ticket capabilities
+- **Auto-refresh** - Ticket list in split view refreshes every 15 seconds
+- **WebSocket Support** - Fixed with eventlet for reliable connections
+
+## [2.68.0] - 2026-01-17
+
+### Added
+- **Tickets Split View** - New multi-ticket workspace at `/project/<id>/tickets`
+  - Compact ticket list on left panel (280px, resizable)
+  - Full ticket detail view on right panel (iframe-based)
+  - All ticket features work: chat, WebSocket updates, actions
+  - Status filter dropdown (Active, All, Open, In Progress, etc.)
+  - Keyboard navigation: Arrow keys to switch tickets, Enter to open in new tab
+  - Visual status indicators with colored dots
+- **View Tickets Button** - Quick access from project detail page header
+- **View Tickets Link** - Added to project cards in projects list
+- **API Endpoint** - New `/api/ticket/<id>` returns ticket details with messages
+
+### Improved
+- **Embedded Ticket View** - Compact header when viewed in split view
+  - Shows ticket number, title, status
+  - "Back to Project" navigates parent window correctly
+- **New Ticket Flow** - Auto-opens modal when navigating with `#new-ticket` hash
+- **iframe Communication** - postMessage for reliable parent-child navigation
+
+## [2.67.0] - 2026-01-16
+
+### Added
+- **Modular Upgrade System** - Complete rewrite of upgrade.sh
+  - Individual upgrade scripts per version (`upgrades/2.61.0.sh`, `2.63.0.sh`, etc.)
+  - Automatic detection and execution of pending upgrades
+  - Tracks applied upgrades in `/etc/codehero/applied_upgrades`
+  - Skips already-applied migrations (safe to run multiple times)
+- **Real-time Upgrade Console** - Live output streaming in admin panel
+  - WebSocket-based streaming (no more fixed 45-second timeout)
+  - Color-coded output ([OK] green, [INFO] blue, [WARN] yellow, [ERROR] red)
+  - Auto-reload page on successful completion
+- **AI-Powered Upgrade Troubleshooting** - "Ask AI to fix" button when upgrade fails
+  - Sends error log to Claude for analysis
+  - Shows problem description and fix commands
+  - One-click execution of suggested fixes
+  - "Run All Commands" for batch execution
+
+### Improved
+- **Upgrade Safety** - Better version mismatch detection
+  - Warns if zip filename doesn't match VERSION file
+  - Clear downgrade warnings with confirmation
+- **Database Migrations** - Separate from system upgrades
+  - SQL migrations in `database/migrations/`
+  - System upgrades in `upgrades/` (bash scripts)
+
+### Technical
+- New API endpoints: `/api/ai-fix-upgrade`, `/api/run-fix-command`
+- WebSocket events: `join_upgrade`, `start_upgrade`, `upgrade_output`, `upgrade_complete`
+- Security: Blocked dangerous commands in fix execution
+
 ## [2.66.0] - 2026-01-15
 
 ### Added

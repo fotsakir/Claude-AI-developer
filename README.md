@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Dual-blue.svg" alt="License"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-2.66.0-green.svg" alt="Version"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-2.69.0-green.svg" alt="Version"></a>
   <img src="https://img.shields.io/badge/Ubuntu-22.04%20|%2024.04-orange.svg" alt="Ubuntu">
   <a href="https://anthropic.com"><img src="https://img.shields.io/badge/Powered%20by-Claude%20AI-blueviolet.svg" alt="Claude AI"></a>
   <a href="https://github.com/fotsakir/codehero/stargazers"><img src="https://img.shields.io/github/stars/fotsakir/codehero?style=social" alt="Stars"></a>
@@ -165,10 +165,8 @@ Full two-way communication via Telegram. Control your AI developer from anywhere
 
 ### Ticket Management
 - **Ticket Workflow** - Structured flow: Open → In Progress → Awaiting Input → Done
-- **Kill Switch Commands** - Instant control while Claude is working:
-  - `/stop` - Pause and wait for correction (shows immediately)
-  - `/skip` - Stop and reopen ticket (shows immediately)
-  - `/done` - Force complete ticket (shows immediately)
+- **Kill Switch** - Instant control while Claude is working:
+  - `/stop` command or Stop button - Pause immediately and wait for correction
 - **Message Queue** - Messages sent during execution are read when Claude finishes
 - **Auto-Close** - Tickets auto-close after 7 days in awaiting input
 - **Search** - Search across tickets, projects, and history
@@ -338,8 +336,8 @@ apt-get update && apt-get install -y unzip wget net-tools
 
 # Download and extract
 cd /root
-wget https://github.com/fotsakir/codehero/releases/latest/download/codehero-2.66.0.zip
-unzip codehero-2.66.0.zip
+wget https://github.com/fotsakir/codehero/releases/latest/download/codehero-2.69.0.zip
+unzip codehero-2.69.0.zip
 cd codehero
 
 # Run setup
@@ -365,7 +363,7 @@ The installer automatically sets up:
 ```bash
 # Download new version
 cd /root
-unzip codehero-2.66.0.zip
+unzip codehero-2.69.0.zip
 cd codehero
 
 # Preview changes (recommended)

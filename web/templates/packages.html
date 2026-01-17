@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeHero - Package Manager</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #07070d;
+            --bg-secondary: #0d0d16;
+            --bg-card: rgba(18, 18, 32, 0.7);
+            --bg-card-hover: rgba(25, 25, 45, 0.8);
+            --border-subtle: rgba(99, 102, 241, 0.15);
+            --border-glow: rgba(99, 102, 241, 0.4);
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-primary: #6366f1;
+            --accent-secondary: #8b5cf6;
+            --accent-cyan: #22d3ee;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --accent-orange: #f59e0b;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 {
+            font-size: 1.5rem;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .header-actions { display: flex; gap: 12px; align-items: center; }
+        .btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-subtle);
+        }
+        .btn-secondary:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
+        }
+        .btn-primary:hover { box-shadow: 0 0 20px rgba(99, 102, 241, 0.3); }
+        .btn-success { background: var(--accent-green); color: white; }
+        .btn-danger { background: var(--accent-red); color: white; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+
+        .category {
+            margin-bottom: 32px;
+        }
+        .category-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-subtle);
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.2s;
+        }
+        .category-header:hover {
+            border-bottom-color: var(--border-glow);
+        }
+        .category-icon {
+            font-size: 24px;
+        }
+        .category-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+        .category-desc {
+            color: var(--text-muted);
+            font-size: 13px;
+            margin-left: auto;
+        }
+        .category-toggle {
+            font-size: 18px;
+            color: var(--text-muted);
+            transition: transform 0.3s;
+            margin-left: 12px;
+        }
+        .category.collapsed .category-toggle {
+            transform: rotate(-90deg);
+        }
+        .category.collapsed .packages-grid {
+            display: none;
+        }
+        .category.collapsed .category-header {
+            margin-bottom: 0;
+            border-bottom-color: transparent;
+        }
+
+        .packages-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 16px;
+        }
+
+        .package-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.2s;
+        }
+        .package-card:hover {
+            border-color: var(--border-glow);
+            background: var(--bg-card-hover);
+        }
+        .package-card.installed {
+            border-color: rgba(16, 185, 129, 0.3);
+        }
+        .package-card.installing {
+            border-color: rgba(245, 158, 11, 0.5);
+            animation: pulse-border 2s infinite;
+        }
+        @keyframes pulse-border {
+            0%, 100% { border-color: rgba(245, 158, 11, 0.3); }
+            50% { border-color: rgba(245, 158, 11, 0.6); }
+        }
+
+        .package-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+        .package-name {
+            font-size: 1rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .package-status {
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        .status-installed {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--accent-green);
+        }
+        .status-not-installed {
+            background: rgba(100, 116, 139, 0.2);
+            color: var(--text-muted);
+        }
+        .status-installing {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--accent-orange);
+        }
+
+        .package-desc {
+            color: var(--text-secondary);
+            font-size: 13px;
+            margin-bottom: 12px;
+            line-height: 1.5;
+        }
+
+        .package-includes {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+        .package-includes span {
+            background: var(--bg-secondary);
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-right: 4px;
+            display: inline-block;
+            margin-bottom: 4px;
+        }
+
+        .package-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .package-actions .btn {
+            flex: 1;
+            justify-content: center;
+        }
+
+        /* Log Panel */
+        .log-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-subtle);
+            max-height: 300px;
+            display: none;
+            flex-direction: column;
+            z-index: 1000;
+        }
+        .log-panel.active { display: flex; }
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .log-title {
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .log-title .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--border-subtle);
+            border-top-color: var(--accent-orange);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .log-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px 16px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            color: var(--text-secondary);
+        }
+        .log-content .ok { color: var(--accent-green); }
+        .log-content .error { color: var(--accent-red); }
+        .log-content .warn { color: var(--accent-orange); }
+        .log-content .info { color: var(--accent-cyan); }
+
+        .version-badge {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: normal;
+        }
+
+        .filter-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            padding: 8px 12px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        .filter-toggle:hover {
+            background: var(--bg-card-hover);
+            color: var(--text-primary);
+        }
+        .filter-toggle input {
+            accent-color: var(--accent-primary);
+            width: 16px;
+            height: 16px;
+        }
+        .package-card.hidden-by-filter {
+            display: none !important;
+        }
+        .category.hidden-by-filter {
+            display: none !important;
+        }
+
+        .tip-banner {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1));
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .tip-banner .tip-icon {
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+        .tip-banner .tip-text {
+            flex: 1;
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .tip-banner .tip-text strong {
+            color: var(--text-primary);
+        }
+        .tip-banner .tip-action {
+            flex-shrink: 0;
+        }
+
+        /* Instructions Panel */
+        .instructions-panel {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            margin-bottom: 24px;
+            overflow: hidden;
+        }
+        .instructions-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 20px;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.2s;
+        }
+        .instructions-header:hover {
+            background: var(--bg-card);
+        }
+        .instructions-header h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            flex: 1;
+        }
+        .instructions-toggle {
+            color: var(--text-muted);
+            transition: transform 0.3s;
+        }
+        .instructions-panel.collapsed .instructions-toggle {
+            transform: rotate(-90deg);
+        }
+        .instructions-panel.collapsed .instructions-content {
+            display: none;
+        }
+        .instructions-content {
+            padding: 0 20px 20px;
+            border-top: 1px solid var(--border-subtle);
+        }
+        .instructions-content h4 {
+            color: var(--accent-cyan);
+            font-size: 14px;
+            margin: 16px 0 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .instructions-content p {
+            color: var(--text-secondary);
+            font-size: 13px;
+            line-height: 1.6;
+            margin-bottom: 8px;
+        }
+        .instructions-content ul {
+            color: var(--text-secondary);
+            font-size: 13px;
+            line-height: 1.8;
+            margin-left: 20px;
+        }
+        .instructions-content li {
+            margin-bottom: 4px;
+        }
+        .instructions-content code {
+            background: var(--bg-primary);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 12px;
+            color: var(--accent-orange);
+        }
+        .instructions-content .highlight {
+            color: var(--accent-green);
+            font-weight: 500;
+        }
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 16px;
+            margin-top: 12px;
+        }
+        .config-item {
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .config-item h5 {
+            color: var(--text-primary);
+            font-size: 14px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .config-item p {
+            margin-bottom: 8px;
+        }
+        .config-item ul {
+            margin-left: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>CodeHero <span class="version-badge">v{{ version }}</span> - Package Manager</h1>
+        <div class="header-actions">
+            <label class="filter-toggle">
+                <input type="checkbox" id="filterNotInstalled" onchange="applyFilter()">
+                <span>Show only not installed</span>
+            </label>
+            <a href="/dashboard" class="btn btn-secondary">← Dashboard</a>
+            <button class="btn btn-primary" onclick="refreshStatus()">🔄 Refresh Status</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Tip Banner -->
+        <div class="tip-banner">
+            <span class="tip-icon">💡</span>
+            <div class="tip-text">
+                <strong>Need a different package or version?</strong><br>
+                Ask the Claude Assistant to install any software, specific versions, or custom configurations.
+            </div>
+            <a href="/claude-assistant" class="btn btn-primary tip-action">Ask Claude Assistant</a>
+        </div>
+
+        <!-- Instructions Panel -->
+        <div class="instructions-panel collapsed" id="instructionsPanel">
+            <div class="instructions-header" onclick="toggleInstructions()">
+                <span>📖</span>
+                <h3>Package Manager Guide</h3>
+                <span class="instructions-toggle">▼</span>
+            </div>
+            <div class="instructions-content">
+                <h4>🎯 Quick Start</h4>
+                <p>
+                    The Package Manager helps you install development tools and configure your CodeHero environment.
+                    <span class="highlight">For new installations, start with Configuration Scripts</span> - they set up complete environments
+                    with all dependencies, services, and configurations.
+                </p>
+
+                <h4>⚙️ Configuration Scripts (Recommended)</h4>
+                <p>
+                    Configuration Scripts run complete setup wizards that install multiple packages, configure systemd services,
+                    set environment variables, and create config files. They're <span class="highlight">idempotent</span> - safe to run multiple times.
+                </p>
+
+                <div class="config-grid">
+                    <div class="config-item">
+                        <h5>🤖 Android Environment Setup</h5>
+                        <p>Complete mobile development environment:</p>
+                        <ul>
+                            <li><strong>Docker</strong> - Container runtime for Redroid</li>
+                            <li><strong>Redroid</strong> - Android 15 emulator in Docker</li>
+                            <li><strong>Flutter SDK</strong> - Cross-platform development</li>
+                            <li><strong>ADB</strong> - Android Debug Bridge</li>
+                            <li><strong>ws-scrcpy</strong> - Web-based screen mirror</li>
+                        </ul>
+                        <p>Creates: <code>/opt/codehero/android/config.json</code></p>
+                    </div>
+
+                    <div class="config-item">
+                        <h5>🧠 LSP Servers Setup</h5>
+                        <p>Code intelligence for all languages:</p>
+                        <ul>
+                            <li><strong>Python</strong> - pylsp (autocomplete, linting)</li>
+                            <li><strong>TypeScript/JS</strong> - tsserver</li>
+                            <li><strong>HTML/CSS/JSON</strong> - VSCode servers</li>
+                            <li><strong>PHP</strong> - Intelephense</li>
+                            <li><strong>Java</strong> - Eclipse JDT</li>
+                            <li><strong>C#</strong> - OmniSharp</li>
+                            <li><strong>Kotlin</strong> - kotlin-language-server</li>
+                        </ul>
+                        <p>Creates: <code>/opt/codehero/lsp/config.json</code></p>
+                    </div>
+
+                    <div class="config-item">
+                        <h5>🪟 Windows Dev Environment</h5>
+                        <p>Microsoft/.NET development tools:</p>
+                        <ul>
+                            <li><strong>.NET SDK 8.0</strong> - C#, F#, VB.NET</li>
+                            <li><strong>PowerShell</strong> - Cross-platform scripting</li>
+                            <li><strong>Wine</strong> - Run Windows apps on Linux</li>
+                            <li><strong>Mono</strong> - Legacy .NET runtime</li>
+                            <li><strong>NuGet</strong> - Package manager</li>
+                        </ul>
+                        <p>Creates: <code>/opt/codehero/windows/config.json</code></p>
+                    </div>
+                </div>
+
+                <h4>📦 Individual Packages</h4>
+                <p>
+                    The categories below contain individual packages for specific needs. Use these when you only need
+                    a single tool or want more control over what's installed. Each package shows its installation status.
+                </p>
+                <ul>
+                    <li><span class="highlight">Core Infrastructure</span> - MySQL, Nginx, PHP, Python (usually pre-installed)</li>
+                    <li><span class="highlight">Development Tools</span> - Node.js, Java, Playwright, multimedia tools</li>
+                    <li><span class="highlight">Code Intelligence</span> - Individual LSP servers and Monaco editor</li>
+                    <li><span class="highlight">Windows Development</span> - Individual .NET/Windows tools</li>
+                    <li><span class="highlight">Android Development</span> - Individual mobile dev tools</li>
+                </ul>
+
+                <h4>🔧 After Installation</h4>
+                <p>
+                    Configuration Scripts create JSON config files that CodeHero reads to locate installed tools.
+                    You can check these configs at:
+                </p>
+                <ul>
+                    <li><code>/opt/codehero/lsp/config.json</code> - LSP server paths</li>
+                    <li><code>/opt/codehero/android/config.json</code> - Android tools config</li>
+                    <li><code>/opt/codehero/windows/config.json</code> - Windows tools config</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Configuration Scripts -->
+        <div class="category" data-category="config-scripts">
+            <div class="category-header" onclick="toggleCategory(this)">
+                <span class="category-icon">⚙️</span>
+                <span class="category-title">Configuration Scripts</span>
+                <span class="category-desc">Full environment setup with services, environment variables, and configurations</span>
+                <span class="category-toggle">▼</span>
+            </div>
+            <div class="packages-grid">
+                <div class="package-card" id="pkg-setup-android">
+                    <div class="package-header">
+                        <span class="package-name">🤖 Android Environment Setup</span>
+                        <span class="package-status status-not-installed" id="status-setup-android">Checking...</span>
+                    </div>
+                    <div class="package-desc">Complete Android setup: Docker, Redroid, ADB, Flutter, ws-scrcpy with systemd services and environment.</div>
+                    <div class="package-includes">
+                        <span>docker</span><span>redroid</span><span>flutter</span><span>adb</span><span>ws-scrcpy</span><span>services</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('setup-android')">Run Setup</button>
+                    </div>
+                </div>
+
+                <div class="package-card" id="pkg-setup-lsp">
+                    <div class="package-header">
+                        <span class="package-name">🧠 LSP Servers Setup</span>
+                        <span class="package-status status-not-installed" id="status-setup-lsp">Checking...</span>
+                    </div>
+                    <div class="package-desc">Complete LSP setup: Python, TypeScript, HTML/CSS, PHP, Java, C#, Kotlin language servers.</div>
+                    <div class="package-includes">
+                        <span>pylsp</span><span>tsserver</span><span>jdtls</span><span>omnisharp</span><span>intelephense</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('setup-lsp')">Run Setup</button>
+                    </div>
+                </div>
+
+                <div class="package-card" id="pkg-setup-windows">
+                    <div class="package-header">
+                        <span class="package-name">🪟 Windows Dev Environment Setup</span>
+                        <span class="package-status status-not-installed" id="status-setup-windows">Checking...</span>
+                    </div>
+                    <div class="package-desc">Complete Windows dev setup: .NET SDK 8.0, PowerShell, Wine, Mono, NuGet with environment config.</div>
+                    <div class="package-includes">
+                        <span>dotnet</span><span>pwsh</span><span>wine</span><span>mono</span><span>nuget</span><span>env</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('setup-windows')">Run Setup</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Core Infrastructure -->
+        <div class="category collapsed" data-category="core">
+            <div class="category-header" onclick="toggleCategory(this)">
+                <span class="category-icon">🏗️</span>
+                <span class="category-title">Core Infrastructure</span>
+                <span class="category-desc">Essential services installed by setup.sh</span>
+                <span class="category-toggle">▼</span>
+            </div>
+            <div class="packages-grid">
+                <div class="package-card" id="pkg-mysql">
+                    <div class="package-header">
+                        <span class="package-name">🗄️ MySQL Server</span>
+                        <span class="package-status status-not-installed" id="status-mysql">Checking...</span>
+                    </div>
+                    <div class="package-desc">Relational database server for storing project data.</div>
+                    <div class="package-includes">
+                        <span>mysql</span><span>mysqld</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('mysql')">Install</button>
+                    </div>
+                </div>
+
+                <div class="package-card" id="pkg-nginx">
+                    <div class="package-header">
+                        <span class="package-name">🌐 Nginx</span>
+                        <span class="package-status status-not-installed" id="status-nginx">Checking...</span>
+                    </div>
+                    <div class="package-desc">High-performance web server and reverse proxy.</div>
+                    <div class="package-includes">
+                        <span>nginx</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('nginx')">Install</button>
+                    </div>
+                </div>
+
+                <div class="package-card" id="pkg-php">
+                    <div class="package-header">
+                        <span class="package-name">🐘 PHP 8.3</span>
+                        <span class="package-status status-not-installed" id="status-php">Checking...</span>
+                    </div>
+                    <div class="package-desc">PHP runtime with FPM, MySQL, and common extensions.</div>
+                    <div class="package-includes">
+                        <span>php-fpm</span><span>php-mysql</span><span>php-curl</span><span>php-redis</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('php')">Install</button>
+                    </div>
+                </div>
+
+                <div class="package-card" id="pkg-phpmyadmin">
+                    <div class="package-header">
+                        <span class="package-name">🔧 phpMyAdmin</span>
+                        <span class="package-status status-not-installed" id="status-phpmyadmin">Checking...</span>
+                    </div>
+                    <div class="package-desc">Web-based MySQL database administration tool.</div>
+                    <div class="package-includes">
+                        <span>phpmyadmin</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('phpmyadmin')">Install</button>
+                    </div>
+                </div>
+
+                <div class="package-card" id="pkg-python-core">
+                    <div class="package-header">
+                        <span class="package-name">🐍 Python Core</span>
+                        <span class="package-status status-not-installed" id="status-python-core">Checking...</span>
+                    </div>
+                    <div class="package-desc">Flask, SocketIO, MySQL connector and other Python packages.</div>
+                    <div class="package-includes">
+                        <span>flask</span><span>socketio</span><span>bcrypt</span><span>eventlet</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('python-core')">Install</button>
+                    </div>
+                </div>
+
+                <div class="package-card" id="pkg-claude-cli">
+                    <div class="package-header">
+                        <span class="package-name">🤖 Claude Code CLI</span>
+                        <span class="package-status status-not-installed" id="status-claude-cli">Checking...</span>
+                    </div>
+                    <div class="package-desc">Anthropic's Claude Code command-line tool for AI coding.</div>
+                    <div class="package-includes">
+                        <span>claude</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('claude-cli')">Install</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Development Tools -->
+        <div class="category collapsed" data-category="dev-tools">
+            <div class="category-header" onclick="toggleCategory(this)">
+                <span class="category-icon">🛠️</span>
+                <span class="category-title">Development Tools</span>
+                <span class="category-desc">Programming languages and development utilities</span>
+                <span class="category-toggle">▼</span>
+            </div>
+            <div class="packages-grid">
+                <div class="package-card" id="pkg-nodejs">
+                    <div class="package-header">
+                        <span class="package-name">📦 Node.js 22</span>
+                        <span class="package-status status-not-installed" id="status-nodejs">Checking...</span>
+                    </div>
+                    <div class="package-desc">JavaScript runtime for building server-side applications and tooling.</div>
+                    <div class="package-includes">
+                        <span>node</span><span>npm</span><span>npx</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('nodejs')">Install</button>
+                    </div>
+                </div>
+
+                <div class="package-card" id="pkg-graalvm">
+                    <div class="package-header">
+                        <span class="package-name">☕ GraalVM (Java 24)</span>
+                        <span class="package-status status-not-installed" id="status-graalvm">Checking...</span>
+                    </div>
+                    <div class="package-desc">High-performance JDK with polyglot support. Ideal for Java, Kotlin, Scala.</div>
+                    <div class="package-includes">
+                        <span>java</span><span>javac</span><span>native-image</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('graalvm')">Install</button>
+                    </div>
+                </div>
+
+                <div class="package-card" id="pkg-playwright">
+                    <div class="package-header">
+                        <span class="package-name">🎭 Playwright</span>
+                        <span class="package-status status-not-installed" id="status-playwright">Checking...</span>
+                    </div>
+                    <div class="package-desc">Browser automation for testing and web scraping. Includes Chromium.</div>
+                    <div class="package-includes">
+                        <span>playwright</span><span>chromium</span><span>xvfb</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('playwright')">Install</button>
+                    </div>
+                </div>
+
+                <div class="package-card" id="pkg-multimedia">
+                    <div class="package-header">
+                        <span class="package-name">🎬 Multimedia Tools</span>
+                        <span class="package-status status-not-installed" id="status-multimedia">Checking...</span>
+                    </div>
+                    <div class="package-desc">Image, audio, video processing and OCR capabilities.</div>
+                    <div class="package-includes">
+                        <span>ffmpeg</span><span>imagemagick</span><span>tesseract</span><span>poppler</span><span>sox</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('multimedia')">Install</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Code Intelligence -->
+        <div class="category collapsed" data-category="code-intel">
+            <div class="category-header" onclick="toggleCategory(this)">
+                <span class="category-icon">🧠</span>
+                <span class="category-title">Code Intelligence</span>
+                <span class="category-desc">Monaco editor and LSP language servers for autocomplete</span>
+                <span class="category-toggle">▼</span>
+            </div>
+            <div class="packages-grid">
+                <div class="package-card" id="pkg-monaco-editor">
+                    <div class="package-header">
+                        <span class="package-name">📝 Monaco Editor</span>
+                        <span class="package-status status-not-installed" id="status-monaco-editor">Checking...</span>
+                    </div>
+                    <div class="package-desc">VS Code's editor component. Bundled with CodeHero.</div>
+                    <div class="package-includes">
+                        <span>monaco</span><span>syntax</span><span>themes</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('monaco-editor')">Install</button>
+                    </div>
+                </div>
+
+                <div class="package-card" id="pkg-lsp-python">
+                    <div class="package-header">
+                        <span class="package-name">🐍 Python LSP</span>
+                        <span class="package-status status-not-installed" id="status-lsp-python">Checking...</span>
+                    </div>
+                    <div class="package-desc">Autocomplete, linting, formatting for Python.</div>
+                    <div class="package-includes">
+                        <span>pylsp</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('lsp-python')">Install</button>
+                    </div>
+                </div>
+
+                <div class="package-card" id="pkg-lsp-typescript">
+                    <div class="package-header">
+                        <span class="package-name">📘 TypeScript/JS LSP</span>
+                        <span class="package-status status-not-installed" id="status-lsp-typescript">Checking...</span>
+                    </div>
+                    <div class="package-desc">Autocomplete for TypeScript and JavaScript.</div>
+                    <div class="package-includes">
+                        <span>tsserver</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('lsp-typescript')">Install</button>
+                    </div>
+                </div>
+
+                <div class="package-card" id="pkg-lsp-html-css">
+                    <div class="package-header">
+                        <span class="package-name">🌐 HTML/CSS/JSON LSP</span>
+                        <span class="package-status status-not-installed" id="status-lsp-html-css">Checking...</span>
+                    </div>
+                    <div class="package-desc">Autocomplete for web markup and stylesheets.</div>
+                    <div class="package-includes">
+                        <span>html</span><span>css</span><span>json</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('lsp-html-css')">Install</button>
+                    </div>
+                </div>
+
+                <div class="package-card" id="pkg-lsp-php">
+                    <div class="package-header">
+                        <span class="package-name">🐘 PHP LSP</span>
+                        <span class="package-status status-not-installed" id="status-lsp-php">Checking...</span>
+                    </div>
+                    <div class="package-desc">Intelephense - PHP code intelligence.</div>
+                    <div class="package-includes">
+                        <span>intelephense</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('lsp-php')">Install</button>
+                    </div>
+                </div>
+
+                <div class="package-card" id="pkg-lsp-java">
+                    <div class="package-header">
+                        <span class="package-name">☕ Java LSP</span>
+                        <span class="package-status status-not-installed" id="status-lsp-java">Checking...</span>
+                    </div>
+                    <div class="package-desc">Eclipse JDT language server for Java.</div>
+                    <div class="package-includes">
+                        <span>jdtls</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('lsp-java')">Install</button>
+                    </div>
+                </div>
+
+                <div class="package-card" id="pkg-lsp-csharp">
+                    <div class="package-header">
+                        <span class="package-name">🔷 C# LSP</span>
+                        <span class="package-status status-not-installed" id="status-lsp-csharp">Checking...</span>
+                    </div>
+                    <div class="package-desc">OmniSharp for C# and .NET projects.</div>
+                    <div class="package-includes">
+                        <span>omnisharp</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('lsp-csharp')">Install</button>
+                    </div>
+                </div>
+
+                <div class="package-card" id="pkg-lsp-kotlin">
+                    <div class="package-header">
+                        <span class="package-name">🟣 Kotlin LSP</span>
+                        <span class="package-status status-not-installed" id="status-lsp-kotlin">Checking...</span>
+                    </div>
+                    <div class="package-desc">Language server for Kotlin development.</div>
+                    <div class="package-includes">
+                        <span>kotlin-ls</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('lsp-kotlin')">Install</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Windows Development -->
+        <div class="category collapsed" data-category="windows">
+            <div class="category-header" onclick="toggleCategory(this)">
+                <span class="category-icon">🪟</span>
+                <span class="category-title">Windows Development</span>
+                <span class="category-desc">.NET, PowerShell, and Windows compatibility</span>
+                <span class="category-toggle">▼</span>
+            </div>
+            <div class="packages-grid">
+                <div class="package-card" id="pkg-dotnet">
+                    <div class="package-header">
+                        <span class="package-name">🔷 .NET SDK 8.0</span>
+                        <span class="package-status status-not-installed" id="status-dotnet">Checking...</span>
+                    </div>
+                    <div class="package-desc">Build web apps, APIs, and services with C#, F#, or VB.NET.</div>
+                    <div class="package-includes">
+                        <span>dotnet</span><span>aspnet</span><span>ef-core</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('dotnet')">Install</button>
+                    </div>
+                </div>
+
+                <div class="package-card" id="pkg-powershell">
+                    <div class="package-header">
+                        <span class="package-name">💠 PowerShell</span>
+                        <span class="package-status status-not-installed" id="status-powershell">Checking...</span>
+                    </div>
+                    <div class="package-desc">Cross-platform task automation and scripting shell from Microsoft.</div>
+                    <div class="package-includes">
+                        <span>pwsh</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('powershell')">Install</button>
+                    </div>
+                </div>
+
+                <div class="package-card" id="pkg-wine">
+                    <div class="package-header">
+                        <span class="package-name">🍷 Wine</span>
+                        <span class="package-status status-not-installed" id="status-wine">Checking...</span>
+                    </div>
+                    <div class="package-desc">Run Windows applications on Linux. Compatibility layer.</div>
+                    <div class="package-includes">
+                        <span>wine</span><span>wine64</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('wine')">Install</button>
+                    </div>
+                </div>
+
+                <div class="package-card" id="pkg-mono">
+                    <div class="package-header">
+                        <span class="package-name">🔘 Mono Runtime</span>
+                        <span class="package-status status-not-installed" id="status-mono">Checking...</span>
+                    </div>
+                    <div class="package-desc">.NET Framework runtime for running legacy .NET applications.</div>
+                    <div class="package-includes">
+                        <span>mono</span><span>mcs</span><span>nuget</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('mono')">Install</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Android Development -->
+        <div class="category collapsed" data-category="android">
+            <div class="category-header" onclick="toggleCategory(this)">
+                <span class="category-icon">🤖</span>
+                <span class="category-title">Android Development</span>
+                <span class="category-desc">Android emulator and mobile development tools</span>
+                <span class="category-toggle">▼</span>
+            </div>
+            <div class="packages-grid">
+                <div class="package-card" id="pkg-docker">
+                    <div class="package-header">
+                        <span class="package-name">🐳 Docker</span>
+                        <span class="package-status status-not-installed" id="status-docker">Checking...</span>
+                    </div>
+                    <div class="package-desc">Container runtime. Required for Redroid Android emulator.</div>
+                    <div class="package-includes">
+                        <span>docker</span><span>docker-compose</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('docker')">Install</button>
+                    </div>
+                </div>
+
+                <div class="package-card" id="pkg-redroid">
+                    <div class="package-header">
+                        <span class="package-name">📱 Redroid (Android 15)</span>
+                        <span class="package-status status-not-installed" id="status-redroid">Checking...</span>
+                    </div>
+                    <div class="package-desc">Android emulator in Docker. Lightweight alternative to full AVD.</div>
+                    <div class="package-includes">
+                        <span>redroid</span><span>adb</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('redroid')">Install</button>
+                    </div>
+                </div>
+
+                <div class="package-card" id="pkg-flutter">
+                    <div class="package-header">
+                        <span class="package-name">🦋 Flutter SDK</span>
+                        <span class="package-status status-not-installed" id="status-flutter">Checking...</span>
+                    </div>
+                    <div class="package-desc">Google's UI toolkit for cross-platform mobile, web, and desktop apps.</div>
+                    <div class="package-includes">
+                        <span>flutter</span><span>dart</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('flutter')">Install</button>
+                    </div>
+                </div>
+
+                <div class="package-card" id="pkg-android-tools">
+                    <div class="package-header">
+                        <span class="package-name">🔧 Android Tools</span>
+                        <span class="package-status status-not-installed" id="status-android-tools">Checking...</span>
+                    </div>
+                    <div class="package-desc">ADB, Gradle, Java 17, and other Android build tools.</div>
+                    <div class="package-includes">
+                        <span>adb</span><span>gradle</span><span>java-17</span><span>aapt</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('android-tools')">Install</button>
+                    </div>
+                </div>
+
+                <div class="package-card" id="pkg-scrcpy">
+                    <div class="package-header">
+                        <span class="package-name">📺 ws-scrcpy</span>
+                        <span class="package-status status-not-installed" id="status-scrcpy">Checking...</span>
+                    </div>
+                    <div class="package-desc">Web-based Android screen mirror. Control device from browser.</div>
+                    <div class="package-includes">
+                        <span>scrcpy</span><span>ws-scrcpy</span><span>npm</span>
+                    </div>
+                    <div class="package-actions">
+                        <button class="btn btn-primary" onclick="installPackage('scrcpy')">Install</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Log Panel -->
+    <div class="log-panel" id="logPanel">
+        <div class="log-header">
+            <span class="log-title">
+                <span class="spinner" id="logSpinner"></span>
+                <span id="logTitleText">Installing...</span>
+            </span>
+            <button class="btn btn-secondary" onclick="closeLog()">✕ Close</button>
+        </div>
+        <div class="log-content" id="logContent"></div>
+    </div>
+
+    <script src="/static/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+        let currentInstall = null;
+
+        // Check package status on load
+        document.addEventListener('DOMContentLoaded', refreshStatus);
+
+        async function refreshStatus() {
+            try {
+                const resp = await fetch('/api/packages/status');
+                const data = await resp.json();
+
+                for (const [pkg, info] of Object.entries(data)) {
+                    const statusEl = document.getElementById(`status-${pkg}`);
+                    const cardEl = document.getElementById(`pkg-${pkg}`);
+                    if (statusEl) {
+                        if (info.installed) {
+                            statusEl.className = 'package-status status-installed';
+                            statusEl.textContent = info.version ? `Installed (${info.version})` : 'Installed';
+                            if (cardEl) cardEl.classList.add('installed');
+                        } else {
+                            statusEl.className = 'package-status status-not-installed';
+                            statusEl.textContent = 'Not Installed';
+                            if (cardEl) cardEl.classList.remove('installed');
+                        }
+                    }
+                }
+                // Reapply filter after status refresh
+                applyFilter();
+            } catch (e) {
+                console.error('Failed to fetch status:', e);
+            }
+        }
+
+        async function installPackage(pkg) {
+            if (currentInstall) {
+                alert('Installation already in progress');
+                return;
+            }
+
+            currentInstall = pkg;
+
+            // Update UI
+            const statusEl = document.getElementById(`status-${pkg}`);
+            const cardEl = document.getElementById(`pkg-${pkg}`);
+            if (statusEl) {
+                statusEl.className = 'package-status status-installing';
+                statusEl.textContent = 'Installing...';
+            }
+            if (cardEl) cardEl.classList.add('installing');
+
+            // Show log panel
+            document.getElementById('logPanel').classList.add('active');
+            document.getElementById('logTitleText').textContent = `Installing ${pkg}...`;
+            document.getElementById('logContent').innerHTML = '';
+            document.getElementById('logSpinner').style.display = 'block';
+
+            try {
+                const resp = await fetch(`/api/packages/install/${pkg}`, { method: 'POST' });
+                const data = await resp.json();
+
+                if (data.error) {
+                    appendLog(`Error: ${data.error}`, 'error');
+                }
+            } catch (e) {
+                appendLog(`Failed to start installation: ${e.message}`, 'error');
+            }
+        }
+
+        // Socket.IO for real-time log
+        let lastLogTime = null;
+        let completionCheckTimer = null;
+
+        socket.on('package_log', (data) => {
+            if (data.package === currentInstall) {
+                appendLog(data.line);
+                lastLogTime = Date.now();
+
+                // Auto-detect completion from log content (fallback for lost WebSocket)
+                if (data.line.includes('setup complete!') ||
+                    data.line.includes('Setup complete!') ||
+                    data.line.includes('fully configured!') ||
+                    data.line.includes('Installation Summary') ||
+                    data.line.includes('Installation complete')) {
+                    // Start a timer to mark complete if no more logs
+                    clearTimeout(completionCheckTimer);
+                    completionCheckTimer = setTimeout(() => {
+                        if (currentInstall) {
+                            markInstallComplete(currentInstall, true);
+                        }
+                    }, 3000);
+                }
+            }
+        });
+
+        socket.on('package_complete', (data) => {
+            clearTimeout(completionCheckTimer);
+            if (data.package === currentInstall) {
+                markInstallComplete(data.package, data.success);
+            }
+        });
+
+        function markInstallComplete(pkg, success) {
+            document.getElementById('logSpinner').style.display = 'none';
+
+            if (success) {
+                document.getElementById('logTitleText').textContent = `${pkg} installed successfully!`;
+                appendLog('\n✓ Installation complete!', 'ok');
+            } else {
+                document.getElementById('logTitleText').textContent = `${pkg} installation failed`;
+                appendLog('\n✗ Installation failed', 'error');
+            }
+
+            const cardEl = document.getElementById(`pkg-${currentInstall}`);
+            if (cardEl) cardEl.classList.remove('installing');
+
+            currentInstall = null;
+            refreshStatus();
+        }
+
+        function appendLog(text, type = '') {
+            const logEl = document.getElementById('logContent');
+
+            // Color code output
+            let colored = text;
+            if (type) {
+                colored = `<span class="${type}">${text}</span>`;
+            } else {
+                colored = text
+                    .replace(/\[OK\]/g, '<span class="ok">[OK]</span>')
+                    .replace(/\[INFO\]/g, '<span class="info">[INFO]</span>')
+                    .replace(/\[WARN\]/g, '<span class="warn">[WARN]</span>')
+                    .replace(/\[ERROR\]/g, '<span class="error">[ERROR]</span>')
+                    .replace(/✓/g, '<span class="ok">✓</span>')
+                    .replace(/✗/g, '<span class="error">✗</span>');
+            }
+
+            logEl.innerHTML += colored + '\n';
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function closeLog() {
+            document.getElementById('logPanel').classList.remove('active');
+        }
+
+        function applyFilter() {
+            const showOnlyNotInstalled = document.getElementById('filterNotInstalled').checked;
+            const cards = document.querySelectorAll('.package-card');
+            const categories = document.querySelectorAll('.category');
+
+            cards.forEach(card => {
+                if (showOnlyNotInstalled && card.classList.contains('installed')) {
+                    card.classList.add('hidden-by-filter');
+                } else {
+                    card.classList.remove('hidden-by-filter');
+                }
+            });
+
+            // Hide categories if all their packages are hidden
+            categories.forEach(category => {
+                const visibleCards = category.querySelectorAll('.package-card:not(.hidden-by-filter)');
+                if (visibleCards.length === 0) {
+                    category.classList.add('hidden-by-filter');
+                } else {
+                    category.classList.remove('hidden-by-filter');
+                }
+            });
+        }
+
+        function toggleCategory(headerEl) {
+            const category = headerEl.parentElement;
+            category.classList.toggle('collapsed');
+        }
+
+        function toggleInstructions() {
+            const panel = document.getElementById('instructionsPanel');
+            panel.classList.toggle('collapsed');
+        }
+    </script>
+</body>
+</html>

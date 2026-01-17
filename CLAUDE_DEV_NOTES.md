@@ -213,7 +213,7 @@ gh release create vX.Y.Z /home/claude/codehero-X.Y.Z.zip \
 - Background worker that processes tickets
 - Runs Claude CLI for each ticket
 - Uses `select.select()` for non-blocking I/O (important for kill commands)
-- Checks `user_messages` table for commands (/stop, /skip, /done)
+- Checks `user_messages` table for /stop command
 
 ### Templates
 
@@ -304,7 +304,7 @@ mysql -u claude_user -p claude_knowledge -e "SELECT * FROM tickets ORDER BY id D
 - Project & Ticket Management
 - Real-time Chat with Claude
 - AI Model Selection (Opus/Sonnet/Haiku)
-- Kill Commands (/stop, /skip, /done)
+- Kill Switch (/stop command)
 - Web Terminal (full Linux shell)
 - Claude Assistant with popup support
 - Blueprint Planner for project design

@@ -1025,6 +1025,23 @@
             border: 1px solid rgba(139, 92, 246, 0.3);
         }
 
+        /* Type badges */
+        .type-badge {
+            padding: 2px 5px;
+            border-radius: 4px;
+            font-size: 8px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-right: 6px;
+        }
+        .type-feature { background: rgba(139, 92, 246, 0.2); color: #a78bfa; }
+        .type-bug { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+        .type-debug { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+        .type-rnd { background: rgba(167, 139, 250, 0.2); color: #c4b5fd; }
+        .type-task { background: rgba(100, 116, 139, 0.2); color: #94a3b8; }
+        .type-improvement { background: rgba(34, 211, 238, 0.2); color: #22d3ee; }
+        .type-docs { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+
         .empty {
             text-align: center;
             padding: 40px;
@@ -1091,6 +1108,7 @@
             <a href="/console">Console</a>
             <a href="/terminal">Terminal</a>
             <a href="/history">History</a>
+            <a href="/packages">Packages</a>
         </div>
         <div class="nav-right">
             <button class="claude-btn claude-btn-license not-activated" id="claudeLicenseBtn" onclick="openActivationModal()">
@@ -1233,7 +1251,7 @@
 
     <!-- Update Modal -->
     <div class="modal-overlay" id="updateModal">
-        <div class="modal-content" style="max-width: 550px;">
+        <div class="modal-content" style="max-width: 700px;">
             <div class="modal-header">
                 <h2 style="color: var(--accent-green);">🚀 Update Available</h2>
                 <button class="modal-close" onclick="closeUpdateModal()">&times;</button>
@@ -1253,7 +1271,7 @@
                     </div>
                     <div style="background: var(--bg-card); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
                         <div style="color: var(--text-muted); font-size: 12px; margin-bottom: 8px;">Release Notes</div>
-                        <div id="releaseNotes" style="color: var(--text-secondary); font-size: 13px; white-space: pre-wrap; max-height: 200px; overflow-y: auto;">-</div>
+                        <div id="releaseNotes" style="color: var(--text-secondary); font-size: 13px; white-space: pre-wrap; max-height: 150px; overflow-y: auto;">-</div>
                     </div>
                     <div style="display: flex; gap: 12px;">
                         <button class="activation-btn activation-btn-primary" onclick="doUpdate()" id="doUpdateBtn" style="flex: 1;">
@@ -1265,11 +1283,14 @@
                     </div>
                 </div>
                 <div id="updateProgress" style="display: none;">
-                    <div style="text-align: center; padding: 20px 0;">
-                        <div style="font-size: 3rem; margin-bottom: 16px;">⏳</div>
-                        <div style="font-size: 1.1rem; margin-bottom: 8px;" id="updateStatusText">Downloading update...</div>
-                        <div style="color: var(--text-muted); font-size: 13px;">This may take a few minutes. Do not close this window.</div>
+                    <div style="margin-bottom: 12px;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                            <div id="updateSpinner" style="width: 16px; height: 16px; border: 2px solid var(--accent-green); border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                            <div style="font-size: 1rem; font-weight: 600;" id="updateStatusText">Downloading update...</div>
+                        </div>
                     </div>
+                    <div id="upgradeConsole" style="background: #0d1117; border-radius: 8px; padding: 12px; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 12px; height: 300px; overflow-y: auto; color: #c9d1d9; white-space: pre-wrap; word-break: break-all;"></div>
+                    <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
                 </div>
                 <div id="updateResult" style="display: none;"></div>
             </div>
@@ -1426,6 +1447,7 @@
                     <a href="/ticket/{{ t.id }}" class="list-item">
                         <div>
                             <span class="number">{{ t.ticket_number }}</span>
+                            <span class="type-badge type-{{ t.ticket_type or 'task' }}">{{ (t.ticket_type or 'task')[:4]|upper }}</span>
                             <span class="title">{{ t.title[:30] }}{{ '...' if t.title|length > 30 else '' }}</span>
                             <div class="meta">{{ t.project_name }}</div>
                         </div>
@@ -2050,63 +2072,234 @@
             document.getElementById('updateModal').classList.remove('show');
         }
 
+        let upgradeSocket = null;
+        let upgradeLog = '';  // Store full upgrade log for AI
+
         async function doUpdate() {
             if (!confirm('Install update? The system will restart after installation.')) return;
 
             document.getElementById('updateInfo').style.display = 'none';
             document.getElementById('updateProgress').style.display = 'block';
             document.getElementById('updateStatusText').textContent = 'Downloading update...';
+            document.getElementById('upgradeConsole').innerHTML = '';
+            upgradeLog = '';
 
             try {
+                // Step 1: Download and prepare the update
                 const resp = await fetch('/api/do-update', { method: 'POST' });
                 const data = await resp.json();
 
-                document.getElementById('updateProgress').style.display = 'none';
-                document.getElementById('updateResult').style.display = 'block';
+                if (!data.success) {
+                    showUpdateError(data.error || 'Download failed');
+                    return;
+                }
+
+                // Step 2: Connect websocket and start upgrade
+                document.getElementById('updateStatusText').textContent = 'Installing update...';
+                appendToConsole('Download complete. Starting installation...\n');
+
+                // Create websocket connection
+                upgradeSocket = io();
+                upgradeSocket.emit('join_upgrade');
+
+                upgradeSocket.on('upgrade_started', (data) => {
+                    appendToConsole(data.message + '\n');
+                });
+
+                upgradeSocket.on('upgrade_output', (data) => {
+                    appendToConsole(data.line + '\n');
+                });
+
+                upgradeSocket.on('upgrade_complete', (data) => {
+                    document.getElementById('updateSpinner').style.display = 'none';
+                    if (data.success) {
+                        document.getElementById('updateStatusText').textContent = 'Update complete!';
+                        document.getElementById('updateStatusText').style.color = 'var(--accent-green)';
+                        appendToConsole('\n✅ ' + data.message + '\n');
+                        appendToConsole('\n🔄 Reloading page in 5 seconds...\n');
+                        document.getElementById('updateBadge').style.display = 'none';
+                        setTimeout(() => location.reload(), 5000);
+                    } else {
+                        document.getElementById('updateStatusText').textContent = 'Update failed';
+                        document.getElementById('updateStatusText').style.color = 'var(--accent-red)';
+                        appendToConsole('\n❌ ' + data.message + '\n');
+                        showAskAIButton();
+                    }
+                    if (upgradeSocket) upgradeSocket.disconnect();
+                });
+
+                upgradeSocket.on('upgrade_error', (data) => {
+                    document.getElementById('updateSpinner').style.display = 'none';
+                    document.getElementById('updateStatusText').textContent = 'Update error';
+                    document.getElementById('updateStatusText').style.color = 'var(--accent-red)';
+                    appendToConsole('\n❌ Error: ' + data.error + '\n');
+                    showAskAIButton();
+                    if (upgradeSocket) upgradeSocket.disconnect();
+                });
+
+                // Start the upgrade
+                upgradeSocket.emit('start_upgrade');
+
+            } catch (e) {
+                showUpdateError('Network error: ' + e.message);
+            }
+        }
+
+        function appendToConsole(text) {
+            upgradeLog += text;  // Store raw log
+            const consoleEl = document.getElementById('upgradeConsole');
+            // Color code the output
+            let coloredText = text
+                .replace(/\[OK\]/g, '<span style="color:#10b981">[OK]</span>')
+                .replace(/\[INFO\]/g, '<span style="color:#60a5fa">[INFO]</span>')
+                .replace(/\[WARN\]/g, '<span style="color:#f59e0b">[WARN]</span>')
+                .replace(/\[ERROR\]/g, '<span style="color:#ef4444">[ERROR]</span>')
+                .replace(/✅/g, '<span style="color:#10b981">✅</span>')
+                .replace(/❌/g, '<span style="color:#ef4444">❌</span>')
+                .replace(/🔄/g, '<span style="color:#60a5fa">🔄</span>');
+            consoleEl.innerHTML += coloredText;
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        function showAskAIButton() {
+            const consoleEl = document.getElementById('upgradeConsole');
+            consoleEl.insertAdjacentHTML('afterend', `
+                <div id="aiFixPanel" style="margin-top: 12px; padding: 12px; background: var(--bg-card); border-radius: 8px;">
+                    <button onclick="askAIToFix()" id="askAIBtn" class="activation-btn activation-btn-primary" style="width: 100%;">
+                        🤖 Ask AI to fix the problem
+                    </button>
+                    <div id="aiResponse" style="display: none; margin-top: 12px;"></div>
+                </div>
+            `);
+        }
+
+        async function askAIToFix() {
+            const btn = document.getElementById('askAIBtn');
+            const responseDiv = document.getElementById('aiResponse');
+
+            btn.disabled = true;
+            btn.innerHTML = '🔄 Analyzing error...';
+            responseDiv.style.display = 'block';
+            responseDiv.innerHTML = '<div style="color: var(--text-muted); font-size: 13px;">AI is analyzing the error log...</div>';
+
+            try {
+                const resp = await fetch('/api/ai-fix-upgrade', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ log: upgradeLog })
+                });
+                const data = await resp.json();
 
                 if (data.success) {
-                    document.getElementById('updateBadge').style.display = 'none';
-                    let countdown = 45;
-                    document.getElementById('updateResult').innerHTML = `
-                        <div style="text-align: center; padding: 20px;">
-                            <div style="font-size: 3rem; margin-bottom: 16px;">⏳</div>
-                            <div style="font-size: 1.2rem; color: var(--accent-green); margin-bottom: 8px;">Update Installing...</div>
-                            <div style="color: var(--text-secondary); margin-bottom: 16px;">Page will reload in <span id="countdown">45</span> seconds</div>
-                            <button class="activation-btn activation-btn-primary" onclick="location.reload()">Reload Now</button>
+                    btn.style.display = 'none';
+
+                    // Format AI response with markdown-like styling
+                    let formattedResponse = data.response
+                        .replace(/\*\*(.+?)\*\*/g, '<strong style="color:var(--accent-green)">$1</strong>')
+                        .replace(/```bash\n?([\s\S]*?)```/g, '<pre style="background:#0d1117;padding:8px;border-radius:4px;margin:8px 0;font-size:11px;">$1</pre>')
+                        .replace(/\n/g, '<br>');
+
+                    let commandsHTML = '';
+                    if (data.commands && data.commands.length > 0) {
+                        commandsHTML = `
+                            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-color);">
+                                <div style="font-weight: 600; margin-bottom: 8px; color: var(--text-primary);">Run fix commands:</div>
+                                ${data.commands.map((cmd, i) => `
+                                    <div style="display: flex; gap: 8px; margin-bottom: 6px; align-items: center;">
+                                        <code style="flex:1; background:#0d1117; padding:6px 10px; border-radius:4px; font-size:11px; overflow-x:auto;">${escapeHtml(cmd)}</code>
+                                        <button onclick="runFixCommand('${escapeHtml(cmd).replace(/'/g, "\\'")}', this)" class="activation-btn activation-btn-secondary" style="padding:6px 12px; font-size:11px; white-space:nowrap;">
+                                            ▶ Run
+                                        </button>
+                                    </div>
+                                `).join('')}
+                                <button onclick="runAllFixCommands()" class="activation-btn activation-btn-primary" style="width:100%; margin-top:8px;">
+                                    ▶ Run All Commands
+                                </button>
+                            </div>
+                        `;
+                    }
+
+                    responseDiv.innerHTML = `
+                        <div style="font-size: 13px; line-height: 1.5; color: var(--text-secondary);">
+                            ${formattedResponse}
                         </div>
+                        ${commandsHTML}
                     `;
-                    const countdownInterval = setInterval(() => {
-                        countdown--;
-                        const el = document.getElementById('countdown');
-                        if (el) el.textContent = countdown;
-                        if (countdown <= 0) {
-                            clearInterval(countdownInterval);
-                            location.reload();
-                        }
-                    }, 1000);
+
+                    // Store commands for runAll
+                    window.aiFixCommands = data.commands || [];
                 } else {
-                    document.getElementById('updateResult').innerHTML = `
-                        <div style="text-align: center; padding: 20px;">
-                            <div style="font-size: 3rem; margin-bottom: 16px;">❌</div>
-                            <div style="font-size: 1.2rem; color: var(--accent-red); margin-bottom: 8px;">Update Failed</div>
-                            <div style="color: var(--text-secondary); margin-bottom: 16px;">${data.error || 'Unknown error'}</div>
-                            <pre style="text-align: left; background: var(--bg-card); padding: 12px; border-radius: 8px; font-size: 11px; max-height: 150px; overflow: auto;">${data.output || data.stdout || ''}</pre>
-                            <button class="activation-btn activation-btn-secondary" onclick="closeUpdateModal()" style="margin-top: 16px;">Close</button>
-                        </div>
-                    `;
+                    btn.disabled = false;
+                    btn.innerHTML = '🤖 Ask AI to fix the problem';
+                    responseDiv.innerHTML = `<div style="color: var(--accent-red);">Error: ${data.error}</div>`;
                 }
             } catch (e) {
-                document.getElementById('updateProgress').style.display = 'none';
-                document.getElementById('updateResult').style.display = 'block';
-                document.getElementById('updateResult').innerHTML = `
-                    <div style="text-align: center; padding: 20px;">
-                        <div style="font-size: 3rem; margin-bottom: 16px;">❌</div>
-                        <div style="font-size: 1.2rem; color: var(--accent-red); margin-bottom: 8px;">Network Error</div>
-                        <div style="color: var(--text-secondary);">Could not reach the server.</div>
-                        <button class="activation-btn activation-btn-secondary" onclick="closeUpdateModal()" style="margin-top: 16px;">Close</button>
-                    </div>
-                `;
+                btn.disabled = false;
+                btn.innerHTML = '🤖 Ask AI to fix the problem';
+                responseDiv.innerHTML = `<div style="color: var(--accent-red);">Network error: ${e.message}</div>`;
             }
+        }
+
+        async function runFixCommand(command, btn) {
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '⏳';
+
+            try {
+                const resp = await fetch('/api/run-fix-command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command: command })
+                });
+                const data = await resp.json();
+
+                if (data.success) {
+                    btn.innerHTML = '✅';
+                    btn.style.background = 'var(--accent-green)';
+                    if (data.output) appendToConsole('\n' + data.output);
+                } else {
+                    btn.innerHTML = '❌';
+                    btn.style.background = 'var(--accent-red)';
+                    if (data.error) appendToConsole('\n❌ ' + data.error);
+                }
+            } catch (e) {
+                btn.innerHTML = '❌';
+                btn.disabled = false;
+            }
+        }
+
+        async function runAllFixCommands() {
+            const commands = window.aiFixCommands || [];
+            for (const cmd of commands) {
+                const btns = document.querySelectorAll('#aiResponse button');
+                for (const btn of btns) {
+                    if (btn.onclick && btn.onclick.toString().includes(cmd.substring(0, 20))) {
+                        await runFixCommand(cmd, btn);
+                        await new Promise(r => setTimeout(r, 500));
+                        break;
+                    }
+                }
+            }
+            appendToConsole('\n\n🔄 All fix commands executed. Try upgrading again.\n');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showUpdateError(message) {
+            document.getElementById('updateProgress').style.display = 'none';
+            document.getElementById('updateResult').style.display = 'block';
+            document.getElementById('updateResult').innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <div style="font-size: 3rem; margin-bottom: 16px;">❌</div>
+                    <div style="font-size: 1.2rem; color: var(--accent-red); margin-bottom: 8px;">Update Failed</div>
+                    <div style="color: var(--text-secondary); margin-bottom: 16px;">${message}</div>
+                    <button class="activation-btn activation-btn-secondary" onclick="closeUpdateModal()">Close</button>
+                </div>
+            `;
         }
 
         // Close update modal on overlay click

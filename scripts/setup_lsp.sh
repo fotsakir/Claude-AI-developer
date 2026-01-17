@@ -65,24 +65,35 @@ install_if_missing() {
 echo -e "${BLUE}Checking prerequisites...${NC}"
 echo
 
+# Fix for expired GPG keys (e.g., MySQL repo)
+if [ -f /etc/apt/sources.list.d/mysql.list ]; then
+    if ! $SUDO apt-get update 2>&1 | grep -q "EXPKEYSIG.*mysql"; then
+        : # apt-get update succeeded
+    else
+        echo -e "${YELLOW}[WARN]${NC} Disabling MySQL repo (expired GPG key)..."
+        $SUDO mv /etc/apt/sources.list.d/mysql.list /etc/apt/sources.list.d/mysql.list.disabled 2>/dev/null || true
+    fi
+fi
+
 if ! command_exists pip3; then
     echo -e "${YELLOW}Installing pip3...${NC}"
     $SUDO apt-get update
     $SUDO apt-get install -y python3-pip
 fi
 
+# Check Node.js version - need 20+ for modern npm
+NODE_VERSION=$(node --version 2>/dev/null | sed 's/v//' | cut -d. -f1)
+if [ -z "$NODE_VERSION" ] || [ "$NODE_VERSION" -lt 20 ]; then
+    echo -e "${YELLOW}Installing Node.js 22 (required for LSP servers)...${NC}"
+    # Install Node.js 22 from NodeSource
+    curl -fsSL https://deb.nodesource.com/setup_22.x | $SUDO bash -
+    $SUDO apt-get install -y nodejs
+fi
+
 if ! command_exists npm; then
     echo -e "${YELLOW}Installing npm...${NC}"
     $SUDO apt-get update
     $SUDO apt-get install -y npm
-    # Update npm to latest
-    $SUDO npm install -g npm@latest
-fi
-
-if ! command_exists node; then
-    echo -e "${YELLOW}Installing Node.js...${NC}"
-    $SUDO apt-get update
-    $SUDO apt-get install -y nodejs
 fi
 
 echo
@@ -93,7 +104,7 @@ echo
 # Python LSP Server
 # ====================
 echo -e "${BLUE}[1/7] Python Language Server (pylsp)${NC}"
-install_if_missing "pylsp" "python-lsp-server" "pip3 install python-lsp-server"
+install_if_missing "pylsp" "python-lsp-server" "pip3 install --break-system-packages python-lsp-server || pip3 install python-lsp-server"
 echo
 
 # ====================

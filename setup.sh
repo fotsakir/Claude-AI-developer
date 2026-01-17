@@ -392,6 +392,7 @@ mkdir -p ${WEB_ROOT}
 mkdir -p ${APP_ROOT}
 mkdir -p ${INSTALL_DIR}/scripts
 mkdir -p ${INSTALL_DIR}/web/templates
+mkdir -p ${INSTALL_DIR}/web/static
 mkdir -p ${LOG_DIR}
 mkdir -p /var/run/codehero
 mkdir -p /var/backups/codehero
@@ -407,6 +408,7 @@ cp "${SCRIPT_DIR}/scripts/"*.py ${INSTALL_DIR}/scripts/ 2>/dev/null || true
 cp "${SCRIPT_DIR}/scripts/"*.sh ${INSTALL_DIR}/scripts/ 2>/dev/null || true
 cp "${SCRIPT_DIR}/web/app.py" ${INSTALL_DIR}/web/ 2>/dev/null || true
 cp "${SCRIPT_DIR}/web/templates/"*.html ${INSTALL_DIR}/web/templates/ 2>/dev/null || true
+cp -r "${SCRIPT_DIR}/web/static/"* ${INSTALL_DIR}/web/static/ 2>/dev/null || true
 
 # Copy config files
 mkdir -p ${INSTALL_DIR}/config

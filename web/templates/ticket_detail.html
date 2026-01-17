@@ -185,9 +185,9 @@
             background: var(--bg-card);
         }
 
-        .main { flex: 1; display: flex; overflow: hidden; }
+        .main { flex: 1; display: flex; overflow: hidden; min-height: 0; }
 
-        .chat-panel { flex: 1; display: flex; flex-direction: column; }
+        .chat-panel { flex: 1; display: flex; flex-direction: column; min-height: 0; }
         .sidebar {
             width: 320px;
             background: var(--bg-card);
@@ -197,7 +197,7 @@
             overflow-y: auto;
         }
 
-        .conversation { flex: 1; overflow-y: auto; padding: 20px; }
+        .conversation { flex: 1; overflow-y: auto; padding: 20px; min-height: 0; }
 
         .message { margin-bottom: 16px; max-width: 85%; }
         .message.user { margin-left: auto; }
@@ -402,7 +402,7 @@
         }
         .tab:hover { color: var(--text-primary); background: var(--bg-card); }
         .tab.active { color: var(--accent-cyan); border-bottom-color: var(--accent-cyan); }
-        .tab-content { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+        .tab-content { display: none; flex: 1; overflow: hidden; flex-direction: column; min-height: 0; }
         .tab-content.active { display: flex; }
 
         .view-toggle { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--bg-secondary); border-bottom: 1px solid var(--border-subtle); font-size: 12px; }
@@ -484,8 +484,9 @@
     <div class="noise"></div>
 
     {% if ticket %}
+    {% if not embed %}
     <div class="header">
-        <h1>CodeHero</h1>
+        <h1>CodeHero <span style="font-size:14px;color:var(--text-muted);font-weight:normal">v{{ version }}</span></h1>
         <div class="nav">
             <a href="/dashboard">Dashboard</a>
             <a href="/projects">Projects</a>
@@ -493,11 +494,24 @@
             <a href="/console">Console</a>
             <a href="/terminal">Terminal</a>
             <a href="/history">History</a>
+            <a href="/packages">Packages</a>
         </div>
         <div class="nav-right">
             <a href="/logout" class="nav-link">Logout</a>
         </div>
     </div>
+    {% else %}
+    <div class="header" style="padding:10px 16px">
+        <h1 style="font-size:0.95em">
+            <span class="ticket-num">{{ ticket.ticket_number if ticket else 'N/A' }}</span>
+            {{ ticket.title if ticket else 'Ticket' }}
+            <span class="status-badge {{ ticket.status if ticket else 'open' }}">{{ ticket.status if ticket else 'open' }}</span>
+        </h1>
+        <div class="nav-right">
+            <a href="/project/{{ ticket.project_id if ticket else '' }}" class="nav-link" style="font-size:12px" onclick="window.parent.postMessage({type:'navigate',url:this.href},'*'); return false;">← Back to Project</a>
+        </div>
+    </div>
+    {% endif %}
 
     <div id="awaiting-banner" class="closed-banner" style="background:rgba(139, 92, 246, 0.1);border-color:rgba(139, 92, 246, 0.2);display:{% if ticket.status == 'awaiting_input' %}block{% else %}none{% endif %}">
         Awaiting Input - Claude finished, send a message to continue or close the ticket
@@ -642,6 +656,15 @@
             </div>
             {% endif %}
 
+            <div id="backup-progress" style="display:none;background:rgba(34,211,238,0.1);border:1px solid rgba(34,211,238,0.3);border-radius:8px;padding:10px 14px;margin-bottom:10px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                    <span style="font-size:11px;color:var(--accent-cyan);font-weight:600">💾 Creating backup...</span>
+                    <span id="backup-progress-text" style="font-size:11px;color:var(--text-muted)"></span>
+                </div>
+                <div style="background:var(--bg-secondary);border-radius:4px;height:6px;overflow:hidden">
+                    <div id="backup-progress-fill" style="background:var(--accent-cyan);height:100%;width:0%;transition:width 0.3s ease"></div>
+                </div>
+            </div>
             <div id="message-queue" style="display:none;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.3);border-radius:8px;padding:10px 14px;margin-bottom:10px">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
                     <span style="font-size:11px;color:var(--accent-secondary);font-weight:600">📨 Queued messages (waiting for AI to finish):</span>
@@ -657,6 +680,8 @@
                         {% if ticket.status in ['done', 'failed'] %}disabled{% endif %}>🎤</button>
                 <button onclick="sendMessage()" id="send-btn"
                         {% if ticket.status in ['done', 'failed'] %}disabled{% endif %}>Send</button>
+                <button onclick="killSwitch()" id="kill-btn" title="Kill Switch - Stop Claude immediately"
+                        style="background:#dc2626;color:#fff;font-weight:600;display:none">⏹ Stop</button>
                 <button onclick="seeWithEyes()" id="eyes-btn" title="Ask Claude to take a screenshot and see the page"
                         style="background:var(--accent-cyan);color:#000;font-weight:600"
                         {% if ticket.status in ['done', 'failed'] %}disabled{% endif %}>👁️ See</button>
@@ -665,17 +690,166 @@
 
         <div class="sidebar">
             <div class="sidebar-section">
-                <h3>Ticket Details</h3>
-                <div class="ticket-info">
+                <h3>Ticket Details <button onclick="toggleEditForm()" style="float:right;background:var(--accent-primary);color:white;border:none;padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer">✏️ Edit</button></h3>
+                <div class="ticket-info" id="ticketInfoView">
                     <div class="title">{{ ticket.title }}</div>
                     <div class="description">{{ ticket.description or 'No description' }}</div>
                     <div class="meta">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                            <span class="type-badge type-{{ ticket.ticket_type or 'task' }}">{{ (ticket.ticket_type or 'task')|upper }}</span>
+                            {% if ticket.is_forced %}<span class="forced-badge">FORCED</span>{% endif %}
+                            {% if ticket.sequence_order %}<span style="color:var(--text-muted);font-size:11px">Seq: #{{ ticket.sequence_order }}</span>{% endif %}
+                        </div>
                         <div>Priority: <strong>{{ ticket.priority|upper }}</strong></div>
                         <div>Created: {{ ticket.created_at.strftime('%Y-%m-%d %H:%M') if ticket.created_at else 'N/A' }}</div>
+                        {% if ticket.retry_count and ticket.retry_count > 0 %}
+                        <div style="color:var(--accent-orange)">Retries: {{ ticket.retry_count }}/{{ ticket.max_retries or 3 }}</div>
+                        {% endif %}
+                        {% if ticket.parent_ticket_id %}
+                        <div>Parent: <a href="/ticket/{{ ticket.parent_ticket_id }}" style="color:var(--accent-cyan)">View Parent</a></div>
+                        {% endif %}
+                        {% if current_deps %}
+                        <div>Depends on: {{ current_deps|length }} ticket(s)</div>
+                        {% endif %}
                         <div>Path: <code>{{ ticket.project_path }}</code></div>
                     </div>
                 </div>
+                <!-- Edit Form (hidden by default) -->
+                <div id="ticketEditForm" style="display:none;background:var(--bg-secondary);padding:14px;border-radius:12px;">
+                    <!-- Quick Reference -->
+                    <div style="margin-bottom:12px;padding:10px;background:rgba(99,102,241,0.1);border-radius:8px;border-left:3px solid var(--accent-primary);">
+                        <div style="font-size:11px;color:var(--text-secondary);line-height:1.5;">
+                            <strong style="color:var(--accent-primary);">Quick Reference:</strong>
+                            <span style="color:#a78bfa;">feature</span>=new,
+                            <span style="color:#f87171;">bug</span>=fix,
+                            <span style="color:#22d3ee;">improvement</span>=refactor |
+                            <strong>Sequence:</strong> lower=first |
+                            <strong>Deps:</strong> wait for others
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom:10px">
+                        <label style="font-size:11px;color:var(--text-muted)">Title</label>
+                        <input type="text" id="edit_title" value="{{ ticket.title }}" style="width:100%;padding:8px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-card);color:var(--text-primary);font-size:13px" placeholder="Short, specific title">
+                    </div>
+                    <div class="form-group" style="margin-bottom:10px">
+                        <label style="font-size:11px;color:var(--text-muted)">Description <span style="color:var(--accent-cyan)">(be detailed!)</span></label>
+                        <textarea id="edit_description" rows="3" style="width:100%;padding:8px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-card);color:var(--text-primary);font-size:13px;resize:vertical" placeholder="Include file paths, expected behavior, constraints...">{{ ticket.description or '' }}</textarea>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+                        <div class="form-group">
+                            <label style="font-size:11px;color:var(--text-muted)">Priority</label>
+                            <select id="edit_priority" style="width:100%;padding:8px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-card);color:var(--text-primary);font-size:12px">
+                                <option value="low" {% if ticket.priority == 'low' %}selected{% endif %}>Low</option>
+                                <option value="medium" {% if ticket.priority == 'medium' %}selected{% endif %}>Medium</option>
+                                <option value="high" {% if ticket.priority == 'high' %}selected{% endif %}>High</option>
+                                <option value="critical" {% if ticket.priority == 'critical' %}selected{% endif %}>Critical</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label style="font-size:11px;color:var(--text-muted)">Status</label>
+                            <select id="edit_status" style="width:100%;padding:8px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-card);color:var(--text-primary);font-size:12px">
+                                <option value="open" {% if ticket.status == 'open' %}selected{% endif %}>Open</option>
+                                <option value="in_progress" {% if ticket.status == 'in_progress' %}selected{% endif %}>In Progress</option>
+                                <option value="awaiting_input" {% if ticket.status == 'awaiting_input' %}selected{% endif %}>Awaiting Input (Done)</option>
+                                <option value="done" {% if ticket.status == 'done' %}selected{% endif %}>Done</option>
+                                <option value="skipped" {% if ticket.status == 'skipped' %}selected{% endif %}>Skipped</option>
+                                <option value="failed" {% if ticket.status == 'failed' %}selected{% endif %}>Failed</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+                        <div class="form-group">
+                            <label style="font-size:11px;color:var(--text-muted)">Type</label>
+                            <select id="edit_ticket_type" style="width:100%;padding:8px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-card);color:var(--text-primary);font-size:12px">
+                                <option value="task" {% if ticket.ticket_type == 'task' %}selected{% endif %}>Task</option>
+                                <option value="feature" {% if ticket.ticket_type == 'feature' %}selected{% endif %}>Feature</option>
+                                <option value="bug" {% if ticket.ticket_type == 'bug' %}selected{% endif %}>Bug</option>
+                                <option value="debug" {% if ticket.ticket_type == 'debug' %}selected{% endif %}>Debug</option>
+                                <option value="improvement" {% if ticket.ticket_type == 'improvement' %}selected{% endif %}>Improvement</option>
+                                <option value="rnd" {% if ticket.ticket_type == 'rnd' %}selected{% endif %}>R&D</option>
+                                <option value="docs" {% if ticket.ticket_type == 'docs' %}selected{% endif %}>Docs</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+                        <div class="form-group">
+                            <label style="font-size:11px;color:var(--text-muted)">Sequence # <span style="color:var(--text-muted)">(1=first)</span></label>
+                            <input type="number" id="edit_sequence" value="{{ ticket.sequence_order or '' }}" min="1" style="width:100%;padding:8px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-card);color:var(--text-primary);font-size:12px" placeholder="Empty = after sequenced">
+                        </div>
+                        <div class="form-group">
+                            <label style="font-size:11px;color:var(--text-muted)">Parent Ticket <span style="color:var(--text-muted)">(sub-ticket)</span></label>
+                            <select id="edit_parent" style="width:100%;padding:8px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-card);color:var(--text-primary);font-size:12px">
+                                <option value="">None</option>
+                                {% for t in project_tickets %}
+                                {% if not t.parent_ticket_id %}
+                                <option value="{{ t.id }}" {% if ticket.parent_ticket_id == t.id %}selected{% endif %}>{{ t.ticket_number }}</option>
+                                {% endif %}
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom:10px">
+                        <label style="font-size:11px;color:var(--text-muted)">Dependencies <span style="color:var(--text-muted)">(must finish first)</span></label>
+                        <div style="max-height:100px;overflow-y:auto;border:1px solid var(--border-subtle);border-radius:6px;padding:8px;background:var(--bg-card)">
+                            {% for t in project_tickets %}
+                            <label style="display:flex;align-items:center;gap:6px;padding:4px;cursor:pointer;font-size:12px">
+                                <input type="checkbox" class="dep-checkbox" value="{{ t.id }}" {% if t.id in current_deps %}checked{% endif %}>
+                                <span style="color:var(--accent-cyan)">{{ t.ticket_number }}</span> - {{ t.title[:25] }}{% if t.title|length > 25 %}...{% endif %}
+                            </label>
+                            {% endfor %}
+                            {% if not project_tickets %}
+                            <span style="color:var(--text-muted);font-size:11px">No other tickets</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom:8px">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px">
+                            <input type="checkbox" id="edit_start_when_ready" {% if ticket.start_when_ready %}checked{% endif %}>
+                            Start automatically when deps complete
+                        </label>
+                    </div>
+                    <div class="form-group" style="margin-bottom:12px">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px">
+                            <input type="checkbox" id="edit_deps_include_awaiting" {% if ticket.deps_include_awaiting %}checked{% endif %}>
+                            Include "awaiting input" as completed (relaxed mode)
+                        </label>
+                        <small style="font-size:10px;color:var(--text-muted);margin-left:24px">If checked, deps in review status count as done</small>
+                    </div>
+                    <div style="display:flex;gap:8px">
+                        <button onclick="saveTicketEdit()" style="flex:1;padding:8px;background:var(--accent-green);color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px">💾 Save</button>
+                        <button onclick="toggleEditForm()" style="flex:1;padding:8px;background:var(--bg-card);color:var(--text-secondary);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer;font-size:12px">Cancel</button>
+                    </div>
+                </div>
             </div>
+            <style>
+                .type-badge {
+                    padding: 3px 8px;
+                    border-radius: 4px;
+                    font-size: 10px;
+                    font-weight: 600;
+                    letter-spacing: 0.5px;
+                }
+                .type-feature { background: rgba(139, 92, 246, 0.2); color: #a78bfa; }
+                .type-bug { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+                .type-debug { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+                .type-rnd { background: rgba(167, 139, 250, 0.2); color: #c4b5fd; }
+                .type-task { background: rgba(100, 116, 139, 0.2); color: #94a3b8; }
+                .type-improvement { background: rgba(34, 211, 238, 0.2); color: #22d3ee; }
+                .type-docs { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+                .forced-badge {
+                    background: rgba(245, 158, 11, 0.3);
+                    color: #f59e0b;
+                    padding: 2px 6px;
+                    border-radius: 4px;
+                    font-size: 9px;
+                    font-weight: 700;
+                    animation: pulse 1.5s infinite;
+                }
+                @keyframes pulse {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0.6; }
+                }
+            </style>
 
             <div class="sidebar-section">
                 <h3>AI Model</h3>
@@ -717,13 +891,19 @@
                 <div class="actions">
                     {% if ticket.status not in ['done', 'failed'] %}
                     <button class="btn-success" onclick="closeTicket('completed')">Close Ticket</button>
-                    {% if ticket.status == 'in_progress' %}
-                    <button class="btn-warning" onclick="sendCommand('/skip')">Pause Ticket</button>
-                    {% endif %}
                     {% else %}
                     <button class="btn-warning" onclick="showReopenModal()">Reopen Ticket</button>
                     {% endif %}
-                    <button class="btn-secondary" onclick="location.href='/project/{{ ticket.project_id }}'">Back to Project</button>
+                    {% if ticket.status in ['failed', 'timeout', 'stuck'] %}
+                    <button class="btn-warning" onclick="retryTicket()">🔄 Retry Ticket</button>
+                    {% endif %}
+                    {% if ticket.status in ['open', 'pending'] and not ticket.is_forced %}
+                    <button class="btn-warning" onclick="forceTicket()">⚡ Force Next</button>
+                    {% endif %}
+                    {% if ticket.status in ['awaiting_input', 'done', 'skipped'] %}
+                    <button class="btn-success" onclick="startTicket()">▶️ Start Now</button>
+                    {% endif %}
+                    <button class="btn-secondary" onclick="goToProject()">Back to Project</button>
                     <button class="btn-secondary" onclick="popoutEditor()" style="margin-top:10px">⧉ Code Editor</button>
                     <button class="btn-secondary" onclick="createBackup()" style="margin-top:10px">Create Backup</button>
                     <button class="btn-secondary" onclick="createSummary()" style="margin-top:10px" title="Compress conversation to save tokens (uses Haiku)">📝 Create Summary</button>
@@ -731,6 +911,7 @@
                     {% if ticket.db_name %}
                     <button class="btn-secondary" onclick="window.open('/project/{{ ticket.project_id }}/phpmyadmin', '_blank')" style="margin-top:10px">phpMyAdmin</button>
                     {% endif %}
+                    <button class="btn-danger" onclick="deleteTicket()" style="margin-top:20px">🗑️ Delete Ticket</button>
                 </div>
             </div>
 
@@ -738,10 +919,8 @@
                 <h3>Commands</h3>
                 <div class="commands">
                     <p><code>/stop</code> Pause & wait for correction</p>
-                    <p><code>/skip</code> Stop & reopen ticket</p>
-                    <p><code>/done</code> Force complete</p>
                 </div>
-                <p style="color:var(--text-muted);font-size:11px;margin-top:10px">Tip: Messages sent while working will be read when Claude finishes</p>
+                <p style="color:var(--text-muted);font-size:11px;margin-top:10px">Tip: Use the ⏹ Stop button or type /stop to pause. Messages sent while working will be read when Claude finishes.</p>
             </div>
 
             <div class="sidebar-section">
@@ -788,6 +967,16 @@
         const ticketStatus = '{{ ticket.status }}';
         const projectId = {{ ticket.project_id }};
         const previewUrl = '{{ ticket.preview_url|default("", true) }}';
+        const isEmbed = {{ 'true' if embed else 'false' }};
+
+        function goToProject() {
+            const url = '/project/' + projectId;
+            if (isEmbed && window.parent !== window) {
+                window.parent.postMessage({type: 'navigate', url: url}, '*');
+            } else {
+                location.href = url;
+            }
+        }
 
         // Path switching for file uploads
         let currentPathType = 'web';
@@ -882,10 +1071,37 @@
                 if (awaitingBanner) {
                     awaitingBanner.style.display = data.status === 'awaiting_input' ? 'block' : 'none';
                 }
+                // Show/hide kill switch button
+                const killBtn = document.getElementById('kill-btn');
+                if (killBtn) {
+                    killBtn.style.display = data.status === 'in_progress' ? 'inline-block' : 'none';
+                }
                 // When AI finishes and there are queued messages, send them as one combined message
                 if (data.status === 'awaiting_input' && queuedMessages.length > 0) {
                     sendQueuedMessages();
                 }
+            }
+        });
+
+        // Backup progress handler
+        socket.on('backup_progress', (data) => {
+            if (data.ticket_id === ticketId) {
+                const progressBar = document.getElementById('backup-progress');
+                const progressFill = document.getElementById('backup-progress-fill');
+                const progressText = document.getElementById('backup-progress-text');
+
+                if (data.step === 'done' || data.step === 'error') {
+                    // Hide after completion
+                    setTimeout(() => {
+                        if (progressBar) progressBar.style.display = 'none';
+                    }, 2000);
+                } else {
+                    // Show progress
+                    if (progressBar) progressBar.style.display = 'block';
+                }
+
+                if (progressFill) progressFill.style.width = data.percent + '%';
+                if (progressText) progressText.textContent = data.message;
             }
         });
 
@@ -965,8 +1181,11 @@
 
             input.value = '';
 
-            // If AI is working (in_progress), queue locally (don't send yet)
-            if (currentStatus === 'in_progress') {
+            // Check if it's a kill switch command - these ALWAYS send immediately
+            const isCommand = message.startsWith('/') && message.toLowerCase().split(/\s/)[0] === '/stop';
+
+            // If AI is working (in_progress), queue locally (don't send yet) - EXCEPT commands
+            if (currentStatus === 'in_progress' && !isCommand) {
                 queuedMessages.push(message);
                 updateQueueDisplay();
                 input.focus();
@@ -1047,6 +1266,29 @@
             } catch (e) {
                 alert('Error sending queued messages');
             }
+        }
+
+        // Kill Switch - Stop Claude immediately
+        async function killSwitch() {
+            if (currentStatus !== 'in_progress') {
+                alert('Claude is not currently working');
+                return;
+            }
+            try {
+                const resp = await fetch(`/api/ticket/${ticketId}/kill`, { method: 'POST' });
+                const result = await resp.json();
+                if (!result.success) {
+                    alert('Error: ' + result.message);
+                }
+            } catch (e) {
+                alert('Error stopping process');
+            }
+        }
+
+        // Show kill button on initial load if in_progress
+        if (currentStatus === 'in_progress') {
+            const killBtn = document.getElementById('kill-btn');
+            if (killBtn) killBtn.style.display = 'inline-block';
         }
 
         function seeWithEyes() {
@@ -1184,16 +1426,157 @@
             }
         }
 
+        function toggleEditForm() {
+            const view = document.getElementById('ticketInfoView');
+            const form = document.getElementById('ticketEditForm');
+            if (form.style.display === 'none') {
+                view.style.display = 'none';
+                form.style.display = 'block';
+            } else {
+                view.style.display = 'block';
+                form.style.display = 'none';
+            }
+        }
+
+        async function saveTicketEdit() {
+            const deps = Array.from(document.querySelectorAll('.dep-checkbox:checked')).map(cb => parseInt(cb.value));
+            const seqVal = document.getElementById('edit_sequence').value;
+            const parentVal = document.getElementById('edit_parent').value;
+
+            const data = {
+                title: document.getElementById('edit_title').value,
+                description: document.getElementById('edit_description').value,
+                priority: document.getElementById('edit_priority').value,
+                status: document.getElementById('edit_status').value,
+                ticket_type: document.getElementById('edit_ticket_type').value,
+                sequence_order: seqVal ? parseInt(seqVal) : null,
+                parent_ticket_id: parentVal ? parseInt(parentVal) : null,
+                depends_on: deps,
+                start_when_ready: document.getElementById('edit_start_when_ready').checked,
+                deps_include_awaiting: document.getElementById('edit_deps_include_awaiting').checked
+            };
+
+            try {
+                const resp = await fetch(`/api/ticket/${ticketId}/settings`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                const result = await resp.json();
+                if (result.success) {
+                    location.reload();
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (e) {
+                alert('Error saving: ' + e.message);
+            }
+        }
+
         async function closeTicket(reason) {
             if (!confirm('Close this ticket?')) return;
-            const resp = await fetch(`/api/ticket/${ticketId}/close`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({reason})
-            });
-            const result = await resp.json();
-            if (result.success) location.reload();
-            else alert('Error: ' + result.message);
+
+            // Show loading state
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.textContent = 'Closing...';
+            btn.disabled = true;
+
+            try {
+                const resp = await fetch(`/api/ticket/${ticketId}/close`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({reason})
+                });
+                const result = await resp.json();
+                if (result.success) location.reload();
+                else {
+                    alert('Error: ' + result.message);
+                    btn.textContent = originalText;
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                alert('Request timed out. The ticket may still be closing in the background. Please refresh the page.');
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        async function forceTicket() {
+            if (!confirm('Force this ticket to the front of the queue? It will be processed next.')) return;
+            try {
+                const resp = await fetch(`/api/ticket/${ticketId}/force`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({force: true})
+                });
+                const result = await resp.json();
+                if (result.success) {
+                    alert('Ticket forced to front of queue!');
+                    location.reload();
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        async function startTicket() {
+            if (!confirm('Start this ticket? It will be queued next (after any currently running ticket).')) return;
+            try {
+                const resp = await fetch(`/api/ticket/${ticketId}/start`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                const result = await resp.json();
+                if (result.success) {
+                    alert('Ticket queued to start next!');
+                    location.reload();
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        async function retryTicket() {
+            if (!confirm('Retry this failed ticket? It will be reset to open status.')) return;
+            try {
+                const resp = await fetch(`/api/ticket/${ticketId}/retry`, {
+                    method: 'POST'
+                });
+                const result = await resp.json();
+                if (result.success) {
+                    alert('Ticket reset for retry!');
+                    location.reload();
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        async function deleteTicket() {
+            if (!confirm('Delete this ticket? This action cannot be undone!\n\nAll conversation history will be deleted.')) return;
+            if (!confirm('Are you REALLY sure? This is permanent!')) return;
+
+            try {
+                const resp = await fetch(`/api/ticket/${ticketId}`, {
+                    method: 'DELETE'
+                });
+                const result = await resp.json();
+                if (result.success) {
+                    alert('Ticket deleted!');
+                    window.location.href = `/project/${projectId}`;
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
         }
 
         function showReopenModal() {
@@ -1626,10 +2009,17 @@
         async function createBackup() {
             if (!confirm('Create a backup now?')) return;
             try {
-                const resp = await fetch(`/api/project/${projectId}/backup`, {method: 'POST'});
+                const resp = await fetch(`/api/project/${projectId}/backup`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ticket_id: ticketId})
+                });
                 const result = await resp.json();
-                if (result.success) alert('Backup created: ' + result.filename);
-                else alert('Error: ' + result.message);
+                if (result.success) {
+                    // Progress bar will show via WebSocket, just show completion message
+                } else {
+                    alert('Error: ' + result.message);
+                }
             } catch (err) { alert('Error creating backup: ' + err.message); }
         }
 

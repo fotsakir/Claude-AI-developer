@@ -1,6 +1,6 @@
 #!/bin/bash
 # =====================================================
-# CODEHERO - Upgrade Script
+# CODEHERO - Upgrade Script (Modular)
 # =====================================================
 # Usage:
 #   sudo ./upgrade.sh           # Interactive mode
@@ -23,6 +23,8 @@ SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="/opt/codehero"
 BACKUP_DIR="/var/backups/codehero"
 CONFIG_DIR="/etc/codehero"
+UPGRADES_DIR="${SOURCE_DIR}/upgrades"
+APPLIED_FILE="${CONFIG_DIR}/applied_upgrades"
 
 # Options
 DRY_RUN=false
@@ -31,14 +33,8 @@ AUTO_YES=false
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --dry-run)
-            DRY_RUN=true
-            shift
-            ;;
-        -y|--yes)
-            AUTO_YES=true
-            shift
-            ;;
+        --dry-run) DRY_RUN=true; shift ;;
+        -y|--yes) AUTO_YES=true; shift ;;
         -h|--help)
             echo "Usage: sudo ./upgrade.sh [OPTIONS]"
             echo ""
@@ -48,64 +44,45 @@ while [[ $# -gt 0 ]]; do
             echo "  -h, --help     Show this help message"
             exit 0
             ;;
-        *)
-            echo -e "${RED}Unknown option: $1${NC}"
-            exit 1
-            ;;
+        *) echo -e "${RED}Unknown option: $1${NC}"; exit 1 ;;
     esac
 done
 
 # Functions
-log_info() {
-    echo -e "${CYAN}[INFO]${NC} $1"
-}
-
-log_success() {
-    echo -e "${GREEN}[OK]${NC} $1"
-}
-
-log_warning() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-log_dry() {
-    echo -e "${BLUE}[DRY-RUN]${NC} Would: $1"
-}
+log_info() { echo -e "${CYAN}[INFO]${NC} $1"; }
+log_success() { echo -e "${GREEN}[OK]${NC} $1"; }
+log_warning() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 confirm() {
-    if [ "$AUTO_YES" = true ]; then
-        return 0
-    fi
+    if [ "$AUTO_YES" = true ]; then return 0; fi
     read -p "$1 [y/N]: " response
-    case "$response" in
-        [yY][eE][sS]|[yY]) return 0 ;;
-        *) return 1 ;;
-    esac
+    case "$response" in [yY][eE][sS]|[yY]) return 0 ;; *) return 1 ;; esac
 }
 
 version_compare() {
     # Returns: 0 if equal, 1 if $1 > $2, 2 if $1 < $2
-    if [ "$1" = "$2" ]; then
-        return 0
-    fi
+    if [ "$1" = "$2" ]; then return 0; fi
     local IFS=.
     local i ver1=($1) ver2=($2)
     for ((i=0; i<${#ver1[@]}; i++)); do
-        if [ -z "${ver2[i]}" ]; then
-            return 1
-        fi
-        if ((10#${ver1[i]} > 10#${ver2[i]})); then
-            return 1
-        fi
-        if ((10#${ver1[i]} < 10#${ver2[i]})); then
-            return 2
-        fi
+        if [ -z "${ver2[i]}" ]; then return 1; fi
+        if ((10#${ver1[i]} > 10#${ver2[i]})); then return 1; fi
+        if ((10#${ver1[i]} < 10#${ver2[i]})); then return 2; fi
     done
     return 0
+}
+
+version_gt() {
+    # Returns 0 if $1 > $2
+    set +e; version_compare "$1" "$2"; local result=$?; set -e
+    [ $result -eq 1 ]
+}
+
+version_gte() {
+    # Returns 0 if $1 >= $2
+    set +e; version_compare "$1" "$2"; local result=$?; set -e
+    [ $result -eq 0 ] || [ $result -eq 1 ]
 }
 
 get_db_credentials() {
@@ -132,7 +109,7 @@ run_sql_file() {
 
 echo -e "${GREEN}"
 echo "╔═══════════════════════════════════════════════════════════╗"
-echo "║         CODEHERO - Upgrade Script             ║"
+echo "║              CODEHERO - Upgrade Script                    ║"
 echo "╚═══════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 
@@ -162,57 +139,84 @@ echo -e "Current version: ${YELLOW}${CURRENT_VERSION}${NC}"
 echo -e "New version:     ${GREEN}${NEW_VERSION}${NC}"
 echo ""
 
+# Validate versions match zip filename (detect wrong download)
+ZIP_NAME=$(basename "$(dirname "${SOURCE_DIR}")" 2>/dev/null)
+if [[ "$ZIP_NAME" =~ codehero-([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+    ZIP_VERSION="${BASH_REMATCH[1]}"
+    if [ "$ZIP_VERSION" != "$NEW_VERSION" ]; then
+        log_warning "Mismatch detected!"
+        log_warning "Zip filename suggests version: $ZIP_VERSION"
+        log_warning "But VERSION file contains: $NEW_VERSION"
+        log_warning "You may have downloaded the wrong file."
+        if ! confirm "Continue anyway?"; then
+            exit 1
+        fi
+    fi
+fi
+
 # Compare versions
 set +e
 version_compare "$NEW_VERSION" "$CURRENT_VERSION"
 VCOMP=$?
 set -e
+
 case $VCOMP in
     0)
         log_warning "Versions are the same. Nothing to upgrade."
-        if ! confirm "Continue anyway?"; then
-            exit 0
-        fi
+        if ! confirm "Continue anyway?"; then exit 0; fi
         ;;
     2)
         log_warning "New version ($NEW_VERSION) is older than current ($CURRENT_VERSION)"
-        if ! confirm "Downgrade?"; then
-            exit 0
-        fi
+        log_warning "This will DOWNGRADE your installation."
+        if ! confirm "Downgrade?"; then exit 0; fi
         ;;
 esac
 
-# Show what will be upgraded
+# =====================================================
+# FIND PENDING UPGRADES
+# =====================================================
+
 echo -e "${CYAN}=== Upgrade Summary ===${NC}"
 echo ""
 
-# Check for file changes
-log_info "Files to be updated:"
-CHANGED_FILES=0
-for dir in web scripts docs; do
-    if [ -d "${SOURCE_DIR}/${dir}" ]; then
-        while IFS= read -r -d '' file; do
-            rel_path="${file#$SOURCE_DIR/}"
-            target="${INSTALL_DIR}/${rel_path}"
-            if [ -f "$target" ]; then
-                if ! diff -q "$file" "$target" > /dev/null 2>&1; then
-                    echo "  [MODIFIED] $rel_path"
-                    CHANGED_FILES=$((CHANGED_FILES + 1))
-                fi
-            else
-                echo "  [NEW] $rel_path"
-                CHANGED_FILES=$((CHANGED_FILES + 1))
-            fi
-        done < <(find "${SOURCE_DIR}/${dir}" -type f -print0)
-    fi
-done
+# Initialize applied upgrades file
+mkdir -p "${CONFIG_DIR}"
+touch "${APPLIED_FILE}"
 
-if [ $CHANGED_FILES -eq 0 ]; then
-    echo "  (no file changes detected)"
+# Find upgrade scripts to run
+log_info "Upgrade scripts to apply:"
+PENDING_UPGRADES=()
+
+if [ -d "$UPGRADES_DIR" ]; then
+    for script in $(ls -1 "${UPGRADES_DIR}"/*.sh 2>/dev/null | grep -v '_always.sh' | sort -V); do
+        script_name=$(basename "$script" .sh)
+
+        # Skip if already applied
+        if grep -qx "$script_name" "${APPLIED_FILE}" 2>/dev/null; then
+            continue
+        fi
+
+        # Skip if version is older than or equal to current
+        if version_gte "$CURRENT_VERSION" "$script_name" 2>/dev/null; then
+            continue
+        fi
+
+        # Skip if version is newer than target
+        if version_gt "$script_name" "$NEW_VERSION" 2>/dev/null; then
+            continue
+        fi
+
+        echo "  [PENDING] $script_name"
+        PENDING_UPGRADES+=("$script")
+    done
+fi
+
+if [ ${#PENDING_UPGRADES[@]} -eq 0 ]; then
+    echo "  (no pending upgrade scripts)"
 fi
 echo ""
 
-# Check for migrations
+# Find database migrations
 get_db_credentials
 
 # Ensure schema_migrations table exists
@@ -230,7 +234,6 @@ PENDING_MIGRATIONS=()
 if [ -d "$MIGRATIONS_DIR" ]; then
     for migration in $(ls -1 "${MIGRATIONS_DIR}"/*.sql 2>/dev/null | sort -V); do
         migration_name=$(basename "$migration" .sql)
-        # Check if already applied
         applied=$(run_sql "SELECT version FROM schema_migrations WHERE version='${migration_name}';" 2>/dev/null | tail -1)
         if [ -z "$applied" ]; then
             echo "  [PENDING] $migration_name"
@@ -244,13 +247,14 @@ if [ ${#PENDING_MIGRATIONS[@]} -eq 0 ]; then
 fi
 echo ""
 
-# Confirm upgrade
+# Dry-run ends here
 if [ "$DRY_RUN" = true ]; then
     echo -e "${BLUE}=== Dry-run complete ===${NC}"
     echo "Run without --dry-run to apply changes."
     exit 0
 fi
 
+# Confirm upgrade
 if ! confirm "Proceed with upgrade?"; then
     log_info "Upgrade cancelled."
     exit 0
@@ -260,348 +264,29 @@ echo ""
 echo -e "${CYAN}=== Starting Upgrade ===${NC}"
 echo ""
 
-# Step 1: Create backup
+# =====================================================
+# STEP 1: CREATE BACKUP
+# =====================================================
+
 BACKUP_NAME="codehero-${CURRENT_VERSION}-$(date +%Y%m%d_%H%M%S)"
 log_info "Creating backup: ${BACKUP_DIR}/${BACKUP_NAME}.tar.gz"
 mkdir -p "$BACKUP_DIR"
 tar -czf "${BACKUP_DIR}/${BACKUP_NAME}.tar.gz" -C /opt codehero 2>/dev/null
 log_success "Backup created"
 
-# Step 2: Install new packages (if any)
-log_info "Checking for new packages..."
+# =====================================================
+# STEP 2: STOP DAEMON
+# =====================================================
 
-# Multimedia tools (added in v2.42.0)
-NEW_PACKAGES=""
-command -v ffmpeg >/dev/null 2>&1 || NEW_PACKAGES="$NEW_PACKAGES ffmpeg"
-command -v convert >/dev/null 2>&1 || NEW_PACKAGES="$NEW_PACKAGES imagemagick"
-command -v tesseract >/dev/null 2>&1 || NEW_PACKAGES="$NEW_PACKAGES tesseract-ocr tesseract-ocr-eng tesseract-ocr-ell"
-command -v sox >/dev/null 2>&1 || NEW_PACKAGES="$NEW_PACKAGES sox"
-command -v pdftotext >/dev/null 2>&1 || NEW_PACKAGES="$NEW_PACKAGES poppler-utils"
-command -v gs >/dev/null 2>&1 || NEW_PACKAGES="$NEW_PACKAGES ghostscript"
-command -v mediainfo >/dev/null 2>&1 || NEW_PACKAGES="$NEW_PACKAGES mediainfo"
-command -v cwebp >/dev/null 2>&1 || NEW_PACKAGES="$NEW_PACKAGES webp"
-command -v optipng >/dev/null 2>&1 || NEW_PACKAGES="$NEW_PACKAGES optipng"
-command -v jpegoptim >/dev/null 2>&1 || NEW_PACKAGES="$NEW_PACKAGES jpegoptim"
-command -v rsvg-convert >/dev/null 2>&1 || NEW_PACKAGES="$NEW_PACKAGES librsvg2-bin"
-command -v vips >/dev/null 2>&1 || NEW_PACKAGES="$NEW_PACKAGES libvips-tools"
-command -v qpdf >/dev/null 2>&1 || NEW_PACKAGES="$NEW_PACKAGES qpdf"
-
-if [ -n "$NEW_PACKAGES" ]; then
-    echo "  Installing:$NEW_PACKAGES"
-    apt-get update -qq
-    apt-get install -y $NEW_PACKAGES >/dev/null 2>&1 || log_warning "Some packages failed to install"
-
-    # Python packages
-    pip3 install --quiet Pillow opencv-python-headless pydub pytesseract pdf2image --break-system-packages 2>/dev/null || \
-    pip3 install --quiet Pillow opencv-python-headless pydub pytesseract pdf2image 2>/dev/null || true
-
-    log_success "New packages installed"
-else
-    echo "  (all packages already installed)"
-fi
-
-# Step 2b: Migrate from OpenLiteSpeed to Nginx (if needed)
-if systemctl is-active --quiet lshttpd 2>/dev/null || [ -d "/usr/local/lsws" ]; then
-    log_info "Migrating from OpenLiteSpeed to Nginx..."
-
-    # Install Nginx and PHP-FPM
-    echo "  Installing Nginx and PHP-FPM..."
-    apt-get update -qq
-    apt-get install -y nginx php8.3-fpm php8.3-mysql php8.3-curl php8.3-intl \
-        php8.3-opcache php8.3-redis php8.3-imagick php8.3-sqlite3 php8.3-imap \
-        php8.3-apcu php8.3-igbinary php8.3-tidy php8.3-pgsql php8.3-cli >/dev/null 2>&1 || true
-
-    # Create Nginx configurations
-    echo "  Creating Nginx configurations..."
-    cat > /etc/nginx/sites-available/codehero-admin << 'NGINXADMIN'
-# CodeHero Admin Panel - Port 9453 (HTTPS)
-server {
-    listen 9453 ssl http2;
-    listen [::]:9453 ssl http2;
-    server_name _;
-
-    ssl_certificate /etc/codehero/ssl/cert.pem;
-    ssl_certificate_key /etc/codehero/ssl/key.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-
-    access_log /var/log/nginx/codehero-admin-access.log;
-    error_log /var/log/nginx/codehero-admin-error.log;
-    client_max_body_size 500M;
-
-    location / {
-        proxy_pass http://127.0.0.1:5000;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 300s;
-    }
-
-    location /socket.io {
-        proxy_pass http://127.0.0.1:5000;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_read_timeout 86400s;
-    }
-
-    location /android/ {
-        proxy_pass https://127.0.0.1:8443/;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_ssl_verify off;
-        proxy_read_timeout 86400s;
-    }
-
-    location = /android {
-        return 301 /android/;
-    }
-}
-NGINXADMIN
-
-    cat > /etc/nginx/sites-available/codehero-projects << 'NGINXPROJECTS'
-# CodeHero Web Projects - Port 9867 (HTTPS)
-server {
-    listen 9867 ssl http2;
-    listen [::]:9867 ssl http2;
-    server_name _;
-
-    ssl_certificate /etc/codehero/ssl/cert.pem;
-    ssl_certificate_key /etc/codehero/ssl/key.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-
-    root /var/www/projects;
-    index index.html index.php;
-
-    access_log /var/log/nginx/codehero-projects-access.log;
-    error_log /var/log/nginx/codehero-projects-error.log;
-    client_max_body_size 500M;
-
-    gzip on;
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml;
-
-    location / {
-        try_files $uri $uri/ /index.php?$query_string;
-    }
-
-    location ~ \.php$ {
-        fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
-        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
-        include fastcgi_params;
-        fastcgi_read_timeout 300s;
-    }
-
-    location ~ /\.ht {
-        deny all;
-    }
-
-    location ~* \.(jpg|jpeg|png|gif|ico|css|js|woff|woff2|ttf|svg)$ {
-        expires 7d;
-        add_header Cache-Control "public, immutable";
-    }
-}
-NGINXPROJECTS
-
-    # Enable sites
-    ln -sf /etc/nginx/sites-available/codehero-admin /etc/nginx/sites-enabled/
-    ln -sf /etc/nginx/sites-available/codehero-projects /etc/nginx/sites-enabled/
-    rm -f /etc/nginx/sites-enabled/default
-
-    # Stop and disable OpenLiteSpeed
-    echo "  Stopping OpenLiteSpeed..."
-    systemctl stop lshttpd 2>/dev/null || /usr/local/lsws/bin/lswsctrl stop 2>/dev/null || true
-    systemctl disable lshttpd 2>/dev/null || true
-
-    # Start Nginx and PHP-FPM
-    echo "  Starting Nginx and PHP-FPM..."
-    systemctl enable nginx php8.3-fpm 2>/dev/null || true
-    systemctl start php8.3-fpm 2>/dev/null || true
-    nginx -t 2>/dev/null && systemctl start nginx 2>/dev/null || log_warning "Nginx config test failed"
-
-    # Disable automatic updates
-    echo "  Disabling automatic updates..."
-    systemctl stop unattended-upgrades 2>/dev/null || true
-    systemctl disable unattended-upgrades 2>/dev/null || true
-    systemctl stop apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
-    systemctl disable apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
-    cat > /etc/apt/apt.conf.d/20auto-upgrades << 'APTEOF'
-APT::Periodic::Update-Package-Lists "0";
-APT::Periodic::Unattended-Upgrade "0";
-APT::Periodic::Download-Upgradeable-Packages "0";
-APT::Periodic::AutocleanInterval "0";
-APTEOF
-
-    log_success "Migrated from OpenLiteSpeed to Nginx"
-    echo ""
-    echo -e "  ${YELLOW}NOTE: OpenLiteSpeed is disabled but not removed.${NC}"
-    echo -e "  ${YELLOW}To remove it: apt-get purge openlitespeed lsphp*${NC}"
-    echo ""
-fi
-
-# Step 2c: Install phpMyAdmin if not present
-if [ ! -d /usr/share/phpmyadmin ]; then
-    log_info "Installing phpMyAdmin..."
-    DEBIAN_FRONTEND=noninteractive apt-get install -y phpmyadmin >/dev/null 2>&1 || true
-
-    if [ -d /usr/share/phpmyadmin ]; then
-        log_success "phpMyAdmin installed"
-    else
-        log_warning "phpMyAdmin installation failed - skipping"
-    fi
-fi
-
-# Configure phpMyAdmin signon (if phpMyAdmin exists but signon not configured)
-if [ -d /usr/share/phpmyadmin ] && [ ! -f /usr/share/phpmyadmin/signon.php ]; then
-    log_info "Configuring phpMyAdmin signon authentication..."
-
-    cat > /usr/share/phpmyadmin/signon.php << 'PMASIGNON' || true
-<?php
-/**
- * CodeHero phpMyAdmin Single Sign-On Script
- * Auto-login with project database credentials
- */
-session_name('PMA_signon');
-session_start();
-
-// Get credentials from query parameters (base64 encoded for safety)
-$user = isset($_GET['u']) ? base64_decode($_GET['u']) : '';
-$pass = isset($_GET['p']) ? base64_decode($_GET['p']) : '';
-$db = isset($_GET['db']) ? base64_decode($_GET['db']) : '';
-
-if (empty($user)) {
-    die('Missing credentials');
-}
-
-// Store credentials in session for phpMyAdmin
-$_SESSION['PMA_single_signon_user'] = $user;
-$_SESSION['PMA_single_signon_password'] = $pass;
-$_SESSION['PMA_single_signon_host'] = 'localhost';
-
-// Redirect to phpMyAdmin with selected database
-$redirect = 'index.php';
-if (!empty($db)) {
-    $redirect .= '?db=' . urlencode($db);
-}
-
-header('Location: ' . $redirect);
-exit;
-PMASIGNON
-
-    mkdir -p /etc/phpmyadmin/conf.d || true
-    cat > /etc/phpmyadmin/conf.d/codehero-signon.php << 'PMACONFIG' || true
-<?php
-/**
- * CodeHero phpMyAdmin Single Sign-On Configuration
- */
-
-// Override default server config to use signon auth
-$cfg['Servers'][1]['auth_type'] = 'signon';
-$cfg['Servers'][1]['SignonSession'] = 'PMA_signon';
-$cfg['Servers'][1]['SignonURL'] = '/signon.php';
-$cfg['Servers'][1]['LogoutURL'] = '/';
-PMACONFIG
-
-    log_success "phpMyAdmin signon configured"
-fi
-
-# Create phpMyAdmin nginx config if missing
-if [ -d /usr/share/phpmyadmin ] && [ ! -f /etc/nginx/sites-available/codehero-phpmyadmin ]; then
-    log_info "Creating phpMyAdmin nginx configuration..."
-
-    cat > /etc/nginx/sites-available/codehero-phpmyadmin << 'NGINXPMA' || true
-# CodeHero phpMyAdmin - Database Administration
-# Port: 9454 (HTTPS)
-
-server {
-    listen 9454 ssl http2;
-    server_name _;
-
-    ssl_certificate /etc/codehero/ssl/cert.pem;
-    ssl_certificate_key /etc/codehero/ssl/key.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
-
-    root /usr/share/phpmyadmin;
-    index index.php index.html;
-
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-Content-Type-Options "nosniff" always;
-
-    location / {
-        try_files $uri $uri/ /index.php?$args;
-    }
-
-    location ~ \.php$ {
-        include snippets/fastcgi-php.conf;
-        fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-    }
-
-    location ~ /\.ht {
-        deny all;
-    }
-
-    location /setup {
-        deny all;
-    }
-}
-NGINXPMA
-
-    ln -sf /etc/nginx/sites-available/codehero-phpmyadmin /etc/nginx/sites-enabled/ || true
-    log_success "phpMyAdmin nginx config created (port 9454)"
-fi
-
-# Step 2d: Install Claude Code CLI if not present
-CLAUDE_USER="claude"
-if ! su - ${CLAUDE_USER} -c 'which claude' &>/dev/null; then
-    log_info "Installing Claude Code CLI..."
-    su - ${CLAUDE_USER} -c 'curl -fsSL https://claude.ai/install.sh | bash' 2>/dev/null || true
-
-    # Add to PATH if not already
-    if ! su - ${CLAUDE_USER} -c 'grep -q "\.local/bin" ~/.bashrc' 2>/dev/null; then
-        su - ${CLAUDE_USER} -c 'echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> ~/.bashrc'
-    fi
-
-    if su - ${CLAUDE_USER} -c 'which claude' &>/dev/null; then
-        log_success "Claude Code CLI installed"
-    else
-        log_warning "Claude Code CLI installation failed - install manually"
-    fi
-fi
-
-# Step 3: Stop daemon only (web stays running until end)
 log_info "Stopping daemon..."
 systemctl stop codehero-daemon 2>/dev/null || true
 sleep 1
 log_success "Daemon stopped"
 
-# Step 4: Apply database migrations
-if [ ${#PENDING_MIGRATIONS[@]} -gt 0 ]; then
-    log_info "Applying database migrations..."
-    for migration in "${PENDING_MIGRATIONS[@]}"; do
-        migration_name=$(basename "$migration" .sql)
-        echo -n "  Applying $migration_name... "
-        if run_sql_file "$migration"; then
-            run_sql "INSERT INTO schema_migrations (version) VALUES ('${migration_name}');"
-            echo -e "${GREEN}OK${NC}"
-        else
-            echo -e "${RED}FAILED${NC}"
-            log_error "Migration failed: $migration_name"
-            log_info "Rolling back: starting services..."
-            systemctl start codehero-daemon 2>/dev/null || true
-            systemctl start codehero-web 2>/dev/null || true
-            exit 1
-        fi
-    done
-    log_success "All migrations applied"
-fi
+# =====================================================
+# STEP 3: COPY FILES
+# =====================================================
 
-# Step 5: Copy files
 log_info "Copying files..."
 
 # Web app
@@ -625,12 +310,21 @@ if [ -d "${SOURCE_DIR}/docs" ]; then
     echo "  Copied docs"
 fi
 
-# Config files (knowledge base, templates)
+# Config files
 if [ -d "${SOURCE_DIR}/config" ]; then
     mkdir -p "${INSTALL_DIR}/config"
     cp "${SOURCE_DIR}/config/"*.md "${INSTALL_DIR}/config/" 2>/dev/null || true
     cp "${SOURCE_DIR}/config/"*.md "${CONFIG_DIR}/" 2>/dev/null || true
-    echo "  Copied config files (knowledge base, templates)"
+    echo "  Copied config files"
+fi
+
+# Upgrades directory
+if [ -d "${SOURCE_DIR}/upgrades" ]; then
+    mkdir -p "${INSTALL_DIR}/upgrades"
+    cp "${SOURCE_DIR}/upgrades/"*.sh "${INSTALL_DIR}/upgrades/" 2>/dev/null || true
+    cp "${SOURCE_DIR}/upgrades/"*.md "${INSTALL_DIR}/upgrades/" 2>/dev/null || true
+    chmod +x "${INSTALL_DIR}/upgrades/"*.sh 2>/dev/null || true
+    echo "  Copied upgrades"
 fi
 
 # VERSION, CHANGELOG, and documentation
@@ -643,112 +337,83 @@ cp "${SOURCE_DIR}/CLAUDE.md" "${INSTALL_DIR}/" 2>/dev/null || true
 
 log_success "Files copied"
 
-# Step 6: Fix permissions
-log_info "Fixing permissions..."
+# =====================================================
+# STEP 3.5: ENSURE PYTHON DEPENDENCIES
+# =====================================================
 
-# Fix log file permissions (in case they were created as root)
-touch /var/log/codehero/daemon.log /var/log/codehero/web.log 2>/dev/null || true
-chown claude:claude /var/log/codehero/daemon.log /var/log/codehero/web.log 2>/dev/null || true
+log_info "Checking Python dependencies..."
+pip3 install --quiet --ignore-installed eventlet --break-system-packages 2>/dev/null || \
+pip3 install --quiet --ignore-installed eventlet 2>/dev/null || true
+log_success "Python dependencies OK"
 
-# Fix projects folder permissions (setgid for proper group inheritance)
-if [ -d "/var/www/projects" ]; then
-    chown -R claude:claude /var/www/projects 2>/dev/null || true
-    chmod 2775 /var/www/projects 2>/dev/null || true
-    echo "  Fixed /var/www/projects permissions"
+# =====================================================
+# STEP 4: RUN VERSION UPGRADE SCRIPTS
+# =====================================================
+
+if [ ${#PENDING_UPGRADES[@]} -gt 0 ]; then
+    log_info "Running upgrade scripts..."
+    for script in "${PENDING_UPGRADES[@]}"; do
+        script_name=$(basename "$script" .sh)
+        echo -n "  Running $script_name... "
+        if bash "$script" 2>&1 | sed 's/^/    /'; then
+            echo "$script_name" >> "${APPLIED_FILE}"
+            echo -e "${GREEN}OK${NC}"
+        else
+            echo -e "${YELLOW}WARNING${NC}"
+        fi
+    done
+    log_success "Upgrade scripts completed"
 fi
 
-# Fix apps folder permissions
-if [ -d "/opt/apps" ]; then
-    chown -R claude:claude /opt/apps 2>/dev/null || true
-    chmod 2775 /opt/apps 2>/dev/null || true
-    echo "  Fixed /opt/apps permissions"
+# Run _always.sh if exists
+if [ -f "${UPGRADES_DIR}/_always.sh" ]; then
+    log_info "Running cleanup script..."
+    bash "${UPGRADES_DIR}/_always.sh" 2>&1 | sed 's/^/  /'
+    log_success "Cleanup completed"
 fi
 
-# Fix /var/run/codehero permissions (PID file directory)
-mkdir -p /var/run/codehero
-chown -R claude:claude /var/run/codehero 2>/dev/null || true
-echo "  Fixed /var/run/codehero permissions"
+# =====================================================
+# STEP 5: APPLY DATABASE MIGRATIONS
+# =====================================================
 
-# Ensure tmpfiles.d config exists for reboot persistence
-cat > /etc/tmpfiles.d/codehero.conf << TMPEOF
-# Create runtime directory for CodeHero
-d /var/run/codehero 0755 claude claude -
-TMPEOF
-echo "  Updated tmpfiles.d config"
-
-# Step 6b: Update systemd service files (fix user if incorrect)
-log_info "Updating systemd services..."
-CLAUDE_USER="claude"
-
-# Update daemon service if user is wrong
-if grep -q "User=claude-worker" /etc/systemd/system/codehero-daemon.service 2>/dev/null; then
-    cat > /etc/systemd/system/codehero-daemon.service << SVCEOF
-[Unit]
-Description=CodeHero Daemon
-After=network.target mysql.service codehero-web.service
-Wants=mysql.service
-
-[Service]
-Type=simple
-User=${CLAUDE_USER}
-Group=${CLAUDE_USER}
-WorkingDirectory=${INSTALL_DIR}
-ExecStart=/usr/bin/python3 ${INSTALL_DIR}/scripts/claude-daemon.py
-Restart=always
-RestartSec=5
-StandardOutput=append:/var/log/codehero/daemon.log
-StandardError=append:/var/log/codehero/daemon.log
-Environment=PYTHONUNBUFFERED=1
-Environment=PATH=/home/${CLAUDE_USER}/.local/bin:/usr/local/bin:/usr/bin:/bin
-Environment=HOME=/home/${CLAUDE_USER}
-
-[Install]
-WantedBy=multi-user.target
-SVCEOF
-    echo "  Updated codehero-daemon.service (fixed user)"
+if [ ${#PENDING_MIGRATIONS[@]} -gt 0 ]; then
+    log_info "Applying database migrations..."
+    for migration in "${PENDING_MIGRATIONS[@]}"; do
+        migration_name=$(basename "$migration" .sql)
+        echo -n "  Applying $migration_name... "
+        if run_sql_file "$migration"; then
+            run_sql "INSERT INTO schema_migrations (version) VALUES ('${migration_name}');"
+            echo -e "${GREEN}OK${NC}"
+        else
+            echo -e "${RED}FAILED${NC}"
+            log_error "Migration failed: $migration_name"
+            log_info "Rolling back: starting services..."
+            systemctl start codehero-daemon 2>/dev/null || true
+            systemctl start codehero-web 2>/dev/null || true
+            exit 1
+        fi
+    done
+    log_success "All migrations applied"
 fi
 
-# Update web service if user is wrong
-if grep -q "User=root" /etc/systemd/system/codehero-web.service 2>/dev/null; then
-    cat > /etc/systemd/system/codehero-web.service << SVCEOF
-[Unit]
-Description=CodeHero Web Interface
-After=network.target mysql.service
-Wants=mysql.service
+# =====================================================
+# STEP 6: RESTART SERVICES
+# =====================================================
 
-[Service]
-Type=simple
-User=${CLAUDE_USER}
-Group=${CLAUDE_USER}
-WorkingDirectory=${INSTALL_DIR}
-ExecStart=/usr/bin/python3 ${INSTALL_DIR}/web/app.py
-ExecStopPost=/bin/bash -c 'fuser -k 5000/tcp 2>/dev/null || true'
-Restart=always
-RestartSec=5
-StandardOutput=append:/var/log/codehero/web.log
-StandardError=append:/var/log/codehero/web.log
-Environment=PYTHONUNBUFFERED=1
-
-[Install]
-WantedBy=multi-user.target
-SVCEOF
-    echo "  Updated codehero-web.service (fixed user)"
-fi
-
-systemctl daemon-reload
-
-# Step 7: Restart services
 log_info "Restarting services..."
+systemctl daemon-reload
 systemctl restart codehero-daemon
 sleep 1
 systemctl restart codehero-web
 sleep 1
-# Reload nginx to ensure it binds to all configured ports
 systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || true
 sleep 1
 log_success "Services restarted"
 
-# Step 8: Verify
+# =====================================================
+# STEP 7: VERIFY
+# =====================================================
+
 log_info "Verifying services..."
 VERIFY_OK=true
 
@@ -773,12 +438,6 @@ else
     VERIFY_OK=false
 fi
 
-if systemctl is-active --quiet php8.3-fpm; then
-    echo -e "  php8.3-fpm:      ${GREEN}running${NC}"
-else
-    echo -e "  php8.3-fpm:      ${YELLOW}not running${NC}"
-fi
-
 echo ""
 
 if [ "$VERIFY_OK" = true ]; then
@@ -791,7 +450,6 @@ fi
 echo ""
 echo -e "${CYAN}=== What's New in ${NEW_VERSION} ===${NC}"
 if [ -f "${SOURCE_DIR}/CHANGELOG.md" ]; then
-    # Extract changelog for this version (between ## [version] markers)
     sed -n "/^## \[${NEW_VERSION}\]/,/^## \[/p" "${SOURCE_DIR}/CHANGELOG.md" | head -n -1 | tail -n +2
 else
     echo "See CHANGELOG.md for details"

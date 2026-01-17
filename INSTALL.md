@@ -12,7 +12,7 @@
 
 ```bash
 cd /root
-unzip codehero-2.66.0.zip
+unzip codehero-2.69.0.zip
 cd codehero
 ```
 
@@ -114,12 +114,23 @@ sudo systemctl restart codehero-web codehero-daemon
 
 ## Upgrading
 
-To upgrade from a previous version:
+### Method 1: Admin Panel (Recommended)
+
+1. Open Dashboard in browser
+2. Click the green "Update Available" badge when shown
+3. Click "Install Update"
+4. Watch real-time console output
+5. Page reloads automatically on success
+
+**If upgrade fails:** Click "Ask AI to fix the problem" - AI will analyze the error and suggest fixes with one-click execution.
+
+### Method 2: Command Line
 
 ```bash
 # Download and extract new version
 cd /root
-unzip codehero-2.66.0.zip
+wget https://github.com/fotsakir/codehero/releases/latest/download/codehero-2.69.0.zip
+unzip codehero-2.69.0.zip
 cd codehero
 
 # Preview what will change (recommended)
@@ -135,12 +146,15 @@ sudo ./upgrade.sh -y
 ### What the upgrade does
 
 1. **Backup**: Creates automatic backup in `/var/backups/codehero/`
-2. **Stop services**: Safely stops web and daemon services
-3. **Database migrations**: Applies any pending schema changes
-4. **Copy files**: Updates web, scripts, and docs
-5. **Start services**: Restarts all services
-6. **Verify**: Checks services are running
-7. **Changelog**: Shows what changed in the new version
+2. **Stop services**: Safely stops daemon service
+3. **Copy files**: Updates web, scripts, docs, and upgrades
+4. **Version upgrades**: Runs pending scripts from `upgrades/` folder
+   - Only runs scripts for versions between current and new
+   - Tracks applied upgrades (won't run twice)
+5. **Database migrations**: Applies pending SQL migrations
+6. **Restart services**: Restarts all services and reloads nginx
+7. **Verify**: Checks services are running
+8. **Changelog**: Shows what changed in the new version
 
 ### Upgrade options
 
@@ -149,6 +163,35 @@ sudo ./upgrade.sh -y
 | `--dry-run` | Preview changes without applying |
 | `-y, --yes` | Auto-confirm all prompts |
 | `-h, --help` | Show help message |
+
+### Modular Upgrade System
+
+The upgrade system uses individual scripts for each version:
+
+```
+upgrades/
+├── 2.42.0.sh    # Multimedia tools
+├── 2.60.4.sh    # Permission fixes
+├── 2.61.0.sh    # Claude CLI install
+├── 2.61.2.sh    # Systemd service fixes
+├── 2.63.0.sh    # OpenLiteSpeed → Nginx migration
+├── 2.65.0.sh    # phpMyAdmin integration
+└── _always.sh   # Runs every upgrade (permissions)
+```
+
+When upgrading from 2.60.0 to 2.69.0, the system automatically runs: `2.60.4.sh` → `2.61.0.sh` → `2.61.2.sh` → `2.63.0.sh` → `2.65.0.sh`
+
+### Creating custom upgrade scripts
+
+For version X.Y.Z, create `upgrades/X.Y.Z.sh`:
+
+```bash
+#!/bin/bash
+log_info() { echo -e "\033[0;36m[X.Y.Z]\033[0m $1"; }
+
+log_info "Installing new package..."
+apt-get install -y some-package || true
+```
 
 ## Uninstallation
 
@@ -184,4 +227,4 @@ curl -fsSL https://claude.ai/install.sh | sh
 
 ---
 
-**Version:** 2.66.0
+**Version:** 2.69.0

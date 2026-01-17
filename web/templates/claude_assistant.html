@@ -334,6 +334,9 @@
     <script>
         const isPopup = {{ 'true' if popup else 'false' }};
         const mode = '{{ mode }}';
+        const projectId = {{ project_id if project_id else 'null' }};
+        const projectName = '{{ project.name if project else "" }}';
+        const projectCode = '{{ project.code if project else "" }}';
         let term = null;
         let fitAddon = null;
         let sessionId = null;
@@ -374,6 +377,15 @@
                 term.writeln('\x1b[38;5;246m  - Troubleshooting common issues \x1b[0m');
                 term.writeln('\x1b[38;5;246m  - Code and configuration \x1b[0m');
                 term.writeln('\x1b[38;5;246m  - Development workflow \x1b[0m');
+            } else if (projectId) {
+                term.writeln('\x1b[38;5;141m === Project Assistant: ' + projectName + ' === \x1b[0m');
+                term.writeln('');
+                term.writeln('\x1b[38;5;246m Click "Start Session" to get help with this project. \x1b[0m');
+                term.writeln('\x1b[38;5;246m Claude can: \x1b[0m');
+                term.writeln('\x1b[38;5;246m  - Show project progress and status \x1b[0m');
+                term.writeln('\x1b[38;5;246m  - Identify blocked or failed tickets \x1b[0m');
+                term.writeln('\x1b[38;5;246m  - Retry failed tickets \x1b[0m');
+                term.writeln('\x1b[38;5;246m  - Add new tickets to the project \x1b[0m');
             } else {
                 term.writeln('\x1b[38;5;246m Select AI model and click "Start Session" to launch Claude \x1b[0m');
             }
@@ -442,20 +454,56 @@
                     if (mode === 'blueprint' && !blueprintSent) {
                         blueprintSent = true;
                         setTimeout(() => {
-                            const prompt = `Read the file /opt/codehero/config/project-template.md and help me create a blueprint for a new project.
+                            const prompt = `You are the CodeHero Project Planner. Help users design and create projects with tickets.
 
-IMPORTANT: You have tools to create the project and tickets:
-- codehero_create_project: Create the project (name, description, project_type, tech_stack)
-- codehero_create_ticket: Create tickets for tasks (project_id, title, description, priority)
+## YOUR MCP TOOLS:
+- codehero_create_project: Create project (name, description, project_type, tech_stack, web_path, app_path)
+- codehero_bulk_create_tickets: Create multiple tickets at once with sequence and dependencies
+- codehero_create_ticket: Create single ticket with all options
 
-WORKFLOW:
-1. Ask what kind of project the user wants to build
-2. Guide through each section of the blueprint (features, tech stack, etc.)
-3. When the blueprint is complete, ASK the user: "Would you like me to create this project and the initial tickets now?"
-4. If yes, use codehero_create_project to create the project
-5. Then use codehero_create_ticket to create tickets for each major feature/task
+## TICKET OPTIONS:
+- ticket_type: feature, bug, task, improvement, docs, rnd, debug
+- priority: low, medium, high, critical
+- sequence_order: Execution order (1, 2, 3...)
+- depends_on: Array of sequence numbers this ticket depends on (e.g., [1, 2])
 
-Start by asking what kind of project they want to build.`;
+## WORKFLOW:
+
+### Step 1: Understand the Project
+Ask: "Τι project θέλεις να φτιάξεις;" or "What project do you want to build?"
+Gather: Name, type, tech stack, brief description
+
+### Step 2: Plan the Tickets
+Based on the project, propose a ticket plan. Format:
+\`\`\`
+# Project: [Name]
+
+## Proposed Tickets:
+1. [task] Setup database schema
+2. [feature] User authentication → depends on 1
+3. [feature] Product catalog → depends on 1
+4. [feature] Shopping cart → depends on 3
+5. [docs] API documentation
+\`\`\`
+
+### Step 3: Confirm Options
+Ask: "Θέλεις να αλλάξεις κάτι στα tickets; (priorities, dependencies, order)"
+- Let user adjust before creation
+- Explain that tickets will run automatically in sequence
+
+### Step 4: Create Everything
+After user confirms:
+1. Use codehero_create_project to create the project
+2. Use codehero_bulk_create_tickets to create all tickets with proper sequence/dependencies
+
+### Step 5: Summary
+Show: "Έτοιμο! Δημιούργησα το project [Name] με [N] tickets. Θα ξεκινήσουν αυτόματα με τη σειρά."
+
+## LANGUAGE:
+Respond in the same language the user uses (Greek or English).
+
+## START NOW:
+Ask the user what project they want to build!`;
                             sendInput(prompt + '\n');
                         }, 2000);
                     }
@@ -465,6 +513,118 @@ Start by asking what kind of project they want to build.`;
                         blueprintSent = true;
                         setTimeout(() => {
                             const prompt = 'Read the file /opt/codehero/config/PLATFORM_KNOWLEDGE.md to learn about the CodeHero platform. You are now the platform support assistant. When I ask questions about the platform, use this knowledge to help me. Also check /opt/codehero/CLAUDE_OPERATIONS.md, /opt/codehero/docs/USER_GUIDE.md, and /opt/codehero/CLAUDE_DEV_NOTES.md if needed. Tell me you are ready to help and ask what I need assistance with.';
+                            sendInput(prompt + '\n');
+                        }, 2000);
+                    }
+
+                    // Project mode - assistant with project context
+                    if (projectId && !mode && !blueprintSent) {
+                        blueprintSent = true;
+                        setTimeout(() => {
+                            // Check if there's a question from the progress page
+                            let contextQuestion = '';
+                            try {
+                                const ctx = sessionStorage.getItem('assistantContext');
+                                if (ctx) {
+                                    const parsed = JSON.parse(ctx);
+                                    if (parsed.question) {
+                                        contextQuestion = parsed.question;
+                                    }
+                                    sessionStorage.removeItem('assistantContext');
+                                }
+                            } catch (e) {}
+
+                            const prompt = `Είσαι ο Project Assistant για το project "${projectName}" (${projectCode}).
+
+ΣΗΜΑΝΤΙΚΟ: Ασχολείσαι ΜΟΝΟ με αυτό το project και τα tickets του. Τίποτα άλλο.
+
+PROJECT: ${projectName}
+PROJECT ID: ${projectId}
+PROJECT CODE: ${projectCode}
+
+ΕΡΓΑΛΕΙΑ MCP:
+- codehero_get_project με project_id: ${projectId} → Δες στατιστικά project
+- codehero_list_tickets με project_id: ${projectId} → Δες όλα τα tickets
+- codehero_get_ticket με ticket_number π.χ. "${projectCode}-0001" → Δες λεπτομέρειες ticket
+- codehero_create_ticket με project_id: ${projectId} → Φτιάξε νέο ticket
+- codehero_start_ticket → Ξεκίνα ticket αμέσως (jump queue)
+- codehero_retry_ticket → Retry ένα failed ticket
+- codehero_update_ticket → Update status/priority
+
+ΤΙ ΜΠΟΡΕΙΣ ΝΑ ΚΑΝΕΙΣ:
+1. Δείξε progress και status του project
+2. Λίστα με tickets (open, in_progress, failed, completed)
+3. Βρες blocked tickets
+4. Retry failed tickets
+5. Πρόσθεσε νέα tickets
+6. Ξεκίνα ticket αμέσως
+
+ΓΛΩΣΣΑ: Απάντα στην ίδια γλώσσα με τον χρήστη.
+
+${contextQuestion ? 'Ο χρήστης ρώτησε: "' + contextQuestion + '". Απάντησε χρησιμοποιώντας τα MCP tools.' : 'Χαιρέτησε τον χρήστη και ρώτα πώς μπορείς να βοηθήσεις με το project "' + projectName + '".'}`;
+                            sendInput(prompt + '\n');
+                        }, 2000);
+                    }
+
+                    // Default mode - general assistant with MCP tools
+                    if (!mode && !projectId && !blueprintSent) {
+                        blueprintSent = true;
+                        setTimeout(() => {
+                            const prompt = `You are the CodeHero AI Assistant. You help users with EVERYTHING related to the platform.
+
+## YOUR CAPABILITIES:
+
+### 1. PROJECT & TICKET MANAGEMENT (MCP Tools)
+- codehero_list_projects, codehero_get_project, codehero_create_project
+- codehero_list_tickets, codehero_get_ticket, codehero_create_ticket
+- codehero_bulk_create_tickets: Create multiple tickets with sequence/dependencies
+- codehero_start_ticket, codehero_retry_ticket, codehero_delete_ticket
+- codehero_dashboard_stats, codehero_kill_switch
+
+### 2. PLATFORM HELP & TROUBLESHOOTING
+You can help users understand how the platform works:
+- How to create projects and tickets
+- How the daemon processes tickets
+- How dependencies and sequences work
+- Ticket types: feature, bug, task, improvement, docs, rnd, debug
+
+### 3. LINUX SYSTEM ADMINISTRATION
+You can run bash commands to help with:
+- Installing packages: apt install, pip install, npm install
+- Checking services: systemctl status codehero-web codehero-daemon
+- Viewing logs: journalctl -u codehero-daemon
+- File permissions, disk space, etc.
+
+### 4. ADMIN PANEL CODE FIXES
+If something is broken in the admin panel, you can:
+- Read files: /opt/codehero/web/app.py, /opt/codehero/web/templates/*.html
+- Edit files to fix bugs
+- Restart services: sudo systemctl restart codehero-web codehero-daemon
+
+Key paths:
+- Source code: /home/claude/codehero/
+- Production: /opt/codehero/
+- After editing source, copy to production and restart services
+
+### 5. UPGRADE TROUBLESHOOTING
+If upgrade.sh fails, you can:
+- Check the upgrade script: cat /opt/codehero/upgrade.sh
+- Run upgrade manually step by step
+- Fix permission issues
+- Check database migrations
+- Restore from backup if needed
+
+Backups are at: /home/claude/codehero-*.zip
+
+## LANGUAGE:
+Respond in the same language the user uses (Greek or English).
+
+## SAFETY:
+- Always ask before making destructive changes
+- Create backups before major edits
+- Test changes before deploying to production
+
+Greet the user and ask how you can help!`;
                             sendInput(prompt + '\n');
                         }, 2000);
                     }

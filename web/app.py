@@ -6,6 +6,10 @@ CodeHero Admin Panel v2
 - Background daemon control
 """
 
+# Eventlet monkey patching - MUST be at the very top before any other imports
+import eventlet
+eventlet.monkey_patch()
+
 # Read version from file
 try:
     with open('/opt/codehero/VERSION', 'r') as f:
@@ -94,7 +98,7 @@ PID_FILE = "/var/run/codehero/daemon.pid"
 app = Flask(__name__, static_folder='static', static_url_path='/static')
 app.secret_key = os.urandom(24)
 CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading', allow_upgrades=True)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet', allow_upgrades=True)
 
 @app.context_processor
 def inject_version():
@@ -447,27 +451,86 @@ def projects_list():
 def project_detail(project_id):
     project = None
     tickets = []
-    
+    next_sequence = 1
+
     try:
         conn = get_db()
         cursor = conn.cursor(dictionary=True)
-        
+
         cursor.execute("SELECT * FROM projects WHERE id = %s", (project_id,))
         project = cursor.fetchone()
-        
+
         cursor.execute("""
-            SELECT * FROM tickets WHERE project_id = %s ORDER BY 
+            SELECT * FROM tickets WHERE project_id = %s ORDER BY
             CASE status WHEN 'in_progress' THEN 1 WHEN 'open' THEN 2 WHEN 'new' THEN 3 ELSE 4 END,
             updated_at DESC
         """, (project_id,))
         tickets = cursor.fetchall()
-        
+
+        # Get next sequence order
+        cursor.execute("""
+            SELECT COALESCE(MAX(sequence_order), 0) + 1 as next_seq
+            FROM tickets WHERE project_id = %s
+        """, (project_id,))
+        seq_result = cursor.fetchone()
+        next_sequence = seq_result['next_seq'] if seq_result else 1
+
         cursor.close(); conn.close()
     except Exception as e:
         print(f"Project detail error: {e}")
-    
+
     return render_template('project_detail.html', user=session['user'], role=session.get('role'),
+                         project=project, tickets=tickets, next_sequence=next_sequence)
+
+@app.route('/project/<int:project_id>/tickets')
+@login_required
+def project_tickets_view(project_id):
+    """Table view of all tickets for a project with side panel"""
+    project = None
+    tickets = []
+
+    try:
+        conn = get_db()
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute("SELECT * FROM projects WHERE id = %s", (project_id,))
+        project = cursor.fetchone()
+
+        cursor.execute("""
+            SELECT id, ticket_number, title, status, priority, created_at, updated_at
+            FROM tickets WHERE project_id = %s
+            ORDER BY
+            CASE status WHEN 'in_progress' THEN 1 WHEN 'open' THEN 2 WHEN 'awaiting_input' THEN 3 ELSE 4 END,
+            updated_at DESC
+        """, (project_id,))
+        tickets = cursor.fetchall()
+
+        cursor.close(); conn.close()
+    except Exception as e:
+        print(f"Project tickets view error: {e}")
+
+    return render_template('project_tickets.html', user=session['user'], role=session.get('role'),
                          project=project, tickets=tickets)
+
+
+@app.route('/project/<int:project_id>/progress')
+@login_required
+def project_progress_view(project_id):
+    """Progress dashboard for a project"""
+    project = None
+
+    try:
+        conn = get_db()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM projects WHERE id = %s", (project_id,))
+        project = cursor.fetchone()
+        cursor.close(); conn.close()
+    except Exception as e:
+        print(f"Project progress view error: {e}")
+
+    return render_template('project_progress.html', user=session['user'], role=session.get('role'),
+                         project=project)
+
 
 @app.route('/api/project/<int:project_id>/archive', methods=['POST'])
 @login_required
@@ -1052,11 +1115,27 @@ BACKUP_DIR = "/var/backups/codehero"
 MAX_BACKUPS = 30
 
 
-def create_project_backup(project_id, trigger='manual'):
+def create_project_backup(project_id, trigger='manual', ticket_id=None):
     """Create a backup of project files and database.
     Returns (success, message, backup_filename)
+    If ticket_id is provided, emits progress via WebSocket.
     """
+    def emit_progress(step, percent, message):
+        """Emit backup progress to ticket room"""
+        if ticket_id:
+            try:
+                socketio.emit('backup_progress', {
+                    'ticket_id': ticket_id,
+                    'step': step,
+                    'percent': percent,
+                    'message': message
+                }, room=f'ticket_{ticket_id}')
+            except:
+                pass
+
     try:
+        emit_progress('init', 5, 'Starting backup...')
+
         conn = get_db()
         cursor = conn.cursor(dictionary=True)
         cursor.execute("SELECT * FROM projects WHERE id = %s", (project_id,))
@@ -1065,6 +1144,7 @@ def create_project_backup(project_id, trigger='manual'):
         conn.close()
 
         if not project:
+            emit_progress('error', 0, 'Project not found')
             return False, "Project not found", None
 
         project_code = project['code']
@@ -1084,16 +1164,19 @@ def create_project_backup(project_id, trigger='manual'):
         try:
             # Copy web folder
             if project.get('web_path') and os.path.exists(project['web_path']):
+                emit_progress('web', 15, 'Copying web files...')
                 web_dest = os.path.join(temp_backup, 'web')
                 shutil.copytree(project['web_path'], web_dest, dirs_exist_ok=True)
 
             # Copy app folder
             if project.get('app_path') and os.path.exists(project['app_path']):
+                emit_progress('app', 35, 'Copying app files...')
                 app_dest = os.path.join(temp_backup, 'app')
                 shutil.copytree(project['app_path'], app_dest, dirs_exist_ok=True)
 
             # Export database if exists
             if project.get('db_name') and project.get('db_user') and project.get('db_password'):
+                emit_progress('db', 55, 'Exporting database...')
                 db_dir = os.path.join(temp_backup, 'database')
                 os.makedirs(db_dir, exist_ok=True)
 
@@ -1111,6 +1194,7 @@ def create_project_backup(project_id, trigger='manual'):
                         f.write(result.stdout)
 
                 # Export data
+                emit_progress('db_data', 65, 'Exporting database data...')
                 data_file = os.path.join(db_dir, 'data.sql')
                 data_cmd = f"mysqldump -h {db_host} -u {db_user} -p'{db_pass}' --no-create-info {db_name} 2>/dev/null"
                 result = subprocess.run(data_cmd, shell=True, capture_output=True, text=True)
@@ -1119,6 +1203,7 @@ def create_project_backup(project_id, trigger='manual'):
                         f.write(result.stdout)
 
             # Create backup info
+            emit_progress('info', 75, 'Creating backup info...')
             info_file = os.path.join(temp_backup, 'backup_info.json')
             backup_info = {
                 'project_id': project_id,
@@ -1134,6 +1219,7 @@ def create_project_backup(project_id, trigger='manual'):
                 json.dump(backup_info, f, indent=2)
 
             # Create zip
+            emit_progress('zip', 85, 'Compressing backup...')
             with zipfile.ZipFile(backup_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
                 for root, dirs, files in os.walk(temp_backup):
                     for file in files:
@@ -1144,12 +1230,14 @@ def create_project_backup(project_id, trigger='manual'):
             # Cleanup old backups (keep last MAX_BACKUPS)
             cleanup_old_backups(backup_subdir)
 
+            emit_progress('done', 100, f'Backup complete: {backup_name}')
             return True, f"Backup created: {backup_name}", backup_name
 
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
     except Exception as e:
+        emit_progress('error', 0, f'Backup failed: {str(e)}')
         return False, str(e), None
 
 
@@ -1241,8 +1329,18 @@ def restore_project_backup(project_id, backup_filename):
 @login_required
 def api_create_backup(project_id):
     """Create a manual backup"""
-    success, message, filename = create_project_backup(project_id, 'manual')
-    return jsonify({'success': success, 'message': message, 'filename': filename})
+    data = request.get_json(silent=True) or {}
+    ticket_id = data.get('ticket_id')
+
+    # Run backup in background thread with progress
+    def async_backup(proj_id, tid):
+        try:
+            create_project_backup(proj_id, 'manual', ticket_id=tid)
+        except Exception as e:
+            print(f"Background backup error: {e}")
+
+    threading.Thread(target=async_backup, args=(project_id, ticket_id), daemon=True).start()
+    return jsonify({'success': True, 'message': 'Backup started', 'filename': None})
 
 
 @app.route('/api/project/<int:project_id>/backups', methods=['GET'])
@@ -2165,6 +2263,10 @@ def api_project_detail(project_id):
         if ai_model in ('opus', 'sonnet', 'haiku'):
             updates.append("ai_model = %s")
             params.append(ai_model)
+    if 'default_test_command' in data:
+        updates.append("default_test_command = %s")
+        test_cmd = data['default_test_command']
+        params.append(test_cmd.strip() if test_cmd else None)
 
     # Android settings
     if 'android_device_type' in data:
@@ -2209,11 +2311,13 @@ def ticket_detail(ticket_id):
     ticket = None
     project = None
     messages = []
-    
+    project_tickets = []
+    current_deps = []
+
     try:
         conn = get_db()
         cursor = conn.cursor(dictionary=True)
-        
+
         cursor.execute("""
             SELECT t.*, p.name as project_name, p.code as project_code,
                    p.web_path, p.app_path,
@@ -2232,17 +2336,33 @@ def ticket_detail(ticket_id):
                 host = request.host.split(':')[0]  # Get hostname without port
                 ticket['preview_url'] = f"https://{host}:9867/{ticket['project_code'].lower()}"
             cursor.execute("""
-                SELECT * FROM conversation_messages 
+                SELECT * FROM conversation_messages
                 WHERE ticket_id = %s ORDER BY created_at ASC
             """, (ticket_id,))
             messages = cursor.fetchall()
-        
+
+            # Get other tickets in the same project (for dependencies/parent selection)
+            cursor.execute("""
+                SELECT id, ticket_number, title, status, parent_ticket_id
+                FROM tickets WHERE project_id = %s AND id != %s
+                ORDER BY sequence_order ASC, created_at ASC
+            """, (ticket['project_id'], ticket_id))
+            project_tickets = cursor.fetchall()
+
+            # Get current dependencies
+            cursor.execute("""
+                SELECT depends_on_ticket_id FROM ticket_dependencies WHERE ticket_id = %s
+            """, (ticket_id,))
+            current_deps = [row['depends_on_ticket_id'] for row in cursor.fetchall()]
+
         cursor.close(); conn.close()
     except Exception as e:
         print(f"Ticket detail error: {e}")
-    
+
+    embed = request.args.get('embed') == '1'
     return render_template('ticket_detail.html', user=session['user'], role=session.get('role'),
-                         ticket=ticket, messages=messages)
+                         ticket=ticket, messages=messages, embed=embed,
+                         project_tickets=project_tickets, current_deps=set(current_deps))
 
 @app.route('/api/tickets', methods=['GET', 'POST'])
 @login_required
@@ -2258,29 +2378,74 @@ def api_tickets():
         priority = data.get('priority', 'medium')
         ai_model = data.get('ai_model')  # None = inherit from project
 
+        # New fields for ticket sequencing & types
+        ticket_type = data.get('ticket_type', 'task')
+        sequence_order = data.get('sequence_order')
+        depends_on = data.get('depends_on', [])  # List of ticket IDs or ticket numbers
+        parent_ticket_id = data.get('parent_ticket_id')
+        test_command = data.get('test_command')
+        require_tests_pass = data.get('require_tests_pass', False)
+        max_retries = data.get('max_retries', 3)
+        max_duration_minutes = data.get('max_duration_minutes', 60)
+        start_when_ready = data.get('start_when_ready', True)  # Auto-start after deps complete
+        deps_include_awaiting = data.get('deps_include_awaiting', False)  # Relaxed mode for deps
+
         # Validate ai_model
         if ai_model and ai_model not in ('opus', 'sonnet', 'haiku'):
             ai_model = None
+
+        # Validate ticket_type
+        valid_types = ('feature', 'bug', 'debug', 'rnd', 'task', 'improvement', 'docs')
+        if ticket_type not in valid_types:
+            ticket_type = 'task'
 
         if not project_id or not title:
             return jsonify({'success': False, 'message': 'Project and title required'})
 
         try:
-            # Get project code
-            cursor.execute("SELECT code FROM projects WHERE id = %s", (project_id,))
+            # Get project info
+            cursor.execute("SELECT code, default_test_command FROM projects WHERE id = %s", (project_id,))
             project = cursor.fetchone()
             if not project:
                 return jsonify({'success': False, 'message': 'Project not found'})
 
             ticket_number = generate_ticket_number(project['code'], cursor)
 
+            # Use project's default test command if not specified
+            if test_command is None and project.get('default_test_command'):
+                test_command = project['default_test_command']
+
             cursor.execute("""
-                INSERT INTO tickets (project_id, ticket_number, title, description, priority, ai_model, status, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, 'open', NOW(), NOW())
-            """, (project_id, ticket_number, title, description, priority, ai_model))
+                INSERT INTO tickets (project_id, ticket_number, title, description, priority, ai_model,
+                                     ticket_type, sequence_order, parent_ticket_id, test_command,
+                                     require_tests_pass, max_retries, max_duration_minutes, start_when_ready,
+                                     deps_include_awaiting, status, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'open', NOW(), NOW())
+            """, (project_id, ticket_number, title, description, priority, ai_model,
+                  ticket_type, sequence_order, parent_ticket_id, test_command,
+                  require_tests_pass, max_retries, max_duration_minutes, start_when_ready, deps_include_awaiting))
             conn.commit()
             ticket_id = cursor.lastrowid
-            
+
+            # Handle dependencies
+            if depends_on:
+                for dep in depends_on:
+                    # dep can be ticket_id (int) or ticket_number (string)
+                    if isinstance(dep, int):
+                        dep_id = dep
+                    else:
+                        # Look up by ticket_number
+                        cursor.execute("SELECT id FROM tickets WHERE ticket_number = %s", (dep,))
+                        dep_ticket = cursor.fetchone()
+                        dep_id = dep_ticket['id'] if dep_ticket else None
+
+                    if dep_id:
+                        cursor.execute("""
+                            INSERT IGNORE INTO ticket_dependencies (ticket_id, depends_on_ticket_id)
+                            VALUES (%s, %s)
+                        """, (ticket_id, dep_id))
+                conn.commit()
+
             cursor.close(); conn.close()
             return jsonify({'success': True, 'ticket_id': ticket_id, 'ticket_number': ticket_number})
         except Exception as e:
@@ -2310,6 +2475,47 @@ def api_tickets():
     
     return jsonify(tickets)
 
+@app.route('/api/ticket/<int:ticket_id>')
+@login_required
+def get_ticket_detail(ticket_id):
+    """Get ticket details with messages for side panel"""
+    try:
+        conn = get_db()
+        cursor = conn.cursor(dictionary=True)
+
+        # Get ticket
+        cursor.execute("SELECT * FROM tickets WHERE id = %s", (ticket_id,))
+        ticket = cursor.fetchone()
+
+        if not ticket:
+            cursor.close(); conn.close()
+            return jsonify({'error': 'Ticket not found'}), 404
+
+        # Get messages
+        cursor.execute("""
+            SELECT id, role, content, created_at FROM conversation_messages
+            WHERE ticket_id = %s ORDER BY created_at ASC
+        """, (ticket_id,))
+        messages = cursor.fetchall()
+
+        cursor.close(); conn.close()
+
+        # Convert datetimes
+        for key in ['created_at', 'updated_at', 'started_at', 'completed_at']:
+            if ticket.get(key):
+                ticket[key] = to_iso_utc(ticket[key])
+
+        for m in messages:
+            if m.get('created_at'):
+                m['created_at'] = to_iso_utc(m['created_at'])
+
+        ticket['messages'] = messages
+        return jsonify(ticket)
+
+    except Exception as e:
+        print(f"Get ticket detail error: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/ticket/<int:ticket_id>/close', methods=['POST'])
 @login_required
 def close_ticket(ticket_id):
@@ -2324,10 +2530,7 @@ def close_ticket(ticket_id):
         cursor.execute("SELECT project_id FROM tickets WHERE id = %s", (ticket_id,))
         ticket = cursor.fetchone()
 
-        if ticket:
-            # Create backup before closing
-            create_project_backup(ticket['project_id'], 'close')
-
+        # Close ticket first (fast operation)
         cursor.execute("""
             UPDATE tickets SET status = 'done', closed_at = NOW(),
             closed_by = %s, close_reason = %s, updated_at = NOW()
@@ -2335,30 +2538,83 @@ def close_ticket(ticket_id):
         """, (session['user'], reason, ticket_id))
         conn.commit()
         cursor.close(); conn.close()
+
+        # Create backup in background thread (slow operation)
+        if ticket:
+            def async_backup(project_id, tid):
+                try:
+                    create_project_backup(project_id, 'close', ticket_id=tid)
+                except Exception as e:
+                    print(f"Background backup error: {e}")
+            threading.Thread(target=async_backup, args=(ticket['project_id'], ticket_id), daemon=True).start()
+
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
-@app.route('/api/ticket/<int:ticket_id>/skip', methods=['POST'])
+@app.route('/api/ticket/<int:ticket_id>/kill', methods=['POST'])
 @login_required
-def skip_ticket(ticket_id):
-    """Skip a ticket - mark as skipped and stop processing"""
+def kill_ticket(ticket_id):
+    """Kill Switch - Stop Claude process immediately and pause ticket"""
     try:
         conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE tickets SET status = 'skipped', closed_at = NOW(),
-            closed_by = %s, close_reason = 'skipped', updated_at = NOW()
-            WHERE id = %s AND status = 'in_progress'
-        """, (session['user'], ticket_id))
-        affected = cursor.rowcount
-        conn.commit()
-        cursor.close(); conn.close()
+        cursor = conn.cursor(dictionary=True)
 
-        if affected > 0:
-            return jsonify({'success': True, 'message': 'Ticket skipped'})
-        else:
-            return jsonify({'success': False, 'message': 'Ticket not in progress'})
+        # Get ticket info
+        cursor.execute("SELECT * FROM tickets WHERE id = %s", (ticket_id,))
+        ticket = cursor.fetchone()
+
+        if not ticket:
+            cursor.close(); conn.close()
+            return jsonify({'success': False, 'message': 'Ticket not found'})
+
+        if ticket['status'] != 'in_progress':
+            cursor.close(); conn.close()
+            return jsonify({'success': False, 'message': 'Ticket is not in progress'})
+
+        # Update ticket status FIRST (so daemon doesn't mark as failed)
+        cursor.execute("""
+            UPDATE tickets SET status = 'awaiting_input', updated_at = NOW()
+            WHERE id = %s
+        """, (ticket_id,))
+        conn.commit()
+
+        # INSTANT KILL: Send SIGTERM to Claude process
+        killed = kill_claude_process(ticket_id)
+
+        # Save system message
+        system_msg = '⏹️ Kill switch activated - Process stopped' if killed else '⏹️ Kill switch activated - Waiting for process to stop'
+        cursor.execute("""
+            INSERT INTO conversation_messages (ticket_id, role, content, created_at)
+            VALUES (%s, 'system', %s, NOW())
+        """, (ticket_id, system_msg))
+        sys_msg_id = cursor.lastrowid
+
+        # Add log entry
+        log_msg = f"⏹️ Kill switch activated - Ticket {ticket['ticket_number']} paused"
+        cursor.execute("""
+            INSERT INTO daemon_logs (ticket_id, log_type, message, created_at)
+            VALUES (%s, 'warning', %s, NOW())
+        """, (ticket_id, log_msg))
+        conn.commit()
+
+        # Broadcast system message
+        cursor.execute("SELECT * FROM conversation_messages WHERE id = %s", (sys_msg_id,))
+        sys_msg_obj = cursor.fetchone()
+        if sys_msg_obj:
+            if sys_msg_obj.get('created_at'): sys_msg_obj['created_at'] = to_iso_utc(sys_msg_obj['created_at'])
+            sys_msg_obj['ticket_number'] = ticket['ticket_number']
+            socketio.emit('new_message', sys_msg_obj, room=f'ticket_{ticket_id}')
+            socketio.emit('new_message', sys_msg_obj, room='console')
+
+        # Broadcast status change
+        socketio.emit('ticket_status', {'ticket_id': ticket_id, 'status': 'awaiting_input'}, room=f'ticket_{ticket_id}')
+
+        # Broadcast log to console
+        socketio.emit('new_log', {'log_type': 'warning', 'message': log_msg, 'created_at': datetime.now().isoformat() + 'Z'}, room='console')
+
+        cursor.close(); conn.close()
+        return jsonify({'success': True, 'message': 'Process stopped', 'killed': killed})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
@@ -2378,9 +2634,7 @@ def approve_ticket(ticket_id):
             cursor.close(); conn.close()
             return jsonify({'success': False, 'message': 'Ticket not found or not pending review'})
 
-        # Create backup before approving
-        create_project_backup(ticket['project_id'], 'close')
-
+        # Approve ticket first (fast operation)
         cursor.execute("""
             UPDATE tickets SET status = 'done', closed_at = NOW(),
             closed_by = %s, close_reason = 'approved', review_deadline = NULL, updated_at = NOW()
@@ -2389,6 +2643,14 @@ def approve_ticket(ticket_id):
         conn.commit()
         cursor.close()
         conn.close()
+
+        # Create backup in background thread (slow operation)
+        def async_backup(project_id, tid):
+            try:
+                create_project_backup(project_id, 'close', ticket_id=tid)
+            except Exception as e:
+                print(f"Background backup error: {e}")
+        threading.Thread(target=async_backup, args=(ticket['project_id'], ticket_id), daemon=True).start()
 
         return jsonify({'success': True})
     except Exception as e:
@@ -2408,10 +2670,7 @@ def reopen_ticket(ticket_id):
         cursor.execute("SELECT project_id FROM tickets WHERE id = %s", (ticket_id,))
         ticket = cursor.fetchone()
 
-        if ticket:
-            # Create backup before reopening
-            create_project_backup(ticket['project_id'], 'reopen')
-
+        # Update ticket status first (fast)
         # Update ticket status
         cursor.execute("""
             UPDATE tickets SET status = 'open', closed_at = NULL,
@@ -2432,6 +2691,16 @@ def reopen_ticket(ticket_id):
         conn.commit()
         cursor.close()
         conn.close()
+
+        # Create backup in background thread (slow operation)
+        if ticket:
+            def async_backup(project_id, tid):
+                try:
+                    create_project_backup(project_id, 'reopen', ticket_id=tid)
+                except Exception as e:
+                    print(f"Background backup error: {e}")
+            threading.Thread(target=async_backup, args=(ticket['project_id'], ticket_id), daemon=True).start()
+
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
@@ -2524,15 +2793,74 @@ def create_ticket_summary(ticket_id):
 @app.route('/api/ticket/<int:ticket_id>/settings', methods=['POST'])
 @login_required
 def update_ticket_settings(ticket_id):
-    """Update ticket settings like AI model"""
+    """Update ticket settings - all editable fields"""
     try:
         data = request.get_json()
         conn = get_db()
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
         updates = []
         params = []
 
+        # Title
+        if 'title' in data and data['title']:
+            updates.append("title = %s")
+            params.append(data['title'].strip())
+
+        # Description
+        if 'description' in data:
+            updates.append("description = %s")
+            params.append(data['description'].strip() if data['description'] else '')
+
+        # Priority
+        if 'priority' in data:
+            if data['priority'] in ('low', 'medium', 'high', 'critical'):
+                updates.append("priority = %s")
+                params.append(data['priority'])
+
+        # Status
+        if 'status' in data:
+            valid_statuses = ('open', 'in_progress', 'awaiting_input', 'done', 'skipped', 'failed')
+            if data['status'] in valid_statuses:
+                updates.append("status = %s")
+                params.append(data['status'])
+
+        # Ticket Type
+        if 'ticket_type' in data:
+            valid_types = ('feature', 'bug', 'debug', 'rnd', 'task', 'improvement', 'docs')
+            if data['ticket_type'] in valid_types:
+                updates.append("ticket_type = %s")
+                params.append(data['ticket_type'])
+
+        # Sequence Order
+        if 'sequence_order' in data:
+            seq = data['sequence_order']
+            if seq is None or seq == '':
+                updates.append("sequence_order = NULL")
+            else:
+                updates.append("sequence_order = %s")
+                params.append(int(seq))
+
+        # Parent Ticket
+        if 'parent_ticket_id' in data:
+            parent = data['parent_ticket_id']
+            if parent is None or parent == '' or parent == 0:
+                updates.append("parent_ticket_id = NULL")
+            else:
+                updates.append("parent_ticket_id = %s")
+                params.append(int(parent))
+
+        # Start When Ready
+        if 'start_when_ready' in data:
+            updates.append("start_when_ready = %s")
+            params.append(1 if data['start_when_ready'] else 0)
+
+        # Deps Include Awaiting (relaxed mode)
+        if 'deps_include_awaiting' in data:
+            updates.append("deps_include_awaiting = %s")
+            params.append(1 if data['deps_include_awaiting'] else 0)
+
+        # AI Model
         if 'ai_model' in data:
             ai_model = data['ai_model']
             if ai_model in ('opus', 'sonnet', 'haiku'):
@@ -2549,12 +2877,398 @@ def update_ticket_settings(ticket_id):
         params.append(ticket_id)
 
         cursor.execute(f"UPDATE tickets SET {', '.join(updates)} WHERE id = %s", params)
+
+        # Handle dependencies separately (many-to-many)
+        if 'depends_on' in data:
+            # Clear existing dependencies
+            cursor.execute("DELETE FROM ticket_dependencies WHERE ticket_id = %s", (ticket_id,))
+            # Add new dependencies
+            depends_on = data['depends_on'] or []
+            for dep_id in depends_on:
+                if dep_id and int(dep_id) != ticket_id:  # Can't depend on self
+                    cursor.execute("""
+                        INSERT IGNORE INTO ticket_dependencies (ticket_id, depends_on_ticket_id)
+                        VALUES (%s, %s)
+                    """, (ticket_id, int(dep_id)))
+
         conn.commit()
         cursor.close()
         conn.close()
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
+
+
+# ============ TICKET SEQUENCING & TYPES ============
+
+@app.route('/api/tickets/reorder', methods=['POST'])
+@login_required
+def reorder_tickets():
+    """Bulk update sequence_order for multiple tickets (for drag-drop reordering)"""
+    try:
+        data = request.get_json()
+        tickets = data.get('tickets', [])  # List of {ticket_id, sequence_order}
+
+        if not tickets:
+            return jsonify({'success': False, 'message': 'No tickets provided'})
+
+        conn = get_db()
+        cursor = conn.cursor()
+
+        for item in tickets:
+            ticket_id = item.get('ticket_id')
+            seq = item.get('sequence_order')
+            if ticket_id is not None and seq is not None:
+                cursor.execute("""
+                    UPDATE tickets SET sequence_order = %s, updated_at = NOW()
+                    WHERE id = %s
+                """, (seq, ticket_id))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'success': True, 'updated': len(tickets)})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/ticket/<int:ticket_id>/type', methods=['POST'])
+@login_required
+def update_ticket_type(ticket_id):
+    """Update ticket type"""
+    try:
+        data = request.get_json()
+        ticket_type = data.get('ticket_type')
+
+        valid_types = ('feature', 'bug', 'debug', 'rnd', 'task', 'improvement', 'docs')
+        if ticket_type not in valid_types:
+            return jsonify({'success': False, 'message': f'Invalid ticket type. Valid: {valid_types}'})
+
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE tickets SET ticket_type = %s, updated_at = NOW()
+            WHERE id = %s
+        """, (ticket_type, ticket_id))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/ticket/<int:ticket_id>/force', methods=['POST'])
+@login_required
+def force_ticket(ticket_id):
+    """Set is_forced = TRUE to move ticket to front of queue"""
+    try:
+        data = request.get_json() or {}
+        force = data.get('force', True)
+
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE tickets SET is_forced = %s, updated_at = NOW()
+            WHERE id = %s
+        """, (force, ticket_id))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'success': True, 'is_forced': force})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/ticket/<int:ticket_id>/start', methods=['POST'])
+@login_required
+def start_ticket(ticket_id):
+    """Start ticket: set status='open' and is_forced=TRUE to queue it next.
+    For sub-tickets, starts the parent instead."""
+    try:
+        conn = get_db()
+        cursor = conn.cursor(dictionary=True)
+
+        # Check current status and parent
+        cursor.execute("""
+            SELECT t.id, t.status, t.project_id, t.parent_ticket_id, t.ticket_number,
+                   p.ticket_number as parent_ticket_number, p.status as parent_status
+            FROM tickets t
+            LEFT JOIN tickets p ON t.parent_ticket_id = p.id
+            WHERE t.id = %s
+        """, (ticket_id,))
+        ticket = cursor.fetchone()
+
+        if not ticket:
+            cursor.close()
+            conn.close()
+            return jsonify({'success': False, 'message': 'Ticket not found'})
+
+        # If this is a sub-ticket, start the parent instead
+        target_id = ticket_id
+        target_number = ticket['ticket_number']
+        is_subticket = False
+
+        if ticket['parent_ticket_id']:
+            is_subticket = True
+            target_id = ticket['parent_ticket_id']
+            target_number = ticket['parent_ticket_number']
+
+            # Check if parent is already running
+            if ticket['parent_status'] == 'in_progress':
+                cursor.close()
+                conn.close()
+                return jsonify({'success': False, 'message': f'Parent {target_number} is already running'})
+        else:
+            # If already in_progress, don't change
+            if ticket['status'] == 'in_progress':
+                cursor.close()
+                conn.close()
+                return jsonify({'success': False, 'message': 'Ticket is already running'})
+
+        # Set to open + forced (will be picked up next by daemon)
+        cursor.execute("""
+            UPDATE tickets SET status = 'open', is_forced = TRUE, updated_at = NOW()
+            WHERE id = %s
+        """, (target_id,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        if is_subticket:
+            return jsonify({'success': True, 'message': f'Parent {target_number} queued to start next (will process sub-tickets)'})
+        return jsonify({'success': True, 'message': 'Ticket queued to start next'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/ticket/<int:ticket_id>/dependencies', methods=['GET', 'POST'])
+@login_required
+def ticket_dependencies(ticket_id):
+    """Get or update ticket dependencies"""
+    try:
+        conn = get_db()
+        cursor = conn.cursor(dictionary=True)
+
+        if request.method == 'GET':
+            # Get current dependencies
+            cursor.execute("""
+                SELECT td.depends_on_ticket_id, t.ticket_number, t.title, t.status
+                FROM ticket_dependencies td
+                JOIN tickets t ON t.id = td.depends_on_ticket_id
+                WHERE td.ticket_id = %s
+            """, (ticket_id,))
+            deps = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            return jsonify({'success': True, 'dependencies': deps})
+
+        # POST - Update dependencies
+        data = request.get_json()
+        depends_on = data.get('depends_on', [])  # List of ticket IDs or ticket numbers
+
+        # Clear existing dependencies
+        cursor.execute("DELETE FROM ticket_dependencies WHERE ticket_id = %s", (ticket_id,))
+
+        # Add new dependencies
+        for dep in depends_on:
+            if isinstance(dep, int):
+                dep_id = dep
+            else:
+                # Look up by ticket_number
+                cursor.execute("SELECT id FROM tickets WHERE ticket_number = %s", (dep,))
+                dep_ticket = cursor.fetchone()
+                dep_id = dep_ticket['id'] if dep_ticket else None
+
+            if dep_id and dep_id != ticket_id:  # Prevent self-dependency
+                cursor.execute("""
+                    INSERT IGNORE INTO ticket_dependencies (ticket_id, depends_on_ticket_id)
+                    VALUES (%s, %s)
+                """, (ticket_id, dep_id))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/ticket/<int:ticket_id>', methods=['DELETE'])
+@login_required
+def delete_ticket(ticket_id):
+    """Delete a ticket and its conversation history"""
+    try:
+        conn = get_db()
+        cursor = conn.cursor(dictionary=True)
+
+        # Get ticket info for response
+        cursor.execute("SELECT ticket_number, title FROM tickets WHERE id = %s", (ticket_id,))
+        ticket = cursor.fetchone()
+
+        if not ticket:
+            cursor.close()
+            conn.close()
+            return jsonify({'success': False, 'message': 'Ticket not found'}), 404
+
+        # Delete ticket (cascade will handle messages, logs, etc.)
+        cursor.execute("DELETE FROM tickets WHERE id = %s", (ticket_id,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({
+            'success': True,
+            'message': f"Ticket {ticket['ticket_number']} deleted"
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/ticket/<int:ticket_id>/retry', methods=['POST'])
+@login_required
+def retry_ticket(ticket_id):
+    """Reset a failed/timeout ticket for retry"""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            UPDATE tickets
+            SET status = 'open', retry_count = 0, updated_at = NOW()
+            WHERE id = %s AND status IN ('failed', 'timeout', 'stuck')
+        """, (ticket_id,))
+
+        if cursor.rowcount == 0:
+            cursor.close()
+            conn.close()
+            return jsonify({'success': False, 'message': 'Ticket not found or not in failed/timeout state'})
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/project/<int:project_id>/progress')
+@login_required
+def get_project_progress(project_id):
+    """Get detailed project progress statistics"""
+    try:
+        conn = get_db()
+        cursor = conn.cursor(dictionary=True)
+
+        # Basic project info
+        cursor.execute("SELECT id, name, code FROM projects WHERE id = %s", (project_id,))
+        project = cursor.fetchone()
+        if not project:
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'Project not found'}), 404
+
+        # Ticket counts by status (all tickets, including sub-tickets)
+        cursor.execute("""
+            SELECT status, COUNT(*) as count
+            FROM tickets
+            WHERE project_id = %s
+            GROUP BY status
+        """, (project_id,))
+        status_counts = {row['status']: row['count'] for row in cursor.fetchall()}
+
+        # Ticket counts by type (awaiting_input counts as completed)
+        cursor.execute("""
+            SELECT ticket_type, COUNT(*) as total,
+                   SUM(CASE WHEN status IN ('done', 'skipped', 'awaiting_input') THEN 1 ELSE 0 END) as completed
+            FROM tickets
+            WHERE project_id = %s
+            GROUP BY ticket_type
+        """, (project_id,))
+        by_type = {row['ticket_type']: {'total': row['total'], 'completed': row['completed']}
+                   for row in cursor.fetchall()}
+
+        # Totals
+        total_tickets = sum(status_counts.values())
+        # awaiting_input counts as completed (task is done, just waiting for review)
+        completed = (status_counts.get('done', 0) + status_counts.get('skipped', 0) +
+                     status_counts.get('awaiting_input', 0))
+        failed = status_counts.get('failed', 0)
+        timeout_count = status_counts.get('timeout', 0)
+        in_progress = status_counts.get('in_progress', 0)
+        pending = (status_counts.get('open', 0) + status_counts.get('new', 0) +
+                   status_counts.get('pending', 0))
+        awaiting = status_counts.get('awaiting_input', 0)
+
+        progress_percent = round((completed * 100.0) / total_tickets, 1) if total_tickets > 0 else 0
+
+        # Time spent (from usage_stats)
+        cursor.execute("""
+            SELECT SUM(duration_seconds) as total_seconds, SUM(total_tokens) as total_tokens
+            FROM usage_stats
+            WHERE project_id = %s
+        """, (project_id,))
+        usage = cursor.fetchone()
+        time_spent_minutes = int((usage['total_seconds'] or 0) / 60)
+        total_tokens = usage['total_tokens'] or 0
+
+        # Current ticket
+        cursor.execute("""
+            SELECT ticket_number FROM tickets
+            WHERE project_id = %s AND status = 'in_progress'
+            LIMIT 1
+        """, (project_id,))
+        current = cursor.fetchone()
+        current_ticket = current['ticket_number'] if current else None
+
+        # Failed tickets
+        cursor.execute("""
+            SELECT ticket_number FROM tickets
+            WHERE project_id = %s AND status IN ('failed', 'timeout')
+        """, (project_id,))
+        failed_tickets = [row['ticket_number'] for row in cursor.fetchall()]
+
+        # Blocked tickets (have unfinished dependencies)
+        # Respects deps_include_awaiting flag per ticket
+        cursor.execute("""
+            SELECT t.ticket_number
+            FROM tickets t
+            JOIN ticket_dependencies td ON td.ticket_id = t.id
+            JOIN tickets dt ON dt.id = td.depends_on_ticket_id
+            WHERE t.project_id = %s
+              AND t.status NOT IN ('done', 'skipped', 'failed', 'awaiting_input')
+              AND NOT (
+                  dt.status IN ('done', 'skipped')
+                  OR (COALESCE(t.deps_include_awaiting, FALSE) = TRUE AND dt.status = 'awaiting_input')
+              )
+            GROUP BY t.id, t.ticket_number
+        """, (project_id,))
+        blocked_tickets = [row['ticket_number'] for row in cursor.fetchall()]
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'project_id': project_id,
+            'project_name': project['name'],
+            'project_code': project['code'],
+            'total_tickets': total_tickets,
+            'completed': completed,
+            'failed': failed,
+            'timeout': timeout_count,
+            'in_progress': in_progress,
+            'pending': pending,
+            'awaiting_input': awaiting,
+            'progress_percent': progress_percent,
+            'time_spent_minutes': time_spent_minutes,
+            'total_tokens': total_tokens,
+            'by_type': by_type,
+            'current_ticket': current_ticket,
+            'failed_tickets': failed_tickets,
+            'blocked_tickets': blocked_tickets
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 # ============ CHAT ============
 
@@ -2630,12 +3344,25 @@ def get_ticket_logs(ticket_id):
     except Exception as e:
         return jsonify([])
 
+def kill_claude_process(ticket_id):
+    """Send SIGTERM to Claude process for instant stop"""
+    pid_file = f"/var/run/codehero/claude_{ticket_id}.pid"
+    try:
+        if os.path.exists(pid_file):
+            with open(pid_file, 'r') as f:
+                pid = int(f.read().strip())
+            os.kill(pid, signal.SIGTERM)
+            return True
+    except (ProcessLookupError, ValueError, PermissionError):
+        pass
+    return False
+
 @app.route('/api/ticket/<int:ticket_id>/send', methods=['POST'])
 @login_required
 def send_ticket_message(ticket_id):
     data = request.get_json()
     message = data.get('message', '').strip()
-    
+
     if not message:
         return jsonify({'success': False, 'message': 'Empty message'})
     
@@ -2660,90 +3387,32 @@ def send_ticket_message(ticket_id):
         # Handle commands
         if message.startswith('/'):
             cmd = message.lower().split()[0]
-            if cmd == '/done':
-                # Save command to conversation for display
+            if cmd == '/stop':
+                # Update ticket status FIRST (so daemon doesn't mark as failed)
                 cursor.execute("""
-                    INSERT INTO conversation_messages (ticket_id, role, content, created_at)
-                    VALUES (%s, 'user', %s, NOW())
-                """, (ticket_id, message))
-                msg_id = cursor.lastrowid
-                cursor.execute("""
-                    UPDATE tickets SET status = 'done', closed_at = NOW(),
-                    closed_by = %s, close_reason = 'manual', updated_at = NOW()
+                    UPDATE tickets SET status = 'awaiting_input', updated_at = NOW()
                     WHERE id = %s
-                """, (session['user'], ticket_id))
-                # Signal daemon to stop Claude immediately
-                cursor.execute("""
-                    INSERT INTO user_messages (ticket_id, user_id, content, message_type)
-                    VALUES (%s, %s, '/done', 'command')
-                """, (ticket_id, session.get('user_id')))
-                # Add log entry
-                log_msg = f"✅ User command: /done - Ticket {ticket['ticket_number']} closed"
-                cursor.execute("""
-                    INSERT INTO daemon_logs (ticket_id, log_type, message, created_at)
-                    VALUES (%s, 'info', %s, NOW())
-                """, (ticket_id, log_msg))
+                """, (ticket_id,))
                 conn.commit()
-                # Broadcast log to console
-                socketio.emit('new_log', {'log_type': 'info', 'message': log_msg, 'created_at': datetime.now().isoformat() + 'Z'}, room='console')
-                # Broadcast message immediately
-                cursor.execute("SELECT * FROM conversation_messages WHERE id = %s", (msg_id,))
-                new_msg = cursor.fetchone()
-                cursor.close(); conn.close()
-                if new_msg:
-                    if new_msg.get('created_at'): new_msg['created_at'] = to_iso_utc(new_msg['created_at'])
-                    new_msg['ticket_number'] = ticket['ticket_number']
-                    socketio.emit('new_message', new_msg, room=f'ticket_{ticket_id}')
-                    socketio.emit('new_message', new_msg, room='console')
-                socketio.emit('ticket_closed', {'ticket_id': ticket_id}, room=f'ticket_{ticket_id}')
-                return jsonify({'success': True, 'message': 'Ticket closed'})
-            elif cmd == '/skip':
-                # Save command to conversation for display
+                # INSTANT KILL: Send SIGTERM to Claude process
+                killed = kill_claude_process(ticket_id)
+                # Save user command to conversation
                 cursor.execute("""
                     INSERT INTO conversation_messages (ticket_id, role, content, created_at)
                     VALUES (%s, 'user', %s, NOW())
                 """, (ticket_id, message))
-                msg_id = cursor.lastrowid
-                cursor.execute("""
-                    UPDATE tickets SET status = 'skipped', closed_at = NOW(),
-                    closed_by = %s, close_reason = 'skipped', updated_at = NOW()
-                    WHERE id = %s
-                """, (session['user'], ticket_id))
-                # Also signal daemon
-                cursor.execute("""
-                    INSERT INTO user_messages (ticket_id, user_id, content, message_type)
-                    VALUES (%s, %s, '/skip', 'command')
-                """, (ticket_id, session.get('user_id')))
-                # Add log entry
-                log_msg = f"⏭️ User command: /skip - Ticket {ticket['ticket_number']} skipped"
-                cursor.execute("""
-                    INSERT INTO daemon_logs (ticket_id, log_type, message, created_at)
-                    VALUES (%s, 'warning', %s, NOW())
-                """, (ticket_id, log_msg))
-                conn.commit()
-                # Broadcast log to console
-                socketio.emit('new_log', {'log_type': 'warning', 'message': log_msg, 'created_at': datetime.now().isoformat() + 'Z'}, room='console')
-                # Broadcast message immediately
-                cursor.execute("SELECT * FROM conversation_messages WHERE id = %s", (msg_id,))
-                new_msg = cursor.fetchone()
-                cursor.close(); conn.close()
-                if new_msg:
-                    if new_msg.get('created_at'): new_msg['created_at'] = to_iso_utc(new_msg['created_at'])
-                    new_msg['ticket_number'] = ticket['ticket_number']
-                    socketio.emit('new_message', new_msg, room=f'ticket_{ticket_id}')
-                    socketio.emit('new_message', new_msg, room='console')
-                return jsonify({'success': True, 'message': 'Ticket skipped'})
-            elif cmd == '/stop':
-                # Save command to conversation for display
+                user_msg_id = cursor.lastrowid
+                # Save system response message
+                system_msg = '⏸️ Stopped by user (/stop) - Waiting for new instructions' if killed else '⏸️ Stop command received - Waiting for new instructions'
                 cursor.execute("""
                     INSERT INTO conversation_messages (ticket_id, role, content, created_at)
-                    VALUES (%s, 'user', %s, NOW())
-                """, (ticket_id, message))
-                msg_id = cursor.lastrowid
-                # Signal daemon to stop Claude and wait for input
+                    VALUES (%s, 'system', %s, NOW())
+                """, (ticket_id, system_msg))
+                sys_msg_id = cursor.lastrowid
+                # Log command (mark as processed since web app handles it directly)
                 cursor.execute("""
-                    INSERT INTO user_messages (ticket_id, user_id, content, message_type)
-                    VALUES (%s, %s, '/stop', 'command')
+                    INSERT INTO user_messages (ticket_id, user_id, content, message_type, processed)
+                    VALUES (%s, %s, '/stop', 'command', TRUE)
                 """, (ticket_id, session.get('user_id')))
                 # Add log entry
                 log_msg = f"⏸️ User command: /stop - Ticket {ticket['ticket_number']} paused"
@@ -2752,17 +3421,27 @@ def send_ticket_message(ticket_id):
                     VALUES (%s, 'warning', %s, NOW())
                 """, (ticket_id, log_msg))
                 conn.commit()
-                # Broadcast log to console
-                socketio.emit('new_log', {'log_type': 'warning', 'message': log_msg, 'created_at': datetime.now().isoformat() + 'Z'}, room='console')
-                # Broadcast message immediately
-                cursor.execute("SELECT * FROM conversation_messages WHERE id = %s", (msg_id,))
+                # Broadcast user message
+                cursor.execute("SELECT * FROM conversation_messages WHERE id = %s", (user_msg_id,))
                 new_msg = cursor.fetchone()
-                cursor.close(); conn.close()
                 if new_msg:
                     if new_msg.get('created_at'): new_msg['created_at'] = to_iso_utc(new_msg['created_at'])
                     new_msg['ticket_number'] = ticket['ticket_number']
                     socketio.emit('new_message', new_msg, room=f'ticket_{ticket_id}')
                     socketio.emit('new_message', new_msg, room='console')
+                # Broadcast system message
+                cursor.execute("SELECT * FROM conversation_messages WHERE id = %s", (sys_msg_id,))
+                sys_msg_obj = cursor.fetchone()
+                if sys_msg_obj:
+                    if sys_msg_obj.get('created_at'): sys_msg_obj['created_at'] = to_iso_utc(sys_msg_obj['created_at'])
+                    sys_msg_obj['ticket_number'] = ticket['ticket_number']
+                    socketio.emit('new_message', sys_msg_obj, room=f'ticket_{ticket_id}')
+                    socketio.emit('new_message', sys_msg_obj, room='console')
+                # Broadcast status change
+                socketio.emit('ticket_status', {'ticket_id': ticket_id, 'status': 'awaiting_input'}, room=f'ticket_{ticket_id}')
+                # Broadcast log to console
+                socketio.emit('new_log', {'log_type': 'warning', 'message': log_msg, 'created_at': datetime.now().isoformat() + 'Z'}, room='console')
+                cursor.close(); conn.close()
                 return jsonify({'success': True, 'message': 'Stop signal sent'})
 
         # Save user message
@@ -2780,7 +3459,12 @@ def send_ticket_message(ticket_id):
 
         # Update ticket tokens and timestamp
         cursor.execute("UPDATE tickets SET total_tokens = total_tokens + %s, updated_at = NOW() WHERE id = %s", (msg_tokens, ticket_id))
-        
+
+        # If ticket is awaiting_input, change to open so daemon picks it up
+        if ticket.get('status') == 'awaiting_input':
+            cursor.execute("UPDATE tickets SET status = 'open' WHERE id = %s", (ticket_id,))
+            socketio.emit('ticket_status', {'ticket_id': ticket_id, 'status': 'open'}, room=f'ticket_{ticket_id}')
+
         conn.commit()
         
         # Get the inserted message
@@ -3088,14 +3772,61 @@ def send_console_message():
         # Handle commands
         if message.startswith('/'):
             cmd = message.lower().split()[0]
-            if cmd == '/skip':
+            if cmd == '/stop':
+                # Update ticket status FIRST (so daemon doesn't mark as failed)
                 cursor.execute("""
-                    INSERT INTO user_messages (ticket_id, user_id, content, message_type)
-                    VALUES (%s, %s, '/skip', 'command')
-                """, (ticket['id'], session.get('user_id')))
+                    UPDATE tickets SET status = 'awaiting_input', updated_at = NOW()
+                    WHERE id = %s
+                """, (ticket['id'],))
                 conn.commit()
+                # INSTANT KILL: Send SIGTERM to Claude process
+                killed = kill_claude_process(ticket['id'])
+                # Save user command to conversation
+                cursor.execute("""
+                    INSERT INTO conversation_messages (ticket_id, role, content, created_at)
+                    VALUES (%s, 'user', %s, NOW())
+                """, (ticket['id'], message))
+                user_msg_id = cursor.lastrowid
+                # Save system response message
+                system_msg_text = '⏸️ Stopped by user (/stop) - Waiting for new instructions' if killed else '⏸️ Stop command received - Waiting for new instructions'
+                cursor.execute("""
+                    INSERT INTO conversation_messages (ticket_id, role, content, created_at)
+                    VALUES (%s, 'system', %s, NOW())
+                """, (ticket['id'], system_msg_text))
+                sys_msg_id = cursor.lastrowid
+                cursor.execute("""
+                    INSERT INTO user_messages (ticket_id, user_id, content, message_type, processed)
+                    VALUES (%s, %s, '/stop', 'command', TRUE)
+                """, (ticket['id'], session.get('user_id')))
+                # Add log entry
+                log_msg = f"⏸️ User command: /stop - Ticket {ticket['ticket_number']} paused"
+                cursor.execute("""
+                    INSERT INTO daemon_logs (ticket_id, log_type, message, created_at)
+                    VALUES (%s, 'warning', %s, NOW())
+                """, (ticket['id'], log_msg))
+                conn.commit()
+                # Broadcast user message
+                cursor.execute("SELECT * FROM conversation_messages WHERE id = %s", (user_msg_id,))
+                new_msg = cursor.fetchone()
+                if new_msg:
+                    if new_msg.get('created_at'): new_msg['created_at'] = to_iso_utc(new_msg['created_at'])
+                    new_msg['ticket_number'] = ticket['ticket_number']
+                    socketio.emit('new_message', new_msg, room=f"ticket_{ticket['id']}")
+                    socketio.emit('new_message', new_msg, room='console')
+                # Broadcast system message
+                cursor.execute("SELECT * FROM conversation_messages WHERE id = %s", (sys_msg_id,))
+                sys_msg_obj = cursor.fetchone()
+                if sys_msg_obj:
+                    if sys_msg_obj.get('created_at'): sys_msg_obj['created_at'] = to_iso_utc(sys_msg_obj['created_at'])
+                    sys_msg_obj['ticket_number'] = ticket['ticket_number']
+                    socketio.emit('new_message', sys_msg_obj, room=f"ticket_{ticket['id']}")
+                    socketio.emit('new_message', sys_msg_obj, room='console')
+                # Broadcast status change
+                socketio.emit('ticket_status', {'ticket_id': ticket['id'], 'status': 'awaiting_input'}, room=f"ticket_{ticket['id']}")
+                # Broadcast log
+                socketio.emit('new_log', {'log_type': 'warning', 'message': log_msg, 'created_at': datetime.now().isoformat() + 'Z'}, room='console')
                 cursor.close(); conn.close()
-                return jsonify({'success': True, 'message': 'Skip command sent'})
+                return jsonify({'success': True, 'message': 'Stop signal sent'})
 
         # Save user message
         msg_tokens = len(message.encode('utf-8')) // 4
@@ -4347,7 +5078,19 @@ def claude_chat_stop(session_id):
 def claude_assistant():
     popup = request.args.get('popup', '0') == '1'
     mode = request.args.get('mode', '')  # blueprint, etc.
-    return render_template('claude_assistant.html', user=session.get('user'), popup=popup, mode=mode)
+    project_id = request.args.get('project_id', type=int)
+
+    # Get project info if project_id provided
+    project = None
+    if project_id:
+        conn = get_db()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM projects WHERE id = %s", (project_id,))
+        project = cursor.fetchone()
+        cursor.close()
+        conn.close()
+
+    return render_template('claude_assistant.html', user=session.get('user'), popup=popup, mode=mode, project_id=project_id, project=project)
 
 # ============ UPDATE SYSTEM ============
 
@@ -4401,10 +5144,141 @@ def check_update():
     except Exception as e:
         return jsonify({'error': str(e), 'has_update': False}), 500
 
+# Store active upgrade process
+active_upgrade = {'running': False, 'process': None, 'temp_dir': None, 'log': ''}
+
+@app.route('/api/ai-fix-upgrade', methods=['POST'])
+@login_required
+def ai_fix_upgrade():
+    """Ask AI to analyze upgrade error and suggest fix"""
+    try:
+        data = request.get_json() or {}
+        error_log = data.get('log', '')
+
+        if not error_log:
+            return jsonify({'error': 'No error log provided'}), 400
+
+        # Truncate log if too long (keep last 3000 chars)
+        if len(error_log) > 3000:
+            error_log = "...(truncated)...\n" + error_log[-3000:]
+
+        # Build prompt for Claude
+        prompt = f'''The CodeHero upgrade script failed. Analyze the error and provide a fix.
+
+## Error Log:
+```
+{error_log}
+```
+
+## Instructions:
+1. Identify the root cause of the failure
+2. Provide the exact commands to fix it (one command per line)
+3. Be concise and practical
+
+Format your response as:
+**Problem:** [one line description]
+
+**Fix:**
+```bash
+command1
+command2
+```
+
+**Explanation:** [brief explanation]'''
+
+        # Write prompt to file (safer for special characters)
+        prompt_file = '/tmp/upgrade_fix_prompt.txt'
+        with open(prompt_file, 'w') as f:
+            f.write(prompt)
+
+        # Call Claude CLI
+        result = subprocess.run(
+            ['sudo', '-u', 'claude', 'bash', '-c',
+             f'export PATH="$HOME/.local/bin:$PATH" && cat {prompt_file} | claude -p --print --model haiku'],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            cwd='/home/claude'
+        )
+
+        os.remove(prompt_file)
+
+        response = result.stdout.strip() if result.stdout else result.stderr.strip()
+
+        if not response:
+            return jsonify({'error': 'No response from AI', 'stderr': result.stderr}), 500
+
+        # Extract commands from response
+        commands = []
+        in_bash_block = False
+        for line in response.split('\n'):
+            if line.strip().startswith('```bash'):
+                in_bash_block = True
+                continue
+            elif line.strip().startswith('```') and in_bash_block:
+                in_bash_block = False
+                continue
+            elif in_bash_block and line.strip():
+                commands.append(line.strip())
+
+        return jsonify({
+            'success': True,
+            'response': response,
+            'commands': commands
+        })
+
+    except subprocess.TimeoutExpired:
+        return jsonify({'error': 'AI request timed out'}), 504
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/run-fix-command', methods=['POST'])
+@login_required
+def run_fix_command():
+    """Execute a fix command suggested by AI"""
+    try:
+        data = request.get_json() or {}
+        command = data.get('command', '')
+
+        if not command:
+            return jsonify({'error': 'No command provided'}), 400
+
+        # Security: block dangerous commands
+        dangerous = ['rm -rf /', 'mkfs', 'dd if=', ':(){', 'chmod -R 777 /']
+        for d in dangerous:
+            if d in command:
+                return jsonify({'error': 'Command blocked for safety'}), 403
+
+        # Run command
+        result = subprocess.run(
+            ['sudo', 'bash', '-c', command],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            cwd='/opt/codehero'
+        )
+
+        return jsonify({
+            'success': result.returncode == 0,
+            'output': result.stdout,
+            'error': result.stderr,
+            'exit_code': result.returncode
+        })
+
+    except subprocess.TimeoutExpired:
+        return jsonify({'error': 'Command timed out'}), 504
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/do-update', methods=['POST'])
 @login_required
 def do_update():
-    """Download and install the latest update"""
+    """Download the update and prepare for installation"""
+    global active_upgrade
+
+    if active_upgrade['running']:
+        return jsonify({'error': 'Upgrade already in progress'}), 400
+
     try:
         # First check for update
         req = urllib.request.Request(
@@ -4451,39 +5325,23 @@ def do_update():
             shutil.rmtree(temp_dir)
             return jsonify({'error': 'Invalid archive structure'}), 400
 
-        # Run upgrade.sh
+        # Verify upgrade.sh exists
         upgrade_script = os.path.join(extracted_folder, 'upgrade.sh')
         if not os.path.exists(upgrade_script):
             shutil.rmtree(temp_dir)
             return jsonify({'error': 'upgrade.sh not found'}), 400
 
-        # Make executable and run with sudo in background
-        # The upgrade restarts services, so we run it detached
         os.chmod(upgrade_script, 0o755)
 
-        # Create a wrapper script that runs upgrade and cleans up
-        wrapper_script = os.path.join(temp_dir, 'run_upgrade.sh')
-        with open(wrapper_script, 'w') as f:
-            f.write(f'''#!/bin/bash
-cd "{extracted_folder}"
-bash "{upgrade_script}" -y > /var/log/codehero/upgrade.log 2>&1
-rm -rf "{temp_dir}"
-''')
-        os.chmod(wrapper_script, 0o755)
-
-        # Run in background with nohup
-        subprocess.Popen(
-            ['sudo', 'nohup', 'bash', wrapper_script],
-            cwd=extracted_folder,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True
-        )
+        # Store for websocket to use
+        active_upgrade['temp_dir'] = temp_dir
+        active_upgrade['extracted_folder'] = extracted_folder
+        active_upgrade['upgrade_script'] = upgrade_script
 
         return jsonify({
             'success': True,
-            'message': 'Update started. The page will reload in 30 seconds.',
-            'background': True
+            'message': 'Download complete. Ready to install.',
+            'ready': True
         })
 
     except Exception as e:
@@ -4512,6 +5370,82 @@ def handle_leave_ticket(data):
 def handle_join_console():
     join_room('console')
     emit('joined', {'room': 'console'})
+
+@socketio.on('join_upgrade')
+def handle_join_upgrade():
+    join_room('upgrade')
+    emit('joined', {'room': 'upgrade'})
+
+@socketio.on('start_upgrade')
+def handle_start_upgrade():
+    """Run upgrade.sh with real-time output streaming"""
+    global active_upgrade
+
+    if active_upgrade['running']:
+        emit('upgrade_error', {'error': 'Upgrade already in progress'})
+        return
+
+    if not active_upgrade.get('upgrade_script'):
+        emit('upgrade_error', {'error': 'No upgrade prepared. Call /api/do-update first.'})
+        return
+
+    active_upgrade['running'] = True
+    emit('upgrade_started', {'message': 'Starting upgrade...'})
+
+    def run_upgrade():
+        global active_upgrade
+        try:
+            upgrade_script = active_upgrade['upgrade_script']
+            extracted_folder = active_upgrade['extracted_folder']
+            temp_dir = active_upgrade['temp_dir']
+
+            # Run upgrade.sh with sudo and capture output
+            process = subprocess.Popen(
+                ['sudo', 'bash', upgrade_script, '-y'],
+                cwd=extracted_folder,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                bufsize=1,
+                universal_newlines=True
+            )
+            active_upgrade['process'] = process
+
+            # Stream output line by line
+            for line in iter(process.stdout.readline, ''):
+                if line:
+                    socketio.emit('upgrade_output', {'line': line.rstrip()}, room='upgrade')
+
+            process.wait()
+            exit_code = process.returncode
+
+            # Cleanup temp directory
+            if temp_dir and os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir, ignore_errors=True)
+
+            if exit_code == 0:
+                socketio.emit('upgrade_complete', {
+                    'success': True,
+                    'message': 'Upgrade completed successfully!'
+                }, room='upgrade')
+            else:
+                socketio.emit('upgrade_complete', {
+                    'success': False,
+                    'message': f'Upgrade failed with exit code {exit_code}'
+                }, room='upgrade')
+
+        except Exception as e:
+            socketio.emit('upgrade_error', {'error': str(e)}, room='upgrade')
+        finally:
+            active_upgrade['running'] = False
+            active_upgrade['process'] = None
+            active_upgrade['temp_dir'] = None
+            active_upgrade['extracted_folder'] = None
+            active_upgrade['upgrade_script'] = None
+
+    # Run in background thread
+    thread = threading.Thread(target=run_upgrade)
+    thread.daemon = True
+    thread.start()
 
 # ============ TERMINAL WEBSOCKET ============
 
@@ -4869,6 +5803,652 @@ def handle_disconnect():
                 for lang in lsp_sessions[sid]:
                     lsp_manager.unregister_message_handler(f'{sid}_{lang}')
                 del lsp_sessions[sid]
+
+# ============ PACKAGE MANAGER ============
+
+# Package definitions - commands to check if installed and install
+PACKAGES = {
+    # Core Infrastructure (from setup.sh)
+    'mysql': {
+        'name': 'MySQL Server',
+        'check': 'mysql --version',
+        'version_regex': r'mysql\s+Ver\s+(\S+)',
+        'install': [
+            'apt-get update',
+            'DEBIAN_FRONTEND=noninteractive apt-get install -y mysql-server',
+            'systemctl enable mysql || true',
+            'systemctl start mysql || true',
+            # Create codehero database and user if not exists
+            'mysql -e "CREATE DATABASE IF NOT EXISTS claude_knowledge;" || true',
+            'mysql -e "CREATE USER IF NOT EXISTS \'claude_user\'@\'localhost\' IDENTIFIED BY \'claudepass123\';" || true',
+            'mysql -e "GRANT ALL PRIVILEGES ON claude_knowledge.* TO \'claude_user\'@\'localhost\';" || true',
+            'mysql -e "FLUSH PRIVILEGES;" || true'
+        ]
+    },
+    'nginx': {
+        'name': 'Nginx',
+        'check': 'nginx -v 2>&1',
+        'version_regex': r'nginx/(\d+\.\d+\.\d+)',
+        'install': [
+            'apt-get update',
+            'apt-get install -y nginx',
+            'systemctl enable nginx || true',
+            'systemctl start nginx || true',
+            # Create SSL certs if not exist
+            'mkdir -p /etc/codehero/ssl',
+            'test -f /etc/codehero/ssl/cert.pem || openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/codehero/ssl/key.pem -out /etc/codehero/ssl/cert.pem -subj "/C=GR/ST=Athens/L=Athens/O=CodeHero/CN=codehero"',
+            # Create admin site config if not exists
+            '''test -f /etc/nginx/sites-available/codehero-admin || cat > /etc/nginx/sites-available/codehero-admin << 'NGINXADMIN'
+server {
+    listen 9453 ssl http2;
+    server_name _;
+    ssl_certificate /etc/codehero/ssl/cert.pem;
+    ssl_certificate_key /etc/codehero/ssl/key.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    client_max_body_size 500M;
+    location / {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+    }
+    location /socket.io {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 86400s;
+    }
+}
+NGINXADMIN''',
+            'ln -sf /etc/nginx/sites-available/codehero-admin /etc/nginx/sites-enabled/ || true',
+            'rm -f /etc/nginx/sites-enabled/default || true',
+            'nginx -t && systemctl reload nginx || true'
+        ]
+    },
+    'php': {
+        'name': 'PHP 8.3',
+        'check': 'php -v | head -1',
+        'version_regex': r'PHP (\d+\.\d+\.\d+)',
+        'install': [
+            'apt-get update',
+            'apt-get install -y php8.3-fpm php8.3-mysql php8.3-curl php8.3-intl php8.3-opcache php8.3-redis php8.3-imagick php8.3-sqlite3 php8.3-imap php8.3-apcu php8.3-igbinary php8.3-tidy php8.3-pgsql php8.3-cli || apt-get install -y php-fpm php-mysql php-curl',
+            'systemctl enable php8.3-fpm || systemctl enable php-fpm || true',
+            'systemctl start php8.3-fpm || systemctl start php-fpm || true'
+        ]
+    },
+    'phpmyadmin': {
+        'name': 'phpMyAdmin',
+        'check': 'dpkg -l phpmyadmin 2>/dev/null | grep -q "^ii" && echo installed',
+        'version_regex': r'(installed)',
+        'install': [
+            'apt-get update',
+            'DEBIAN_FRONTEND=noninteractive apt-get install -y phpmyadmin',
+            # Create signon.php only if not exists
+            '''test -f /usr/share/phpmyadmin/signon.php || cat > /usr/share/phpmyadmin/signon.php << 'PMASIGNON'
+<?php
+session_name('PMA_signon');
+session_start();
+$user = isset($_GET['u']) ? base64_decode($_GET['u']) : '';
+$pass = isset($_GET['p']) ? base64_decode($_GET['p']) : '';
+$db = isset($_GET['db']) ? base64_decode($_GET['db']) : '';
+if (empty($user)) { die('Missing credentials'); }
+$_SESSION['PMA_single_signon_user'] = $user;
+$_SESSION['PMA_single_signon_password'] = $pass;
+$_SESSION['PMA_single_signon_host'] = 'localhost';
+$redirect = 'index.php';
+if (!empty($db)) { $redirect .= '?db=' . urlencode($db); }
+header('Location: ' . $redirect);
+exit;
+PMASIGNON''',
+            'mkdir -p /etc/phpmyadmin/conf.d',
+            '''test -f /etc/phpmyadmin/conf.d/codehero-signon.php || cat > /etc/phpmyadmin/conf.d/codehero-signon.php << 'PMACONFIG'
+<?php
+$cfg['Servers'][1]['auth_type'] = 'signon';
+$cfg['Servers'][1]['SignonSession'] = 'PMA_signon';
+$cfg['Servers'][1]['SignonURL'] = '/signon.php';
+$cfg['Servers'][1]['LogoutURL'] = '/';
+PMACONFIG''',
+            # Create nginx config only if not exists
+            '''test -f /etc/nginx/sites-available/codehero-phpmyadmin || cat > /etc/nginx/sites-available/codehero-phpmyadmin << 'NGINXPMA'
+server {
+    listen 9454 ssl http2;
+    server_name _;
+    ssl_certificate /etc/codehero/ssl/cert.pem;
+    ssl_certificate_key /etc/codehero/ssl/key.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    root /usr/share/phpmyadmin;
+    index index.php index.html;
+    location / { try_files $uri $uri/ /index.php?$args; }
+    location ~ \\.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    }
+    location ~ /\\.ht { deny all; }
+    location /setup { deny all; }
+}
+NGINXPMA''',
+            'ln -sf /etc/nginx/sites-available/codehero-phpmyadmin /etc/nginx/sites-enabled/ || true',
+            'nginx -t && systemctl reload nginx || true'
+        ]
+    },
+    'python-core': {
+        'name': 'Python Core Packages',
+        'check': 'python3 -c "import flask; print(flask.__version__)"',
+        'version_regex': r'(\d+\.\d+\.\d+)',
+        'install': [
+            'apt-get install -y python3 python3-pip || true',
+            'pip3 install --ignore-installed flask flask-socketio flask-cors mysql-connector-python bcrypt eventlet --break-system-packages || pip3 install --ignore-installed flask flask-socketio flask-cors mysql-connector-python bcrypt eventlet || true'
+        ]
+    },
+    'claude-cli': {
+        'name': 'Claude Code CLI',
+        'check': 'test -f /home/claude/.local/bin/claude && /home/claude/.local/bin/claude --version 2>/dev/null | head -1',
+        'version_regex': r'(\d+\.\d+\.\d+)',
+        'install': [
+            'sudo -u claude bash -c "curl -fsSL https://claude.ai/install.sh | bash" || true',
+            # Add to PATH if not already
+            'sudo -u claude bash -c "grep -q .local/bin ~/.bashrc || echo \'export PATH=\\\"\\$HOME/.local/bin:\\$PATH\\\"\' >> ~/.bashrc" || true'
+        ]
+    },
+    # Development Tools
+    'nodejs': {
+        'name': 'Node.js 22',
+        'check': 'node --version',
+        'version_regex': r'v(\d+\.\d+\.\d+)',
+        'install': [
+            # Check if nodesource repo already added
+            'test -f /etc/apt/sources.list.d/nodesource.list || curl -fsSL https://deb.nodesource.com/setup_22.x | bash -',
+            'apt-get install -y nodejs'
+        ]
+    },
+    'graalvm': {
+        'name': 'GraalVM Java 24',
+        'check': 'test -d /opt/graalvm && /opt/graalvm/bin/java -version 2>&1 | head -1',
+        'version_regex': r'(\d+\.\d+\.\d+)',
+        'install': [
+            # Only download if not exists
+            'test -d /opt/graalvm || curl -fsSL https://github.com/graalvm/graalvm-ce-builds/releases/download/jdk-24.0.1/graalvm-community-jdk-24.0.1_linux-x64_bin.tar.gz -o /tmp/graalvm.tar.gz',
+            'test -d /opt/graalvm || tar -xzf /tmp/graalvm.tar.gz -C /opt/',
+            'test -d /opt/graalvm || ln -sf /opt/graalvm-community-openjdk-24.0.1+11.1 /opt/graalvm',
+            'update-alternatives --install /usr/bin/java java /opt/graalvm/bin/java 100 || true',
+            'update-alternatives --install /usr/bin/javac javac /opt/graalvm/bin/javac 100 || true',
+            'rm -f /tmp/graalvm.tar.gz || true'
+        ]
+    },
+    'playwright': {
+        'name': 'Playwright',
+        'check': 'python3 -c "import playwright; print(\'installed\')" 2>/dev/null',
+        'version_regex': r'(installed)',
+        'install': [
+            'apt-get update',
+            'apt-get install -y xvfb libgbm1 libasound2t64 libatk-bridge2.0-0t64 libdrm2 libnss3 || apt-get install -y xvfb libgbm1 libasound2 || true',
+            'pip3 install playwright --break-system-packages || pip3 install playwright || true',
+            'su - claude -c "playwright install chromium" || playwright install chromium || true'
+        ]
+    },
+    'multimedia': {
+        'name': 'Multimedia Tools',
+        'check': 'ffmpeg -version 2>&1 | head -1',
+        'version_regex': r'ffmpeg version (\S+)',
+        'install': [
+            'apt-get update',
+            'apt-get install -y ffmpeg imagemagick tesseract-ocr poppler-utils sox || true'
+        ]
+    },
+    # Code Intelligence (Monaco + LSP Servers) - All installed to /opt/codehero/lsp/
+    # Each LSP updates /opt/codehero/lsp/config.json with its path for the app to use
+    'monaco-editor': {
+        'name': 'Monaco Editor',
+        'check': 'test -f /opt/codehero/web/static/monaco/min/vs/editor/editor.main.js && echo installed',
+        'version_regex': r'(installed)',
+        'install': [
+            'mkdir -p /opt/codehero/web/static/monaco',
+            'test -f /opt/codehero/web/static/monaco/min/vs/editor/editor.main.js || curl -fsSL "https://registry.npmjs.org/monaco-editor/-/monaco-editor-0.45.0.tgz" -o /tmp/monaco.tgz',
+            'test -f /tmp/monaco.tgz && tar -xzf /tmp/monaco.tgz -C /tmp && cp -r /tmp/package/* /opt/codehero/web/static/monaco/ && rm -rf /tmp/monaco.tgz /tmp/package || true',
+            'mkdir -p /opt/codehero/web/static/monaco-workers',
+            'echo "self.MonacoEnvironment={baseUrl:self.location.origin+\\"/static/monaco/min/\\"};importScripts(self.location.origin+\\"/static/monaco/min/vs/base/worker/workerMain.js\\");" > /opt/codehero/web/static/monaco-workers/editor.worker.js',
+            'echo "self.MonacoEnvironment={baseUrl:self.location.origin+\\"/static/monaco/min/\\"};importScripts(self.location.origin+\\"/static/monaco/min/vs/language/json/jsonWorker.js\\");" > /opt/codehero/web/static/monaco-workers/json.worker.js',
+            'echo "self.MonacoEnvironment={baseUrl:self.location.origin+\\"/static/monaco/min/\\"};importScripts(self.location.origin+\\"/static/monaco/min/vs/language/css/cssWorker.js\\");" > /opt/codehero/web/static/monaco-workers/css.worker.js',
+            'echo "self.MonacoEnvironment={baseUrl:self.location.origin+\\"/static/monaco/min/\\"};importScripts(self.location.origin+\\"/static/monaco/min/vs/language/html/htmlWorker.js\\");" > /opt/codehero/web/static/monaco-workers/html.worker.js',
+            'echo "self.MonacoEnvironment={baseUrl:self.location.origin+\\"/static/monaco/min/\\"};importScripts(self.location.origin+\\"/static/monaco/min/vs/language/typescript/tsWorker.js\\");" > /opt/codehero/web/static/monaco-workers/ts.worker.js',
+            'python3 /opt/codehero/scripts/update_lsp_config.py monaco /opt/codehero/web/static/monaco',
+            'echo "Monaco Editor installed to /opt/codehero/web/static/monaco"'
+        ]
+    },
+    'lsp-python': {
+        'name': 'Python LSP',
+        'check': 'test -f /opt/codehero/lsp/python/bin/pylsp && /opt/codehero/lsp/python/bin/pylsp --version 2>/dev/null | head -1',
+        'version_regex': r'v(\d+\.\d+\.\d+)',
+        'install': [
+            'mkdir -p /opt/codehero/lsp/python',
+            'python3 -m venv /opt/codehero/lsp/python',
+            '/opt/codehero/lsp/python/bin/pip install --upgrade pip',
+            '/opt/codehero/lsp/python/bin/pip install python-lsp-server pylsp-mypy python-lsp-black',
+            'ln -sf /opt/codehero/lsp/python/bin/pylsp /usr/local/bin/pylsp 2>/dev/null || true',
+            'python3 /opt/codehero/scripts/update_lsp_config.py python /opt/codehero/lsp/python/bin/pylsp',
+            'echo "Python LSP installed to /opt/codehero/lsp/python"'
+        ]
+    },
+    'lsp-typescript': {
+        'name': 'TypeScript/JS LSP',
+        'check': 'test -f /opt/codehero/lsp/node/node_modules/.bin/typescript-language-server && /opt/codehero/lsp/node/node_modules/.bin/typescript-language-server --version 2>/dev/null',
+        'version_regex': r'(\d+\.\d+\.\d+)',
+        'install': [
+            'mkdir -p /opt/codehero/lsp/node',
+            'cd /opt/codehero/lsp/node && npm init -y 2>/dev/null || true',
+            'cd /opt/codehero/lsp/node && npm install typescript typescript-language-server',
+            'ln -sf /opt/codehero/lsp/node/node_modules/.bin/typescript-language-server /usr/local/bin/typescript-language-server 2>/dev/null || true',
+            'ln -sf /opt/codehero/lsp/node/node_modules/.bin/tsserver /usr/local/bin/tsserver 2>/dev/null || true',
+            'python3 /opt/codehero/scripts/update_lsp_config.py typescript /opt/codehero/lsp/node/node_modules/.bin/typescript-language-server javascript /opt/codehero/lsp/node/node_modules/.bin/typescript-language-server',
+            'echo "TypeScript/JS LSP installed to /opt/codehero/lsp/node"'
+        ]
+    },
+    'lsp-html-css': {
+        'name': 'HTML/CSS/JSON LSP',
+        'check': 'test -f /opt/codehero/lsp/node/node_modules/.bin/vscode-html-language-server && echo installed',
+        'version_regex': r'(installed)',
+        'install': [
+            'mkdir -p /opt/codehero/lsp/node',
+            'cd /opt/codehero/lsp/node && npm init -y 2>/dev/null || true',
+            'cd /opt/codehero/lsp/node && npm install vscode-langservers-extracted',
+            'ln -sf /opt/codehero/lsp/node/node_modules/.bin/vscode-html-language-server /usr/local/bin/vscode-html-language-server 2>/dev/null || true',
+            'ln -sf /opt/codehero/lsp/node/node_modules/.bin/vscode-css-language-server /usr/local/bin/vscode-css-language-server 2>/dev/null || true',
+            'ln -sf /opt/codehero/lsp/node/node_modules/.bin/vscode-json-language-server /usr/local/bin/vscode-json-language-server 2>/dev/null || true',
+            'python3 /opt/codehero/scripts/update_lsp_config.py html /opt/codehero/lsp/node/node_modules/.bin/vscode-html-language-server css /opt/codehero/lsp/node/node_modules/.bin/vscode-css-language-server json /opt/codehero/lsp/node/node_modules/.bin/vscode-json-language-server',
+            'echo "HTML/CSS/JSON LSP installed to /opt/codehero/lsp/node"'
+        ]
+    },
+    'lsp-php': {
+        'name': 'PHP LSP (Intelephense)',
+        'check': 'test -f /opt/codehero/lsp/node/node_modules/.bin/intelephense && echo installed',
+        'version_regex': r'(installed)',
+        'install': [
+            'mkdir -p /opt/codehero/lsp/node',
+            'cd /opt/codehero/lsp/node && npm init -y 2>/dev/null || true',
+            'cd /opt/codehero/lsp/node && npm install intelephense',
+            'ln -sf /opt/codehero/lsp/node/node_modules/.bin/intelephense /usr/local/bin/intelephense 2>/dev/null || true',
+            'python3 /opt/codehero/scripts/update_lsp_config.py php /opt/codehero/lsp/node/node_modules/.bin/intelephense',
+            'echo "PHP LSP (Intelephense) installed to /opt/codehero/lsp/node"'
+        ]
+    },
+    'lsp-java': {
+        'name': 'Java LSP (Eclipse)',
+        'check': 'test -d /opt/codehero/lsp/jdtls/plugins && echo installed',
+        'version_regex': r'(installed)',
+        'install': [
+            'apt-get update && apt-get install -y default-jdk || true',
+            'mkdir -p /opt/codehero/lsp/jdtls',
+            'test -d /opt/codehero/lsp/jdtls/plugins || curl -fsSL "https://download.eclipse.org/jdtls/snapshots/jdt-language-server-latest.tar.gz" -o /tmp/jdtls.tar.gz',
+            'test -f /tmp/jdtls.tar.gz && tar -xzf /tmp/jdtls.tar.gz -C /opt/codehero/lsp/jdtls && rm -f /tmp/jdtls.tar.gz || true',
+            'echo "#!/bin/bash" > /opt/codehero/lsp/jdtls/jdtls.sh',
+            'echo "JAR=\\$(find /opt/codehero/lsp/jdtls/plugins -name org.eclipse.equinox.launcher_*.jar | head -1)" >> /opt/codehero/lsp/jdtls/jdtls.sh',
+            'echo "CONFIG=/opt/codehero/lsp/jdtls/config_linux" >> /opt/codehero/lsp/jdtls/jdtls.sh',
+            'echo "java -Declipse.application=org.eclipse.jdt.ls.core.id1 -Dosgi.bundles.defaultStartLevel=4 -Declipse.product=org.eclipse.jdt.ls.core.product -jar \\$JAR -configuration \\$CONFIG -data \\${1:-/tmp/jdtls-workspace} \\$@" >> /opt/codehero/lsp/jdtls/jdtls.sh',
+            'chmod +x /opt/codehero/lsp/jdtls/jdtls.sh',
+            'ln -sf /opt/codehero/lsp/jdtls/jdtls.sh /usr/local/bin/jdtls 2>/dev/null || true',
+            'python3 /opt/codehero/scripts/update_lsp_config.py java /opt/codehero/lsp/jdtls/jdtls.sh',
+            'echo "Java LSP (Eclipse JDTLS) installed to /opt/codehero/lsp/jdtls"'
+        ]
+    },
+    'lsp-csharp': {
+        'name': 'C# LSP (OmniSharp)',
+        'check': 'test -f /opt/codehero/lsp/omnisharp/OmniSharp && echo installed',
+        'version_regex': r'(installed)',
+        'install': [
+            'mkdir -p /opt/codehero/lsp/omnisharp',
+            'test -f /opt/codehero/lsp/omnisharp/OmniSharp || curl -fsSL "https://github.com/OmniSharp/omnisharp-roslyn/releases/download/v1.39.11/omnisharp-linux-x64-net6.0.tar.gz" -o /tmp/omnisharp.tar.gz',
+            'test -f /tmp/omnisharp.tar.gz && tar -xzf /tmp/omnisharp.tar.gz -C /opt/codehero/lsp/omnisharp && chmod +x /opt/codehero/lsp/omnisharp/OmniSharp && rm -f /tmp/omnisharp.tar.gz || true',
+            'ln -sf /opt/codehero/lsp/omnisharp/OmniSharp /usr/local/bin/omnisharp 2>/dev/null || true',
+            'python3 /opt/codehero/scripts/update_lsp_config.py csharp /opt/codehero/lsp/omnisharp/OmniSharp',
+            'echo "C# LSP (OmniSharp) installed to /opt/codehero/lsp/omnisharp"'
+        ]
+    },
+    'lsp-kotlin': {
+        'name': 'Kotlin LSP',
+        'check': 'test -f /opt/codehero/lsp/kotlin/server/bin/kotlin-language-server && echo installed',
+        'version_regex': r'(installed)',
+        'install': [
+            'apt-get update && apt-get install -y default-jdk unzip || true',
+            'mkdir -p /opt/codehero/lsp/kotlin',
+            'test -f /opt/codehero/lsp/kotlin/server/bin/kotlin-language-server || curl -fsSL "https://github.com/fwcd/kotlin-language-server/releases/download/1.3.9/server.zip" -o /tmp/kotlin-ls.zip',
+            'test -f /tmp/kotlin-ls.zip && unzip -q -o /tmp/kotlin-ls.zip -d /opt/codehero/lsp/kotlin && chmod +x /opt/codehero/lsp/kotlin/server/bin/kotlin-language-server && rm -f /tmp/kotlin-ls.zip || true',
+            'ln -sf /opt/codehero/lsp/kotlin/server/bin/kotlin-language-server /usr/local/bin/kotlin-language-server 2>/dev/null || true',
+            'python3 /opt/codehero/scripts/update_lsp_config.py kotlin /opt/codehero/lsp/kotlin/server/bin/kotlin-language-server',
+            'echo "Kotlin LSP installed to /opt/codehero/lsp/kotlin"'
+        ]
+    },
+    'dotnet': {
+        'name': '.NET SDK 8.0',
+        'check': 'dotnet --version',
+        'version_regex': r'(\d+\.\d+\.\d+)',
+        'install': [
+            'apt-get update',
+            'apt-get install -y wget',
+            # Only add MS repo if not exists
+            'test -f /etc/apt/sources.list.d/microsoft-prod.list || wget https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb -O /tmp/packages-microsoft-prod.deb',
+            'test -f /etc/apt/sources.list.d/microsoft-prod.list || dpkg -i /tmp/packages-microsoft-prod.deb',
+            'apt-get update',
+            'apt-get install -y dotnet-sdk-8.0',
+            'rm -f /tmp/packages-microsoft-prod.deb || true'
+        ]
+    },
+    'powershell': {
+        'name': 'PowerShell',
+        'check': 'pwsh --version',
+        'version_regex': r'PowerShell (\d+\.\d+\.\d+)',
+        'install': [
+            'apt-get update',
+            'apt-get install -y wget apt-transport-https software-properties-common',
+            # Only add MS repo if not exists
+            'test -f /etc/apt/sources.list.d/microsoft-prod.list || wget https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb -O /tmp/packages-microsoft-prod.deb',
+            'test -f /etc/apt/sources.list.d/microsoft-prod.list || dpkg -i /tmp/packages-microsoft-prod.deb || true',
+            'apt-get update',
+            'apt-get install -y powershell',
+            'rm -f /tmp/packages-microsoft-prod.deb || true'
+        ]
+    },
+    'wine': {
+        'name': 'Wine',
+        'check': 'wine --version',
+        'version_regex': r'wine-(\d+\.\d+)',
+        'install': [
+            'dpkg --add-architecture i386 || true',
+            'apt-get update',
+            'apt-get install -y wine wine64 || apt-get install -y wine || true'
+        ]
+    },
+    'mono': {
+        'name': 'Mono Runtime',
+        'check': 'mono --version | head -1',
+        'version_regex': r'(\d+\.\d+\.\d+)',
+        'install': [
+            'apt-get install -y gnupg ca-certificates',
+            # Only add mono repo if not exists
+            'test -f /etc/apt/sources.list.d/mono-official-stable.list || apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 3FA7E0328081BFF6A14DA29AA6A19B38D3D831EF',
+            'test -f /etc/apt/sources.list.d/mono-official-stable.list || echo "deb https://download.mono-project.com/repo/ubuntu stable-focal main" | tee /etc/apt/sources.list.d/mono-official-stable.list',
+            'apt-get update',
+            'apt-get install -y mono-complete nuget || apt-get install -y mono-runtime || true'
+        ]
+    },
+    'docker': {
+        'name': 'Docker',
+        'check': 'docker --version',
+        'version_regex': r'Docker version (\d+\.\d+\.\d+)',
+        'install': [
+            'apt-get update',
+            'apt-get install -y ca-certificates curl gnupg',
+            'install -m 0755 -d /etc/apt/keyrings',
+            # Only add docker repo if not exists
+            'test -f /etc/apt/keyrings/docker.gpg || curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg',
+            'chmod a+r /etc/apt/keyrings/docker.gpg || true',
+            'test -f /etc/apt/sources.list.d/docker.list || echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null',
+            'apt-get update',
+            'apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin',
+            'systemctl enable docker || true',
+            'systemctl start docker || true',
+            'usermod -aG docker claude || true'
+        ]
+    },
+    'redroid': {
+        'name': 'Redroid Android',
+        'check': 'docker images redroid/redroid --format "{{.Tag}}" 2>/dev/null | head -1',
+        'version_regex': r'(\d+\.\d+\.\d+)',
+        'install': [
+            # Check if docker is running
+            'systemctl is-active docker || systemctl start docker',
+            'docker pull redroid/redroid:15.0.0-latest',
+            'apt-get install -y android-tools-adb || true',
+            # Create config directory
+            'mkdir -p /opt/codehero/android',
+            # Update config
+            '''python3 -c "import json; f='/opt/codehero/android/config.json'; c=json.load(open(f)) if __import__('os').path.exists(f) else {}; c['redroid']={'image':'redroid/redroid:15.0.0-latest','status':'installed'}; json.dump(c,open(f,'w'),indent=2)"''',
+            'echo "Redroid Android configured in /opt/codehero/android/config.json"'
+        ]
+    },
+    'flutter': {
+        'name': 'Flutter SDK',
+        'check': 'test -d /opt/flutter && /opt/flutter/bin/flutter --version 2>&1 | head -1',
+        'version_regex': r'Flutter (\d+\.\d+\.\d+)',
+        'install': [
+            'apt-get install -y curl git unzip xz-utils zip libglu1-mesa clang cmake ninja-build pkg-config libgtk-3-dev || true',
+            # Only clone if not exists
+            'test -d /opt/flutter || git clone https://github.com/flutter/flutter.git -b stable /opt/flutter',
+            'ln -sf /opt/flutter/bin/flutter /usr/local/bin/flutter || true',
+            'ln -sf /opt/flutter/bin/dart /usr/local/bin/dart || true',
+            '/opt/flutter/bin/flutter precache || true',
+            # Create config directory
+            'mkdir -p /opt/codehero/android',
+            # Update config
+            '''python3 -c "import json; f='/opt/codehero/android/config.json'; c=json.load(open(f)) if __import__('os').path.exists(f) else {}; c['flutter']='/opt/flutter/bin/flutter'; c['dart']='/opt/flutter/bin/dart'; json.dump(c,open(f,'w'),indent=2)"''',
+            'echo "Flutter SDK configured in /opt/codehero/android/config.json"'
+        ]
+    },
+    'android-tools': {
+        'name': 'Android Tools',
+        'check': 'adb version 2>&1 | head -1',
+        'version_regex': r'(\d+\.\d+\.\d+)',
+        'install': [
+            'apt-get update',
+            'apt-get install -y android-tools-adb gradle openjdk-17-jdk || apt-get install -y android-tools-adb || true',
+            'update-alternatives --set java /usr/lib/jvm/java-17-openjdk-amd64/bin/java 2>/dev/null || true',
+            # Create config directory
+            'mkdir -p /opt/codehero/android',
+            # Update config
+            '''python3 -c "import json; f='/opt/codehero/android/config.json'; c=json.load(open(f)) if __import__('os').path.exists(f) else {}; c['adb']='$(which adb)'; c['gradle']='$(which gradle)'; json.dump(c,open(f,'w'),indent=2)"''',
+            'echo "Android Tools configured in /opt/codehero/android/config.json"'
+        ]
+    },
+    'scrcpy': {
+        'name': 'ws-scrcpy',
+        'check': 'test -f /opt/ws-scrcpy/package.json && echo installed',
+        'version_regex': r'(installed)',
+        'install': [
+            'apt-get install -y git ffmpeg libsdl2-2.0-0 wget gcc make || true',
+            'apt-get install -y android-tools-adb || true',
+            # Only clone if not exists
+            'test -d /opt/ws-scrcpy || git clone https://github.com/AltScore/ws-scrcpy.git /opt/ws-scrcpy',
+            'cd /opt/ws-scrcpy && npm install || true',
+            'cd /opt/ws-scrcpy && npm run dist || true',
+            # Create config directory
+            'mkdir -p /opt/codehero/android',
+            # Update config
+            '''python3 -c "import json; f='/opt/codehero/android/config.json'; c=json.load(open(f)) if __import__('os').path.exists(f) else {}; c['scrcpy']='/opt/ws-scrcpy'; json.dump(c,open(f,'w'),indent=2)"''',
+            'echo "ws-scrcpy configured in /opt/codehero/android/config.json"'
+        ]
+    },
+    # =====================================================
+    # Configuration Scripts - Full environment setup
+    # These run the complete setup scripts with all configurations
+    # =====================================================
+    'setup-android': {
+        'name': 'Android Environment Setup',
+        'check': 'test -f /etc/systemd/system/ws-scrcpy.service && docker ps -a --format "{{.Names}}" | grep -q "^redroid$" && echo configured',
+        'version_regex': r'(configured)',
+        'install': [
+            'echo "Running full Android environment setup..."',
+            'bash /opt/codehero/scripts/setup_android.sh',
+            # Update config with full android setup
+            'mkdir -p /opt/codehero/android',
+            'python3 /opt/codehero/scripts/update_android_config.py',
+            'echo "Android environment fully configured!"'
+        ]
+    },
+    'setup-lsp': {
+        'name': 'LSP Servers Setup',
+        'check': 'test -f /usr/local/bin/jdtls && test -f /usr/local/bin/omnisharp && echo configured',
+        'version_regex': r'(configured)',
+        'install': [
+            'echo "Running full LSP servers setup..."',
+            'bash /opt/codehero/scripts/setup_lsp.sh',
+            # Update config with all LSP paths
+            'mkdir -p /opt/codehero/lsp',
+            'python3 /opt/codehero/scripts/update_lsp_full_config.py',
+            'echo "LSP servers fully configured!"'
+        ]
+    },
+    'setup-windows': {
+        'name': 'Windows Dev Environment Setup',
+        'check': 'test -f /etc/profile.d/windows-dev.sh && command -v dotnet && echo configured',
+        'version_regex': r'(configured)',
+        'install': [
+            'echo "Running full Windows development setup..."',
+            'bash /opt/codehero/scripts/setup_windows.sh',
+            # Update config
+            'mkdir -p /opt/codehero/windows',
+            'python3 /opt/codehero/scripts/update_windows_config.py',
+            'echo "Windows development environment fully configured!"'
+        ]
+    }
+}
+
+@app.route('/packages')
+@login_required
+def packages():
+    """Package Manager page"""
+    return render_template('packages.html', user=session['user'], role=session.get('role'), version=VERSION)
+
+@app.route('/api/packages/status')
+@login_required
+def packages_status():
+    """Check installed status of all packages"""
+    import re
+    results = {}
+
+    for pkg_id, pkg_info in PACKAGES.items():
+        try:
+            result = subprocess.run(
+                pkg_info['check'],
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+
+            if result.returncode == 0 and result.stdout.strip():
+                output = result.stdout.strip()
+                version = None
+                if pkg_info.get('version_regex'):
+                    match = re.search(pkg_info['version_regex'], output)
+                    if match:
+                        version = match.group(1)
+                results[pkg_id] = {'installed': True, 'version': version}
+            else:
+                results[pkg_id] = {'installed': False, 'version': None}
+        except Exception as e:
+            results[pkg_id] = {'installed': False, 'version': None, 'error': str(e)}
+
+    return jsonify(results)
+
+@app.route('/api/packages/install/<pkg>', methods=['POST'])
+@login_required
+def packages_install(pkg):
+    """Start package installation (async with SocketIO updates)"""
+    if pkg not in PACKAGES:
+        return jsonify({'error': f'Unknown package: {pkg}'}), 404
+
+    # Start installation in background thread
+    def install_worker():
+        pkg_info = PACKAGES[pkg]
+        success = True
+
+        try:
+            socketio.emit('package_log', {'package': pkg, 'line': f'[INFO] Starting installation of {pkg_info["name"]}...'})
+
+            for i, cmd in enumerate(pkg_info['install'], 1):
+                # Wrap command with sudo for system-level operations
+                display_cmd = cmd
+                if not cmd.startswith('echo '):
+                    cmd = f'sudo bash -c {repr(cmd)}'
+
+                socketio.emit('package_log', {'package': pkg, 'line': f'\n[{i}/{len(pkg_info["install"])}] Running: {display_cmd}'})
+
+                process = subprocess.Popen(
+                    cmd,
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1
+                )
+
+                # Stream output line by line
+                for line in iter(process.stdout.readline, ''):
+                    if line:
+                        socketio.emit('package_log', {'package': pkg, 'line': line.rstrip()})
+
+                process.wait()
+
+                if process.returncode != 0:
+                    socketio.emit('package_log', {'package': pkg, 'line': f'[ERROR] Command failed with exit code {process.returncode}'})
+                    success = False
+                    break
+                else:
+                    socketio.emit('package_log', {'package': pkg, 'line': '[OK] Command completed'})
+
+            socketio.emit('package_complete', {'package': pkg, 'success': success})
+
+        except Exception as e:
+            socketio.emit('package_log', {'package': pkg, 'line': f'[ERROR] {str(e)}'})
+            socketio.emit('package_complete', {'package': pkg, 'success': False})
+
+    # Start worker thread
+    threading.Thread(target=install_worker, daemon=True).start()
+
+    return jsonify({'status': 'started', 'package': pkg})
+
+@app.route('/api/lsp/config')
+@login_required
+def lsp_config():
+    """Get LSP configuration for the app"""
+    import json
+    config_path = '/opt/codehero/lsp/config.json'
+    try:
+        if os.path.exists(config_path):
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+            return jsonify(config)
+        else:
+            return jsonify({})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/android/config')
+@login_required
+def android_config():
+    """Get Android development configuration for the app"""
+    import json
+    config_path = '/opt/codehero/android/config.json'
+    try:
+        if os.path.exists(config_path):
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+            return jsonify(config)
+        else:
+            return jsonify({})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/windows/config')
+@login_required
+def windows_config():
+    """Get Windows development configuration for the app"""
+    import json
+    config_path = '/opt/codehero/windows/config.json'
+    try:
+        if os.path.exists(config_path):
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+            return jsonify(config)
+        else:
+            return jsonify({})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # Background thread to push new messages
 def message_pusher():

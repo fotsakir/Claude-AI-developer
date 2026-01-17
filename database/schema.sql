@@ -247,6 +247,7 @@ CREATE TABLE `projects` (
   `total_duration_seconds` int DEFAULT '0',
   `map_generated_at` timestamp NULL DEFAULT NULL,
   `knowledge_updated_at` timestamp NULL DEFAULT NULL,
+  `default_test_command` varchar(255) DEFAULT NULL,
   `ai_model` enum('opus','sonnet','haiku') DEFAULT 'sonnet',
   `android_device_type` enum('none','server','remote') DEFAULT 'none',
   `android_remote_host` varchar(255) DEFAULT NULL,
@@ -349,7 +350,18 @@ CREATE TABLE `tickets` (
   `description` text,
   `context` text,
   `priority` enum('low','medium','high','critical') DEFAULT 'medium',
-  `status` enum('new','open','pending','in_progress','awaiting_input','done','failed','stuck','skipped') DEFAULT 'open',
+  `ticket_type` enum('feature','bug','debug','rnd','task','improvement','docs') DEFAULT 'task',
+  `sequence_order` int DEFAULT NULL,
+  `is_forced` tinyint(1) DEFAULT '0',
+  `retry_count` int DEFAULT '0',
+  `max_retries` int DEFAULT '3',
+  `max_duration_minutes` int DEFAULT '60',
+  `parent_ticket_id` int DEFAULT NULL,
+  `test_command` varchar(255) DEFAULT NULL,
+  `require_tests_pass` tinyint(1) DEFAULT '0',
+  `start_when_ready` tinyint(1) DEFAULT '1',
+  `deps_include_awaiting` tinyint(1) DEFAULT '0',
+  `status` enum('new','open','pending','in_progress','awaiting_input','done','failed','stuck','skipped','timeout') DEFAULT 'open',
   `result_summary` text,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -364,8 +376,29 @@ CREATE TABLE `tickets` (
   UNIQUE KEY `ticket_number` (`ticket_number`),
   KEY `idx_project_status` (`project_id`,`status`),
   KEY `idx_status` (`status`),
-  CONSTRAINT `tickets_ibfk_1` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE
+  KEY `idx_ticket_sequence` (`project_id`,`sequence_order`,`is_forced`,`priority`),
+  KEY `idx_parent_ticket` (`parent_ticket_id`),
+  CONSTRAINT `tickets_ibfk_1` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_parent_ticket` FOREIGN KEY (`parent_ticket_id`) REFERENCES `tickets` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `ticket_dependencies`
+--
+
+DROP TABLE IF EXISTS `ticket_dependencies`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `ticket_dependencies` (
+  `ticket_id` int NOT NULL,
+  `depends_on_ticket_id` int NOT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`ticket_id`,`depends_on_ticket_id`),
+  KEY `idx_depends_on` (`depends_on_ticket_id`),
+  CONSTRAINT `fk_dep_ticket` FOREIGN KEY (`ticket_id`) REFERENCES `tickets` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_dep_depends_on` FOREIGN KEY (`depends_on_ticket_id`) REFERENCES `tickets` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --

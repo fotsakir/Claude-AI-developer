@@ -217,13 +217,11 @@ Full Linux terminal in browser:
 
 **File:** `web/templates/terminal.html`
 
-### 6. Kill Switch Commands
+### 6. Kill Switch
 Instant control while Claude is working:
-- `/stop` - Pause and wait for correction (shows immediately)
-- `/skip` - Stop and reopen ticket (shows immediately)
-- `/done` - Force complete ticket (shows immediately)
+- `/stop` command or Stop button - Pause immediately and wait for correction
 
-**Implementation:** Commands saved to `user_messages` table and broadcast via SocketIO
+**Implementation:** Command saved to `user_messages` table and broadcast via SocketIO
 
 ---
 

@@ -290,6 +290,7 @@ class ProjectWorker(threading.Thread):
     def save_log(self, log_type, message):
         if not self.current_session_id:
             return
+        conn = None
         try:
             conn = self.get_db()
             cursor = conn.cursor()
@@ -299,24 +300,104 @@ class ProjectWorker(threading.Thread):
             """, (self.current_session_id, log_type, message[:10000]))
             conn.commit()
             cursor.close()
-            conn.close()
-        except: pass
+        except:
+            pass
+        finally:
+            if conn:
+                conn.close()
     
-    def get_next_ticket(self):
+    def update_waiting_tickets(self):
+        """Update tickets with completed deps but start_when_ready=FALSE to awaiting_input.
+        Skip if user has already sent a message (meaning they want it to start)."""
+        conn = None
         try:
             conn = self.get_db()
             cursor = conn.cursor(dictionary=True)
+            # Find ticket IDs that need updating - exclude tickets with user messages
+            cursor.execute("""
+                SELECT t.id FROM tickets t
+                WHERE t.project_id = %s
+                  AND t.status = 'open'
+                  AND t.start_when_ready = FALSE
+                  AND EXISTS (
+                      SELECT 1 FROM ticket_dependencies td WHERE td.ticket_id = t.id
+                  )
+                  AND NOT EXISTS (
+                      -- Respects deps_include_awaiting per ticket
+                      SELECT 1 FROM ticket_dependencies td
+                      JOIN tickets dt ON dt.id = td.depends_on_ticket_id
+                      WHERE td.ticket_id = t.id
+                        AND NOT (
+                            dt.status IN ('done', 'skipped')
+                            OR (COALESCE(t.deps_include_awaiting, FALSE) = TRUE AND dt.status = 'awaiting_input')
+                        )
+                  )
+                  AND NOT EXISTS (
+                      SELECT 1 FROM user_messages um
+                      WHERE um.ticket_id = t.id AND um.processed = FALSE
+                  )
+                  AND NOT EXISTS (
+                      SELECT 1 FROM conversation_messages cm
+                      WHERE cm.ticket_id = t.id AND cm.role = 'user'
+                  )
+            """, (self.project_id,))
+            ticket_ids = [row['id'] for row in cursor.fetchall()]
+
+            if ticket_ids:
+                # Now update them
+                cursor.execute(f"""
+                    UPDATE tickets SET status = 'awaiting_input'
+                    WHERE id IN ({','.join(map(str, ticket_ids))})
+                """)
+                conn.commit()
+                self.log(f"Set {len(ticket_ids)} ticket(s) to awaiting_input (deps complete, start_when_ready=FALSE)")
+            cursor.close()
+        except Exception as e:
+            self.log(f"Error updating waiting tickets: {e}", "ERROR")
+        finally:
+            if conn:
+                conn.close()
+
+    def get_next_ticket(self):
+        """Get next ticket respecting: forced > sequence_order > priority > created_at
+        Also skips tickets with unfinished dependencies."""
+        # First, update any tickets that need to wait for user input
+        self.update_waiting_tickets()
+
+        try:
+            conn = self.get_db()
+            cursor = conn.cursor(dictionary=True)
+
+            # Get all eligible tickets (open/new/pending, not blocked by dependencies)
             cursor.execute("""
                 SELECT t.*, p.web_path, p.app_path, p.name as project_name, p.code as project_code,
                        p.project_type, p.tech_stack, p.context as project_context, t.context as ticket_context,
                        p.db_name, p.db_user, p.db_password, p.db_host,
                        p.ai_model as project_ai_model, t.ai_model as ticket_ai_model,
                        p.android_device_type, p.android_remote_host, p.android_remote_port, p.android_screen_size,
-                       p.dotnet_port
+                       p.dotnet_port, p.default_test_command
                 FROM tickets t
                 JOIN projects p ON t.project_id = p.id
-                WHERE t.project_id = %s AND t.status IN ('open', 'new', 'pending')
+                WHERE t.project_id = %s
+                  AND t.status IN ('open', 'new', 'pending')
+                  AND t.parent_ticket_id IS NULL  -- Skip sub-tickets (handled by parent)
+                  AND NOT EXISTS (
+                      -- Skip if has unfinished dependencies
+                      -- Respects deps_include_awaiting per ticket:
+                      --   FALSE (strict): only 'done'/'skipped' count as complete
+                      --   TRUE (relaxed): 'awaiting_input' also counts as complete
+                      SELECT 1 FROM ticket_dependencies td
+                      JOIN tickets dt ON dt.id = td.depends_on_ticket_id
+                      WHERE td.ticket_id = t.id
+                        AND NOT (
+                            dt.status IN ('done', 'skipped')
+                            OR (COALESCE(t.deps_include_awaiting, FALSE) = TRUE AND dt.status = 'awaiting_input')
+                        )
+                  )
                 ORDER BY
+                    t.is_forced DESC,  -- Forced tickets first
+                    CASE WHEN t.sequence_order IS NOT NULL THEN 0 ELSE 1 END,  -- Sequenced tickets before non-sequenced
+                    t.sequence_order ASC,  -- By sequence order
                     CASE t.priority
                         WHEN 'critical' THEN 1 WHEN 'high' THEN 2
                         WHEN 'medium' THEN 3 WHEN 'low' THEN 4
@@ -331,7 +412,67 @@ class ProjectWorker(threading.Thread):
         except Exception as e:
             self.log(f"Error getting ticket: {e}", "ERROR")
             return None
-    
+
+    def get_pending_sub_tickets(self, parent_ticket_id):
+        """Get unfinished sub-tickets for a parent ticket, ordered by sequence.
+        Also respects dependencies - sub-tickets with unfinished deps are skipped."""
+        try:
+            conn = self.get_db()
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT t.*, p.web_path, p.app_path, p.name as project_name, p.code as project_code,
+                       p.project_type, p.tech_stack, p.context as project_context, t.context as ticket_context,
+                       p.db_name, p.db_user, p.db_password, p.db_host,
+                       p.ai_model as project_ai_model, t.ai_model as ticket_ai_model,
+                       p.default_test_command
+                FROM tickets t
+                JOIN projects p ON t.project_id = p.id
+                WHERE t.parent_ticket_id = %s
+                  AND t.status NOT IN ('done', 'skipped', 'failed', 'awaiting_input')
+                  AND NOT EXISTS (
+                      -- Respect dependencies for sub-tickets too
+                      SELECT 1 FROM ticket_dependencies td
+                      JOIN tickets dt ON dt.id = td.depends_on_ticket_id
+                      WHERE td.ticket_id = t.id
+                        AND NOT (
+                            dt.status IN ('done', 'skipped')
+                            OR (COALESCE(t.deps_include_awaiting, FALSE) = TRUE AND dt.status = 'awaiting_input')
+                        )
+                  )
+                ORDER BY
+                    CASE WHEN t.sequence_order IS NOT NULL THEN 0 ELSE 1 END,
+                    t.sequence_order ASC,
+                    t.created_at ASC
+            """, (parent_ticket_id,))
+            sub_tickets = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            return sub_tickets
+        except Exception as e:
+            self.log(f"Error getting sub-tickets: {e}", "ERROR")
+            return []
+
+    def all_sub_tickets_done(self, parent_ticket_id):
+        """Check if all sub-tickets of a parent are completed.
+        awaiting_input counts as completed (task done, waiting for review)."""
+        conn = None
+        try:
+            conn = self.get_db()
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT COUNT(*) as pending FROM tickets
+                WHERE parent_ticket_id = %s
+                  AND status NOT IN ('done', 'skipped', 'awaiting_input')
+            """, (parent_ticket_id,))
+            result = cursor.fetchone()
+            cursor.close()
+            return result['pending'] == 0
+        except:
+            return True
+        finally:
+            if conn:
+                conn.close()
+
     def get_conversation_history(self, ticket_id):
         # Use smart history if context manager is available
         if self.context_manager:
@@ -341,6 +482,7 @@ class ProjectWorker(threading.Thread):
                 self.log(f"Smart history failed, falling back to basic: {e}", "WARNING")
 
         # Fallback to basic history
+        conn = None
         try:
             conn = self.get_db()
             cursor = conn.cursor(dictionary=True)
@@ -350,17 +492,20 @@ class ProjectWorker(threading.Thread):
             """, (ticket_id,))
             messages = cursor.fetchall()
             cursor.close()
-            conn.close()
             return messages
         except:
             return []
-    
+        finally:
+            if conn:
+                conn.close()
+
     def get_pending_user_messages(self, ticket_id):
+        conn = None
         try:
             conn = self.get_db()
             cursor = conn.cursor(dictionary=True)
             cursor.execute("""
-                SELECT * FROM user_messages 
+                SELECT * FROM user_messages
                 WHERE ticket_id = %s AND processed = FALSE
                 ORDER BY created_at ASC
             """, (ticket_id,))
@@ -370,33 +515,76 @@ class ProjectWorker(threading.Thread):
                 cursor.execute(f"UPDATE user_messages SET processed = TRUE WHERE id IN ({','.join(map(str, ids))})")
                 conn.commit()
             cursor.close()
-            conn.close()
             return messages
         except:
             return []
+        finally:
+            if conn:
+                conn.close()
     
     def update_ticket(self, ticket_id, status, result=None):
         try:
             conn = self.get_db()
             cursor = conn.cursor(dictionary=True)
 
-            # Get ticket info for notification
+            # Get ticket info for notification (including current status and retry info)
             cursor.execute("""
-                SELECT t.ticket_number, t.title, p.name as project_name
+                SELECT t.ticket_number, t.title, t.status as current_status, p.name as project_name,
+                       t.retry_count, t.max_retries, t.is_forced, t.test_command, t.require_tests_pass
                 FROM tickets t JOIN projects p ON t.project_id = p.id
                 WHERE t.id = %s
             """, (ticket_id,))
             ticket_info = cursor.fetchone()
 
+            # If trying to set 'failed' but ticket is already 'awaiting_input' (from /stop command),
+            # don't overwrite - the user intentionally paused it
+            if status == 'failed' and ticket_info and ticket_info.get('current_status') == 'awaiting_input':
+                self.log(f"Ticket {ticket_id} already awaiting_input (user paused), not marking as failed", "DEBUG")
+                cursor.close()
+                conn.close()
+                return
+
+            # Handle retry logic for failed tickets
+            if status == 'failed' and ticket_info:
+                retry_count = ticket_info.get('retry_count') or 0
+                max_retries = ticket_info.get('max_retries') or 3
+
+                if retry_count < max_retries:
+                    # Increment retry count and reset to open for another attempt
+                    new_retry_count = retry_count + 1
+                    cursor.execute("""
+                        UPDATE tickets SET status = 'open', retry_count = %s,
+                        result_summary = %s, updated_at = NOW()
+                        WHERE id = %s
+                    """, (new_retry_count, f"Retry {new_retry_count}/{max_retries}: {result[:500] if result else 'Unknown error'}",
+                          ticket_id))
+                    conn.commit()
+                    self.log(f"Retry {new_retry_count}/{max_retries} for ticket {ticket_info.get('ticket_number', ticket_id)}")
+                    cursor.close()
+                    conn.close()
+                    return  # Will be picked up again
+
             actual_status = status
+            reset_forced = False
+
             if status == 'done':
                 # Set to awaiting_input instead of done - user must respond or close
                 actual_status = 'awaiting_input'
+                reset_forced = ticket_info.get('is_forced', False)
                 cursor.execute("""
                     UPDATE tickets SET status = 'awaiting_input', result_summary = %s,
-                    review_deadline = DATE_ADD(NOW(), INTERVAL 7 DAY), updated_at = NOW()
+                    review_deadline = DATE_ADD(NOW(), INTERVAL 7 DAY), updated_at = NOW(),
+                    is_forced = FALSE, retry_count = 0
                     WHERE id = %s
                 """, (result[:1000] if result else None, ticket_id))
+            elif status == 'failed':
+                # Already past max retries if we get here
+                reset_forced = ticket_info.get('is_forced', False)
+                cursor.execute("""
+                    UPDATE tickets SET status = %s, result_summary = %s, updated_at = NOW(),
+                    is_forced = FALSE
+                    WHERE id = %s
+                """, (status, result[:1000] if result else None, ticket_id))
             else:
                 cursor.execute("""
                     UPDATE tickets SET status = %s, result_summary = %s, updated_at = NOW()
@@ -1017,24 +1205,22 @@ Complete this task. When finished, say "TASK COMPLETED" with a summary."""
                 bufsize=1,
                 env=claude_env
             )
-            
+
+            # Write PID file for instant kill switch
+            pid_file = f"/var/run/codehero/claude_{ticket['id']}.pid"
+            try:
+                with open(pid_file, 'w') as f:
+                    f.write(str(process.pid))
+            except:
+                pass
+
             result = None
             while True:
                 # Check for user commands (non-blocking)
                 new_msgs = self.get_pending_user_messages(ticket['id'])
                 for msg in new_msgs:
                     content = msg['content'].strip()
-                    if content == '/skip':
-                        process.terminate()
-                        self.save_log('warning', '⏭️ User command: /skip - Ticket paused')
-                        self.save_message('system', '⏭️ Ticket paused by user (/skip)')
-                        return 'skipped'
-                    elif content == '/done':
-                        process.terminate()
-                        self.save_log('info', '✅ User command: /done - Ticket closed')
-                        self.save_message('system', '✅ Ticket closed by user (/done)')
-                        return 'completed'
-                    elif content == '/stop':
+                    if content == '/stop':
                         process.terminate()
                         self.save_log('warning', '⏸️ User command: /stop - Waiting for new instructions')
                         self.save_message('system', '⏸️ Stopped by user (/stop) - Waiting for new instructions')
@@ -1068,12 +1254,25 @@ Complete this task. When finished, say "TASK COMPLETED" with a summary."""
             
             final_result = result if result else ('success' if process.returncode == 0 else 'failed')
             self.log(f"Claude finished - returncode: {process.returncode}, result: {result}, final: {final_result}", "DEBUG")
+            # Cleanup PID file
+            try:
+                if os.path.exists(pid_file):
+                    os.remove(pid_file)
+            except:
+                pass
             return final_result
 
         except Exception as e:
             import traceback
             self.log(f"Error running Claude: {e}")
             self.log(f"Traceback: {traceback.format_exc()}")
+            # Cleanup PID file on error
+            try:
+                pid_file = f"/var/run/codehero/claude_{ticket['id']}.pid"
+                if os.path.exists(pid_file):
+                    os.remove(pid_file)
+            except:
+                pass
             return 'failed'
     
     def process_ticket(self, ticket):
@@ -1134,6 +1333,24 @@ Complete this task. When finished, say "TASK COMPLETED" with a summary."""
                     history = self.get_conversation_history(ticket['id'])
                     self.log(f"Processing user feedback before completing...")
                     continue
+
+                # Check for pending sub-tickets (process within parent context)
+                sub_tickets = self.get_pending_sub_tickets(ticket['id'])
+                if sub_tickets:
+                    self.log(f"📦 Parent ticket has {len(sub_tickets)} pending sub-tickets, processing...")
+                    for sub_ticket in sub_tickets:
+                        self.log(f"  ↳ Processing sub-ticket: {sub_ticket['ticket_number']}")
+                        self.process_ticket(sub_ticket)  # Recursive call
+                        # Check if we should stop (daemon stopped)
+                        stop_event = getattr(self, 'stop_event', None)
+                        if stop_event and stop_event.is_set():
+                            break
+                    # After sub-tickets, check if all are done
+                    if not self.all_sub_tickets_done(ticket['id']):
+                        self.log(f"⚠️ Some sub-tickets not completed, parent remains open")
+                        self.update_ticket(ticket['id'], 'open')
+                        self.end_session(self.current_session_id, 'completed')
+                        break
 
                 self.update_ticket(ticket['id'], 'done', 'Completed successfully')
                 self.end_session(self.current_session_id, 'completed')
@@ -1516,7 +1733,8 @@ class ClaudeDaemon:
             password=self.config.get('DB_PASSWORD', ''),
             database=self.config.get('DB_NAME', 'claude_knowledge'),
             pool_name='daemon_pool',
-            pool_size=10
+            pool_size=30,
+            pool_reset_session=True
         )
     
     def get_db(self):

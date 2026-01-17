@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#6366f1">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <title>Tickets - {{ project.name if project else 'Project' }} - CodeHero</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #07070d;
+            --bg-secondary: #0d0d16;
+            --bg-card: rgba(18, 18, 32, 0.7);
+            --bg-card-hover: rgba(25, 25, 45, 0.8);
+            --border-subtle: rgba(99, 102, 241, 0.15);
+            --border-glow: rgba(99, 102, 241, 0.4);
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-primary: #6366f1;
+            --accent-secondary: #8b5cf6;
+            --accent-cyan: #22d3ee;
+            --accent-green: #10b981;
+            --accent-orange: #f59e0b;
+            --accent-red: #ef4444;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100%;
+        }
+
+        /* Left Panel - Ticket List */
+        .ticket-list-panel {
+            width: 280px;
+            min-width: 280px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-subtle);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .list-header {
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--border-subtle);
+            background: rgba(13, 13, 22, 0.8);
+        }
+
+        .list-header h2 {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .list-header .project-badge {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-cyan));
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .list-header .back-link {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 11px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 8px;
+        }
+
+        .list-header .back-link:hover {
+            color: var(--accent-cyan);
+        }
+
+        .filter-row {
+            display: flex;
+            gap: 6px;
+        }
+
+        .filter-row select {
+            flex: 1;
+            padding: 6px 8px;
+            border: 1px solid var(--border-subtle);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border-radius: 6px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+
+        .filter-row select:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+
+        .new-ticket-btn {
+            padding: 6px 10px;
+            background: var(--accent-primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .new-ticket-btn:hover {
+            background: var(--accent-secondary);
+        }
+
+        .ticket-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .ticket-item {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border-subtle);
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        .ticket-item:hover {
+            background: var(--bg-card-hover);
+        }
+
+        .ticket-item.selected {
+            background: rgba(99, 102, 241, 0.15);
+            border-left: 3px solid var(--accent-primary);
+            padding-left: 11px;
+        }
+
+        .ticket-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .ticket-number {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--accent-cyan);
+            font-weight: 500;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .status-dot.in_progress { background: var(--accent-cyan); box-shadow: 0 0 6px var(--accent-cyan); }
+        .status-dot.open, .status-dot.new { background: var(--accent-orange); }
+        .status-dot.completed, .status-dot.closed { background: var(--accent-green); }
+        .status-dot.failed { background: var(--accent-red); }
+        .status-dot.awaiting_input { background: var(--accent-secondary); animation: pulse 2s infinite; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .ticket-title {
+            font-size: 12px;
+            color: var(--text-primary);
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 4px;
+        }
+
+        .ticket-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+
+        .priority-badge {
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .priority-badge.critical { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+        .priority-badge.high { background: rgba(245, 158, 11, 0.2); color: var(--accent-orange); }
+        .priority-badge.medium { background: rgba(99, 102, 241, 0.2); color: var(--accent-primary); }
+        .priority-badge.low { background: rgba(100, 116, 139, 0.2); color: var(--text-muted); }
+
+        /* Type badges */
+        .type-badge {
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-size: 8px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-right: 4px;
+        }
+        .type-feature { background: rgba(139, 92, 246, 0.2); color: #a78bfa; }
+        .type-bug { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+        .type-debug { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+        .type-rnd { background: rgba(167, 139, 250, 0.2); color: #c4b5fd; }
+        .type-task { background: rgba(100, 116, 139, 0.2); color: #94a3b8; }
+        .type-improvement { background: rgba(34, 211, 238, 0.2); color: #22d3ee; }
+        .type-docs { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+
+        .seq-badge {
+            background: rgba(99, 102, 241, 0.2);
+            color: var(--accent-primary);
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 8px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .forced-badge {
+            background: rgba(245, 158, 11, 0.3);
+            color: #f59e0b;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 8px;
+            font-weight: 700;
+        }
+
+        .empty-list {
+            padding: 30px 20px;
+            text-align: center;
+            color: var(--text-muted);
+        }
+
+        .empty-list h3 {
+            font-size: 14px;
+            margin-bottom: 6px;
+            color: var(--text-secondary);
+        }
+
+        .empty-list p {
+            font-size: 12px;
+        }
+
+        /* Right Panel - Ticket Detail */
+        .ticket-detail-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            background: var(--bg-primary);
+        }
+
+        .detail-placeholder {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            text-align: center;
+            padding: 40px;
+        }
+
+        .detail-placeholder-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+
+        .detail-placeholder h2 {
+            font-size: 18px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+        }
+
+        .detail-placeholder p {
+            font-size: 13px;
+            max-width: 300px;
+        }
+
+        .ticket-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: var(--bg-primary);
+        }
+
+        /* Resizer */
+        .resizer {
+            width: 4px;
+            background: var(--border-subtle);
+            cursor: col-resize;
+            transition: background 0.15s;
+        }
+
+        .resizer:hover {
+            background: var(--accent-primary);
+        }
+
+        /* Keyboard hint */
+        .keyboard-hint {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            font-size: 10px;
+            color: var(--text-muted);
+            background: var(--bg-card);
+            padding: 4px 8px;
+            border-radius: 4px;
+            opacity: 0.7;
+        }
+
+        .keyboard-hint kbd {
+            background: var(--bg-secondary);
+            padding: 2px 5px;
+            border-radius: 3px;
+            margin: 0 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Left Panel - Ticket List -->
+        <div class="ticket-list-panel" id="listPanel">
+            <div class="list-header">
+                <a href="/project/{{ project.id if project else '' }}" class="back-link">← Back to Project</a>
+                <h2>
+                    <span class="project-badge">{{ project.code if project else 'PRJ' }}</span>
+                    Tickets
+                </h2>
+                <div class="filter-row">
+                    <select id="statusFilter" onchange="filterTickets()">
+                        <option value="active">Active</option>
+                        <option value="all">All</option>
+                        <option value="open">Open</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="awaiting_input">Awaiting</option>
+                        <option value="completed">Completed</option>
+                    </select>
+                    <a href="/project/{{ project.id if project else '' }}#new-ticket" class="new-ticket-btn">+ New</a>
+                </div>
+            </div>
+            <div class="ticket-list" id="ticketList">
+                {% if tickets %}
+                    {% for t in tickets %}
+                    <div class="ticket-item" data-ticket-id="{{ t.id }}" data-status="{{ t.status }}" onclick="selectTicket({{ t.id }})">
+                        <div class="ticket-item-header">
+                            <span class="ticket-number">{{ t.ticket_number }}</span>
+                            <span style="display:flex;align-items:center;gap:4px">
+                                {% if t.is_forced %}<span class="forced-badge">!</span>{% endif %}
+                                {% if t.sequence_order %}<span class="seq-badge">#{{ t.sequence_order }}</span>{% endif %}
+                                <span class="status-dot {{ t.status }}" title="{{ t.status }}"></span>
+                            </span>
+                        </div>
+                        <div class="ticket-title" title="{{ t.title }}">{{ t.title }}</div>
+                        <div class="ticket-meta">
+                            <span style="display:flex;align-items:center;gap:4px">
+                                <span class="type-badge type-{{ t.ticket_type or 'task' }}">{{ (t.ticket_type or 'task')[:4] }}</span>
+                                <span class="priority-badge {{ t.priority or 'medium' }}">{{ t.priority or 'med' }}</span>
+                            </span>
+                            <span class="time-ago" data-time="{{ t.updated_at.isoformat() if t.updated_at else '' }}">{{ t.updated_at.strftime('%m/%d %H:%M') if t.updated_at else '-' }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-list">
+                        <h3>No tickets</h3>
+                        <p>Create your first ticket</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="resizer" id="resizer"></div>
+
+        <!-- Right Panel - Ticket Detail -->
+        <div class="ticket-detail-panel" id="detailPanel">
+            <div class="detail-placeholder" id="placeholder">
+                <div class="detail-placeholder-icon">📋</div>
+                <h2>Select a ticket</h2>
+                <p>Click on a ticket from the list to view its details and conversation</p>
+            </div>
+            <iframe id="ticketFrame" class="ticket-frame" style="display:none"></iframe>
+        </div>
+    </div>
+
+    <div class="keyboard-hint">
+        <kbd>↑</kbd><kbd>↓</kbd> Navigate &nbsp; <kbd>Enter</kbd> Open in new tab
+    </div>
+
+    <script>
+        let selectedTicketId = null;
+        let ticketItems = [];
+        let selectedIndex = -1;
+
+        const projectId = {{ project.id if project else 0 }};
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            ticketItems = Array.from(document.querySelectorAll('.ticket-item'));
+            filterTickets();
+            updateTimeAgo();
+            setInterval(updateTimeAgo, 60000);
+            setInterval(refreshTicketList, 15000); // Refresh every 15 seconds
+            initResizer();
+
+            // Auto-select first ticket if any
+            const firstVisible = ticketItems.find(item => item.style.display !== 'none');
+            if (firstVisible) {
+                selectTicket(parseInt(firstVisible.dataset.ticketId));
+            }
+        });
+
+        // Refresh ticket list via AJAX
+        async function refreshTicketList() {
+            try {
+                const resp = await fetch(`/api/tickets?project_id=${projectId}&status=all&limit=100`);
+                const data = await resp.json();
+
+                if (!data.tickets) return;
+
+                const ticketList = document.getElementById('ticketList');
+                const currentSelectedId = selectedTicketId;
+
+                // Rebuild ticket list
+                let html = '';
+                for (const t of data.tickets) {
+                    const isSelected = t.id === currentSelectedId ? ' selected' : '';
+                    const typeClass = t.ticket_type || 'task';
+                    const priorityClass = t.priority || 'medium';
+                    const updatedAt = t.updated_at ? new Date(t.updated_at).toISOString() : '';
+
+                    html += `
+                        <div class="ticket-item${isSelected}" data-ticket-id="${t.id}" data-status="${t.status}" onclick="selectTicket(${t.id})">
+                            <div class="ticket-item-header">
+                                <span class="ticket-number">${t.ticket_number}</span>
+                                <span style="display:flex;align-items:center;gap:4px">
+                                    ${t.is_forced ? '<span class="forced-badge">!</span>' : ''}
+                                    ${t.sequence_order ? `<span class="seq-badge">#${t.sequence_order}</span>` : ''}
+                                    <span class="status-dot ${t.status}" title="${t.status}"></span>
+                                </span>
+                            </div>
+                            <div class="ticket-title" title="${t.title}">${t.title}</div>
+                            <div class="ticket-meta">
+                                <span style="display:flex;align-items:center;gap:4px">
+                                    <span class="type-badge type-${typeClass}">${typeClass.substring(0,4)}</span>
+                                    <span class="priority-badge ${priorityClass}">${priorityClass.substring(0,3)}</span>
+                                </span>
+                                <span class="time-ago" data-time="${updatedAt}">${timeAgo(new Date(updatedAt))}</span>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                if (html === '') {
+                    html = '<div class="empty-list"><h3>No tickets</h3><p>Create your first ticket</p></div>';
+                }
+
+                ticketList.innerHTML = html;
+                ticketItems = Array.from(document.querySelectorAll('.ticket-item'));
+                filterTickets();
+
+            } catch (e) {
+                console.error('Error refreshing tickets:', e);
+            }
+        }
+
+        // Filter tickets
+        function filterTickets() {
+            const filter = document.getElementById('statusFilter').value;
+
+            ticketItems.forEach(item => {
+                const status = item.dataset.status;
+                let show = false;
+
+                if (filter === 'all') {
+                    show = true;
+                } else if (filter === 'active') {
+                    show = ['open', 'new', 'in_progress', 'awaiting_input'].includes(status);
+                } else {
+                    show = status === filter;
+                }
+
+                item.style.display = show ? '' : 'none';
+            });
+
+            // Update selected index
+            updateSelectedIndex();
+        }
+
+        // Select ticket
+        function selectTicket(ticketId) {
+            // Update selection UI
+            ticketItems.forEach(item => item.classList.remove('selected'));
+            const selectedItem = document.querySelector(`.ticket-item[data-ticket-id="${ticketId}"]`);
+            if (selectedItem) {
+                selectedItem.classList.add('selected');
+                selectedItem.scrollIntoView({ block: 'nearest' });
+            }
+
+            selectedTicketId = ticketId;
+            updateSelectedIndex();
+
+            // Load ticket in iframe
+            const placeholder = document.getElementById('placeholder');
+            const frame = document.getElementById('ticketFrame');
+
+            placeholder.style.display = 'none';
+            frame.style.display = 'block';
+            frame.src = `/ticket/${ticketId}?embed=1`;
+        }
+
+        // Update selected index for keyboard nav
+        function updateSelectedIndex() {
+            const visibleItems = ticketItems.filter(item => item.style.display !== 'none');
+            selectedIndex = visibleItems.findIndex(item => item.classList.contains('selected'));
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            // Only handle if not in iframe
+            if (document.activeElement.tagName === 'IFRAME') return;
+
+            const visibleItems = ticketItems.filter(item => item.style.display !== 'none');
+            if (visibleItems.length === 0) return;
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                selectedIndex = Math.min(selectedIndex + 1, visibleItems.length - 1);
+                const item = visibleItems[selectedIndex];
+                if (item) selectTicket(parseInt(item.dataset.ticketId));
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                selectedIndex = Math.max(selectedIndex - 1, 0);
+                const item = visibleItems[selectedIndex];
+                if (item) selectTicket(parseInt(item.dataset.ticketId));
+            } else if (e.key === 'Enter' && selectedTicketId) {
+                window.open(`/ticket/${selectedTicketId}`, '_blank');
+            }
+        });
+
+        // Time ago
+        function timeAgo(date) {
+            const now = new Date();
+            const diff = Math.floor((now - date) / 1000);
+            if (diff < 60) return 'now';
+            if (diff < 3600) return Math.floor(diff / 60) + 'm';
+            if (diff < 86400) return Math.floor(diff / 3600) + 'h';
+            return Math.floor(diff / 86400) + 'd';
+        }
+
+        function updateTimeAgo() {
+            document.querySelectorAll('.time-ago[data-time]').forEach(el => {
+                const time = el.dataset.time;
+                if (time) {
+                    const date = new Date(time + 'Z');
+                    el.textContent = timeAgo(date);
+                }
+            });
+        }
+
+        // Resizer
+        function initResizer() {
+            const resizer = document.getElementById('resizer');
+            const listPanel = document.getElementById('listPanel');
+            let isResizing = false;
+
+            resizer.addEventListener('mousedown', (e) => {
+                isResizing = true;
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none';
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+                const newWidth = Math.max(200, Math.min(500, e.clientX));
+                listPanel.style.width = newWidth + 'px';
+                listPanel.style.minWidth = newWidth + 'px';
+            });
+
+            document.addEventListener('mouseup', () => {
+                isResizing = false;
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+            });
+        }
+
+        // Listen for messages from iframe
+        window.addEventListener('message', (e) => {
+            if (e.data.type === 'ticket-updated') {
+                // Reload ticket list to reflect status changes
+                location.reload();
+            } else if (e.data.type === 'navigate' && e.data.url) {
+                // Navigate to URL (e.g., Back to Project)
+                window.location.href = e.data.url;
+            }
+        });
+    </script>
+</body>
+</html>

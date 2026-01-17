@@ -621,7 +621,7 @@
     <div class="noise"></div>
 
     <div class="header">
-        <h1>CodeHero</h1>
+        <h1>CodeHero <span style="font-size:14px;color:var(--text-muted);font-weight:normal">v{{ version }}</span></h1>
         <div class="nav">
             <a href="/dashboard">Dashboard</a>
             <a href="/projects" class="active">Projects</a>
@@ -629,6 +629,7 @@
             <a href="/console">Console</a>
             <a href="/terminal">Terminal</a>
             <a href="/history">History</a>
+            <a href="/packages">Packages</a>
         </div>
         <div class="nav-right">
             <a href="/logout" class="nav-link">Logout</a>
@@ -683,6 +684,8 @@
                     {% endif %}
                     <div class="card-actions">
                         <a href="/project/{{ p.id }}">View Details</a>
+                        <a href="/project/{{ p.id }}/tickets">View Tickets</a>
+                        <a href="/project/{{ p.id }}/progress">📊 Progress</a>
                         <button onclick="editProject({{ p.id }})">Edit</button>
                     </div>
                 </div>
@@ -997,6 +1000,15 @@
                 </div>
 
                 <div class="form-section">
+                    <h4>Test Verification</h4>
+                    <div class="form-group">
+                        <label>Default Test Command</label>
+                        <input type="text" name="default_test_command" id="edit_default_test_command" placeholder="e.g. npm test, pytest, php artisan test">
+                        <small>Run before marking ticket as done. New tickets inherit this setting.</small>
+                    </div>
+                </div>
+
+                <div class="form-section">
                     <h4>Project Context</h4>
                     <div class="form-group">
                         <label>Context for Claude</label>
@@ -1149,6 +1161,7 @@
                 document.getElementById('edit_db_password').value = p.db_password || '';
                 document.getElementById('edit_context').value = p.context || '';
                 document.getElementById('edit_ai_model').value = p.ai_model || 'sonnet';
+                document.getElementById('edit_default_test_command').value = p.default_test_command || '';
 
                 // Android settings
                 const deviceType = p.android_device_type || 'none';
@@ -1187,6 +1200,7 @@
                 db_password: form.db_password.value,
                 context: form.context.value,
                 ai_model: form.ai_model.value,
+                default_test_command: form.default_test_command.value || null,
                 android_device_type: androidDeviceType,
                 android_remote_host: document.getElementById('edit_android_remote_host').value || null,
                 android_remote_port: parseInt(document.getElementById('edit_android_remote_port').value) || 5555,
