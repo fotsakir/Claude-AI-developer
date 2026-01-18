@@ -1593,7 +1593,7 @@ class Watchdog(threading.Thread):
 
             # Get tickets that have been in_progress for a while
             cursor.execute("""
-                SELECT t.id, t.ticket_number, t.title, p.name as project_name,
+                SELECT t.id, t.project_id, t.ticket_number, t.title, p.name as project_name,
                        (SELECT COUNT(*) FROM conversation_messages WHERE ticket_id = t.id) as msg_count,
                        (SELECT SUM(tokens_used) FROM execution_sessions WHERE ticket_id = t.id AND status = 'running') as running_tokens
                 FROM tickets t

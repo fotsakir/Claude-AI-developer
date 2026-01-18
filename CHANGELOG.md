@@ -5,6 +5,16 @@ All notable changes to CodeHero will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.72.2] - 2026-01-18
+
+### Fixed
+- **Watchdog Process Kill** - Fixed bug where watchdog couldn't kill stuck Claude processes
+  - Root cause: SQL query didn't include `project_id` in SELECT
+  - Watchdog marked ticket as STUCK but process kept running
+  - Now properly terminates Claude process when stuck detected
+
+---
+
 ## [2.72.1] - 2026-01-18
 
 ### Added
