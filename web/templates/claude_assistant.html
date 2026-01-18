@@ -607,7 +607,8 @@ Parameters:
   - ticket_type: feature, bug, task, improvement, docs, rnd, debug
   - priority: low, medium, high, critical
   - sequence_order: Execution order (1, 2, 3...)
-  - depends_on: Array of sequence numbers [1, 2]
+  - depends_on: Array of sequence numbers [1, 2] (ticket waits for these)
+  - parent_sequence: Sequence number of parent ticket (for sub-tickets)
 - execution_mode: "autonomous" or "supervised" (IMPORTANT!)
 - deps_include_awaiting: true for relaxed, false for strict (IMPORTANT!)
 
