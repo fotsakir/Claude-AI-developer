@@ -319,6 +319,15 @@ TOOLS = [
                         },
                         "required": ["title"]
                     }
+                },
+                "execution_mode": {
+                    "type": "string",
+                    "description": "Execution mode for ALL tickets: autonomous (full access), supervised (asks for permissions). Default: inherit from project",
+                    "enum": ["autonomous", "supervised"]
+                },
+                "deps_include_awaiting": {
+                    "type": "boolean",
+                    "description": "Set to TRUE for 'relaxed' mode (tickets run continuously), FALSE for 'strict' mode (waits between tickets). Default: false"
                 }
             },
             "required": ["project_id", "tickets"]
@@ -1087,6 +1096,12 @@ def handle_bulk_create_tickets(args: Dict[str, Any]) -> Dict[str, Any]:
     """Create multiple tickets at once with sequence ordering."""
     project_id = args.get('project_id')
     tickets_data = args.get('tickets', [])
+    execution_mode = args.get('execution_mode')  # None = inherit from project
+    deps_include_awaiting = args.get('deps_include_awaiting', False)  # Relaxed mode
+
+    # Validate execution_mode
+    if execution_mode and execution_mode not in ('autonomous', 'supervised'):
+        execution_mode = None
 
     if not project_id:
         return {"content": [{"type": "text", "text": "Error: project_id is required"}]}
@@ -1139,9 +1154,10 @@ def handle_bulk_create_tickets(args: Dict[str, Any]) -> Dict[str, Any]:
 
             cursor.execute("""
                 INSERT INTO tickets (project_id, ticket_number, title, description, status, priority,
-                                     ticket_type, sequence_order)
-                VALUES (%s, %s, %s, %s, 'open', %s, %s, %s)
-            """, (project_id, ticket_number, title, description, priority, ticket_type, sequence_order))
+                                     ticket_type, sequence_order, execution_mode, deps_include_awaiting)
+                VALUES (%s, %s, %s, %s, 'open', %s, %s, %s, %s, %s)
+            """, (project_id, ticket_number, title, description, priority, ticket_type, sequence_order,
+                  execution_mode, deps_include_awaiting))
 
             ticket_id = cursor.lastrowid
             ticket_id_map[sequence_order] = ticket_id
@@ -1179,7 +1195,9 @@ def handle_bulk_create_tickets(args: Dict[str, Any]) -> Dict[str, Any]:
             "success": True,
             "created_count": len(created_tickets),
             "tickets": created_tickets,
-            "message": f"Created {len(created_tickets)} tickets successfully"
+            "execution_mode": execution_mode or "project_default",
+            "deps_include_awaiting": deps_include_awaiting,
+            "message": f"Created {len(created_tickets)} tickets successfully (mode: {execution_mode or 'project_default'}, relaxed: {deps_include_awaiting})"
         }
         return {"content": [{"type": "text", "text": json.dumps(result, indent=2)}]}
     except Exception as e:
