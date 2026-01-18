@@ -5217,6 +5217,42 @@ def claude_chat_stop(session_id):
         del claude_sessions[session_id]
     return jsonify({'success': True})
 
+@app.route('/api/claude/upload', methods=['POST'])
+@login_required
+def claude_upload_files():
+    """Upload files for Claude to read"""
+    from werkzeug.utils import secure_filename
+
+    upload_dir = '/tmp/claude-uploads'
+    os.makedirs(upload_dir, exist_ok=True)
+
+    if 'files' not in request.files:
+        return jsonify({'success': False, 'error': 'No files provided'})
+
+    files = request.files.getlist('files')
+    uploaded = []
+
+    for file in files:
+        if file.filename:
+            filename = secure_filename(file.filename)
+            timestamp = int(time.time())
+            name, ext = os.path.splitext(filename)
+            unique_filename = f"{name}_{timestamp}{ext}"
+            filepath = os.path.join(upload_dir, unique_filename)
+
+            file.save(filepath)
+            uploaded.append({
+                'name': filename,
+                'path': filepath,
+                'size': os.path.getsize(filepath)
+            })
+
+    return jsonify({
+        'success': True,
+        'files': uploaded,
+        'message': f'Uploaded {len(uploaded)} file(s)'
+    })
+
 # Claude Assistant Page
 @app.route('/claude-assistant')
 @login_required

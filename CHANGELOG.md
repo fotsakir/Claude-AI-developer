@@ -5,6 +5,37 @@ All notable changes to CodeHero will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.71.0] - 2026-01-18
+
+### Added
+- **Voice-to-Text** - Speech input for Claude Assistant
+  - Click microphone button to start recording
+  - Multi-language support with dropdown selector
+  - Auto language detection or manual selection (EN, GR, DE, FR, ES, etc.)
+  - Auto-stop after 10 seconds of silence
+- **Context Templates** - Pre-configured assistant modes
+  - General Assistant - Platform help, troubleshooting, admin tasks
+  - Project Planner - Design projects with tickets and dependencies
+  - Project Progress - Check project status, retry failed tickets
+  - Auto-selects appropriate template based on entry point
+- **File Upload** - Share files with Claude Assistant
+  - Upload any file (zip, txt, xlsx, etc.) via paperclip button
+  - Files saved to `/tmp/claude-uploads/`
+  - Auto-sends message to Claude with file path
+  - Claude reads and analyzes uploaded files
+
+### Improved
+- **Claude Assistant UI** - Better user guidance
+  - Clear instructions for loading context
+  - Warning message when context not loaded
+  - Visual feedback for loaded context status
+- **Input Area** - Enhanced controls
+  - Text input with Send button
+  - Voice recording with language selector
+  - File upload button
+
+---
+
 ## [2.70.0] - 2026-01-17
 
 ### Added

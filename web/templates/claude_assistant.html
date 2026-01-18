@@ -258,6 +258,127 @@
             50% { opacity: 0.5; }
         }
 
+        /* Input area with voice */
+        .input-area {
+            background: rgba(13, 13, 22, 0.9);
+            border-top: 1px solid var(--border-subtle);
+            padding: 12px 24px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .input-area input {
+            flex: 1;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        .input-area input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+        }
+
+        .input-area input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .input-area button {
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid var(--border-subtle);
+            transition: all 0.2s;
+        }
+
+        .input-area .voice-btn {
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            font-size: 18px;
+            padding: 10px 14px;
+        }
+
+        .input-area .voice-btn:hover {
+            background: var(--bg-card-hover);
+            color: var(--text-primary);
+        }
+
+        .input-area .voice-btn.recording {
+            background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+            border-color: #ef4444 !important;
+            animation: pulse-recording 1s infinite;
+        }
+
+        @keyframes pulse-recording {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .input-area .send-btn {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            border: none;
+            color: white;
+            font-weight: 500;
+        }
+
+        .input-area .send-btn:hover {
+            box-shadow: var(--glow-primary);
+        }
+
+        .input-area button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Context bar */
+        .context-bar {
+            background: rgba(13, 13, 22, 0.95);
+            border-top: 1px solid var(--border-subtle);
+            padding: 10px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .context-warning {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(239, 68, 68, 0.1));
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: #fbbf24;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .context-warning.hidden {
+            display: none;
+        }
+
+        .context-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .context-status {
+            color: var(--accent-green);
+            font-size: 12px;
+            margin-left: 8px;
+        }
+
+        .context-status.loaded {
+            color: var(--accent-green);
+        }
+
         /* Popup mode */
         body.popup-mode .header {
             padding: 10px 16px;
@@ -319,6 +440,49 @@
         </div>
     </div>
 
+    <div class="context-bar" id="contextBar">
+        <div class="context-warning" id="contextWarning">
+            <span>⚠️ <b>Instructions:</b> 1) Wait for Claude Code to load 2) Select template & click "Load Context" 3) Click inside terminal & press ENTER. Same after "Send" - click terminal & ENTER!</span>
+        </div>
+        <div class="context-controls">
+            <select id="contextTemplate" class="model-select" style="width:auto;min-width:200px;" disabled>
+                <option value="general">🤖 General Assistant</option>
+                <option value="planner">📋 Project Planner</option>
+                <option value="progress">📊 Project Progress</option>
+            </select>
+            <button class="btn btn-primary" id="loadContextBtn" onclick="loadSelectedContext()" disabled>Load Context</button>
+            <span class="context-status" id="contextStatus"></span>
+        </div>
+    </div>
+
+    <div class="input-area" id="inputArea">
+        <input type="text" id="userInput" placeholder="Type your message or use voice input..." disabled />
+        <input type="file" id="fileUpload" style="display:none" multiple onchange="uploadFiles(this.files)" />
+        <button class="voice-btn" id="uploadBtn" onclick="document.getElementById('fileUpload').click()" title="Upload files for Claude to read" disabled>📎</button>
+        <select id="voiceLang" class="model-select" style="width:auto;padding:8px 10px;" disabled>
+            <option value="" selected>🌐 Auto</option>
+            <option value="en-US">🇺🇸 English</option>
+            <option value="el-GR">🇬🇷 Ελληνικά</option>
+            <option value="de-DE">🇩🇪 Deutsch</option>
+            <option value="fr-FR">🇫🇷 Français</option>
+            <option value="es-ES">🇪🇸 Español</option>
+            <option value="it-IT">🇮🇹 Italiano</option>
+            <option value="pt-PT">🇵🇹 Português</option>
+            <option value="nl-NL">🇳🇱 Nederlands</option>
+            <option value="ru-RU">🇷🇺 Русский</option>
+            <option value="pl-PL">🇵🇱 Polski</option>
+            <option value="uk-UA">🇺🇦 Українська</option>
+            <option value="tr-TR">🇹🇷 Türkçe</option>
+            <option value="ar-SA">🇸🇦 العربية</option>
+            <option value="zh-CN">🇨🇳 中文</option>
+            <option value="ja-JP">🇯🇵 日本語</option>
+            <option value="ko-KR">🇰🇷 한국어</option>
+            <option value="hi-IN">🇮🇳 हिन्दी</option>
+        </select>
+        <button class="voice-btn" id="voiceBtn" onclick="toggleVoiceInput()" title="Voice input" disabled>🎤</button>
+        <button class="send-btn" id="sendBtn" onclick="sendUserMessage()" disabled>Send</button>
+    </div>
+
     <div class="status-bar">
         <div class="status-indicator">
             <div class="status-dot stopped" id="statusDot"></div>
@@ -343,21 +507,219 @@
         let pollInterval = null;
         let blueprintSent = false;
 
-        // Context prompt queue (global scope for pollOutput access)
-        let pendingContextPrompt = null;
-        let claudeReady = false;
+        // Context prompt - waits for Claude to be ready (output received)
+        let pendingContext = null;
+        let contextSent = false;
+        let contextTimeout = null;
 
-        function checkAndSendPendingPrompt() {
-            if (pendingContextPrompt && !claudeReady) {
-                claudeReady = true;
-                const ctx = pendingContextPrompt;
-                pendingContextPrompt = null;
-                term.writeln('\x1b[32m[Claude ready - sending: ' + ctx.name + ']\x1b[0m');
-                term.writeln('');
+        function queueContextPrompt(contextName, prompt) {
+            pendingContext = { name: contextName, prompt: prompt };
+            contextSent = false;
+            console.log('[Context] Queued:', contextName);
+
+            // Fallback: force send after 5 seconds if not sent yet
+            if (contextTimeout) clearTimeout(contextTimeout);
+            contextTimeout = setTimeout(() => {
+                if (pendingContext && !contextSent) {
+                    console.log('[Context] Fallback timeout - forcing send');
+                    trySendContext();
+                }
+            }, 5000);
+        }
+
+        function trySendContext() {
+            if (pendingContext && !contextSent && sessionId) {
+                contextSent = true;
+                const ctx = pendingContext;
+                pendingContext = null;
+                if (contextTimeout) clearTimeout(contextTimeout);
+                console.log('[Context] Sending:', ctx.name);
+                term.write('\r\n');
+                term.write('\x1b[32m[Claude ready - sending: ' + ctx.name + ']\x1b[0m\r\n');
+                term.write('\r\n');
+                term.scrollToBottom();
+                term.focus();
+                // Small delay to ensure Claude is fully ready
                 setTimeout(() => {
-                    sendInput(ctx.prompt + '\n');
-                }, 500);
+                    if (sessionId) {
+                        sendInput(ctx.prompt + '\r');
+                        term.scrollToBottom();
+                    }
+                }, 300);
             }
+        }
+
+        // Context Templates
+        const CONTEXT_TEMPLATES = {
+            general: {
+                name: 'General Assistant',
+                prompt: `You are the CodeHero AI Assistant. You help users with EVERYTHING related to the platform.
+
+## YOUR CAPABILITIES:
+
+### 1. PROJECT & TICKET MANAGEMENT (MCP Tools)
+- codehero_list_projects, codehero_get_project, codehero_create_project
+- codehero_list_tickets, codehero_get_ticket, codehero_create_ticket
+- codehero_bulk_create_tickets: Create multiple tickets with sequence/dependencies
+- codehero_start_ticket, codehero_retry_ticket, codehero_delete_ticket
+- codehero_dashboard_stats, codehero_kill_switch
+
+### 2. PLATFORM HELP & TROUBLESHOOTING
+- How to create projects and tickets
+- How the daemon processes tickets
+- Ticket types: feature, bug, task, improvement, docs, rnd, debug
+
+### 3. LINUX SYSTEM ADMINISTRATION
+- Installing packages, checking services, viewing logs
+- systemctl status codehero-web codehero-daemon
+- journalctl -u codehero-daemon
+
+### 4. ADMIN PANEL CODE FIXES
+- Source: /home/claude/codehero/
+- Production: /opt/codehero/
+- After editing, copy to production and restart services
+
+## LANGUAGE: Respond in the same language the user uses (Greek or English).
+
+Greet the user and ask how you can help!`
+            },
+            planner: {
+                name: 'Project Planner',
+                prompt: `You are the CodeHero Project Planner. Help users design and create projects with tickets.
+
+## YOUR MCP TOOLS:
+- codehero_create_project: Create project (name, description, project_type, tech_stack, web_path, app_path)
+- codehero_bulk_create_tickets: Create multiple tickets at once with sequence and dependencies
+
+## PROJECT PATHS:
+- Web projects (PHP, HTML): web_path = "/var/www/projects/{project_name}"
+- App projects (Node, Python, API): app_path = "/opt/apps/{project_name}"
+
+## TICKET OPTIONS:
+- ticket_type: feature, bug, task, improvement, docs, rnd, debug
+- priority: low, medium, high, critical
+- sequence_order: Execution order (1, 2, 3...)
+- depends_on: Array of sequence numbers this ticket depends on
+- execution_mode: "autonomous" or "supervised"
+
+## WORKFLOW:
+1. Ask: "What project do you want to build?" - Get name, type, tech stack
+2. Ask: "Supervised or autonomous?" and "Relaxed or strict?"
+3. Propose ticket plan with dependencies
+4. Let user adjust before creation
+5. Create project and tickets with codehero_create_project + codehero_bulk_create_tickets
+
+## LANGUAGE: Respond in the same language the user uses (Greek or English).
+
+Ask the user what project they want to build!`
+            },
+            progress: {
+                name: 'Project Progress',
+                prompt: `You are the Project Progress Assistant. Help users check and manage their project tickets.
+
+## YOUR MCP TOOLS:
+- codehero_list_projects: List all projects
+- codehero_get_project: Get project details and stats
+- codehero_list_tickets: List tickets (filter by status: open, in_progress, completed, failed)
+- codehero_get_ticket: Get ticket details
+- codehero_retry_ticket: Retry a failed ticket
+- codehero_start_ticket: Start ticket immediately (jump queue)
+- codehero_update_ticket: Update status/priority
+- codehero_get_project_progress: Get detailed progress stats
+
+## WHAT YOU CAN DO:
+1. Show project progress and completion percentage
+2. List tickets by status (open, in_progress, failed, completed)
+3. Find blocked or failed tickets
+4. Retry failed tickets
+5. Start specific tickets immediately
+6. Show ticket conversation history
+
+## LANGUAGE: Respond in the same language the user uses (Greek or English).
+
+Ask the user which project they want to check!`
+            }
+        };
+
+        async function uploadFiles(files) {
+            if (!sessionId) {
+                alert('Please start a session first!');
+                return;
+            }
+
+            if (!files || files.length === 0) return;
+
+            const formData = new FormData();
+            for (let i = 0; i < files.length; i++) {
+                formData.append('files', files[i]);
+            }
+
+            term.write('\r\n\x1b[33m[Uploading ' + files.length + ' file(s)...]\x1b[0m\r\n');
+            term.scrollToBottom();
+
+            try {
+                const resp = await fetch('/api/claude/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await resp.json();
+
+                if (data.success && data.files.length > 0) {
+                    term.write('\x1b[32m[Upload complete!]\x1b[0m\r\n');
+
+                    // Build file list for Claude
+                    const filePaths = data.files.map(f => f.path).join(', ');
+
+                    // Auto-send message to Claude about the uploaded files
+                    const msg = `I uploaded file(s) for you to read: ${filePaths}. Please read and analyze them.`;
+                    term.write('\x1b[36m[Auto-sending to Claude: ' + msg + ']\x1b[0m\r\n\r\n');
+
+                    // Send to Claude
+                    setTimeout(() => {
+                        sendInput(msg + '\r');
+                        term.scrollToBottom();
+                    }, 500);
+                } else {
+                    term.write('\x1b[31m[Upload failed: ' + (data.error || 'No files uploaded') + ']\x1b[0m\r\n');
+                }
+            } catch (e) {
+                term.write('\x1b[31m[Upload error: ' + e.message + ']\x1b[0m\r\n');
+            }
+
+            // Reset file input
+            document.getElementById('fileUpload').value = '';
+            term.scrollToBottom();
+            term.focus();
+        }
+
+        function loadSelectedContext() {
+            if (!sessionId) {
+                alert('Please start a session first!');
+                return;
+            }
+
+            const templateKey = document.getElementById('contextTemplate').value;
+            const template = CONTEXT_TEMPLATES[templateKey];
+
+            if (!template) {
+                alert('Unknown template');
+                return;
+            }
+
+            // Send context
+            term.write('\r\n');
+            term.write('\x1b[32m[Loading context: ' + template.name + ']\x1b[0m\r\n');
+            term.write('\r\n');
+            term.scrollToBottom();
+
+            sendInput(template.prompt + '\r');
+
+            // Update UI
+            document.getElementById('contextWarning').classList.add('hidden');
+            document.getElementById('contextStatus').textContent = '✓ ' + template.name + ' loaded';
+            document.getElementById('loadContextBtn').textContent = 'Reload Context';
+
+            term.focus();
         }
 
         function initTerminal() {
@@ -462,205 +824,17 @@
                     term.focus();
 
                     document.getElementById('stopBtn').disabled = false;
+                    enableInputArea();
                     setStatus('Running (' + modelNames[model] + ')', true);
 
                     resizeTerminal();
                     pollInterval = setInterval(pollOutput, 100);
 
-                    // Reset context prompt state for new session
-                    pendingContextPrompt = null;
-                    claudeReady = false;
-
-                    // Helper to queue context prompt (sent when Claude outputs something)
-                    function sendContextPrompt(contextName, prompt) {
-                        pendingContextPrompt = { name: contextName, prompt: prompt };
-                        // Show loading message immediately
-                        term.writeln('');
-                        term.writeln('\x1b[33m════════════════════════════════════════\x1b[0m');
-                        term.writeln('\x1b[33m  Waiting for Claude: ' + contextName + '\x1b[0m');
-                        term.writeln('\x1b[33m════════════════════════════════════════\x1b[0m');
-                        term.writeln('');
-                    }
-
-                    // If blueprint mode, auto-send the initial prompt after Claude is ready
-                    if (mode === 'blueprint' && !blueprintSent) {
-                        blueprintSent = true;
-                        setTimeout(() => {
-                            const prompt = `You are the CodeHero Project Planner. Help users design and create projects with tickets.
-
-## YOUR MCP TOOLS:
-- codehero_create_project: Create project (name, description, project_type, tech_stack, web_path, app_path)
-- codehero_bulk_create_tickets: Create multiple tickets at once with sequence and dependencies
-- codehero_create_ticket: Create single ticket with all options
-
-## PROJECT PATHS (IMPORTANT!):
-- Web projects (PHP, HTML): web_path = "/var/www/projects/{project_name}"
-- App projects (Node, Python, API): app_path = "/opt/apps/{project_name}"
-
-## TICKET OPTIONS:
-- ticket_type: feature, bug, task, improvement, docs, rnd, debug
-- priority: low, medium, high, critical
-- sequence_order: Execution order (1, 2, 3...)
-- depends_on: Array of sequence numbers this ticket depends on (e.g., [1, 2])
-- execution_mode: "autonomous" (full access) or "supervised" (asks permissions)
-- deps_include_awaiting: true = relaxed mode (next ticket starts even if prev is awaiting_input)
-
-## WORKFLOW:
-
-### Step 1: Understand the Project
-Ask: "What project do you want to build?"
-Gather: Name, type, tech stack, brief description
-
-### Step 2: Ask Execution Mode
-Ask: "Supervised or autonomous?" (supervised = asks permission, autonomous = full access)
-Ask: "Relaxed or strict?" (relaxed = next tickets start without waiting, strict = waits for completion)
-
-### Step 3: Plan the Tickets
-Based on the project, propose a ticket plan. Format:
-\`\`\`
-# Project: [Name]
-
-## Proposed Tickets:
-1. [task] Setup database schema
-2. [feature] User authentication → depends on 1
-3. [feature] Product catalog → depends on 1
-4. [feature] Shopping cart → depends on 3
-5. [docs] API documentation
-\`\`\`
-
-### Step 4: Confirm Options
-Ask: "Do you want to change anything? (priorities, dependencies, order)"
-- Let user adjust before creation
-- Explain that tickets will run automatically in sequence
-
-### Step 5: Create Everything
-After user confirms:
-1. Use codehero_create_project with correct path (web_path or app_path)
-2. Use codehero_bulk_create_tickets with execution_mode and deps_include_awaiting
-
-### Step 6: Summary
-Show: "Done! Created project [Name] with [N] tickets. They will start automatically in sequence."
-
-## LANGUAGE:
-Respond in the same language the user uses (Greek or English).
-
-## START NOW:
-Ask the user what project they want to build!`;
-                            sendContextPrompt('Project Planner', prompt);
-                        }, 2000);
-                    }
-
-                    // If help mode, auto-send the platform knowledge prompt
-                    if (mode === 'help' && !blueprintSent) {
-                        blueprintSent = true;
-                        setTimeout(() => {
-                            const prompt = 'Read the file /opt/codehero/config/PLATFORM_KNOWLEDGE.md to learn about the CodeHero platform. You are now the platform support assistant. When I ask questions about the platform, use this knowledge to help me. Also check /opt/codehero/CLAUDE_OPERATIONS.md, /opt/codehero/docs/USER_GUIDE.md, and /opt/codehero/CLAUDE_DEV_NOTES.md if needed. Tell me you are ready to help and ask what I need assistance with.';
-                            sendContextPrompt('Platform Help', prompt);
-                        }, 2000);
-                    }
-
-                    // Project mode - assistant with project context
-                    if (projectId && !mode && !blueprintSent) {
-                        blueprintSent = true;
-                        setTimeout(() => {
-                            // Check if there's a question from URL parameter (passed from progress page)
-                            const urlParams = new URLSearchParams(window.location.search);
-                            const contextQuestion = urlParams.get('question') || '';
-
-                            const prompt = `You are the Project Assistant for "${projectName}" (${projectCode}).
-
-IMPORTANT: You only work with THIS project and its tickets. Nothing else.
-
-PROJECT: ${projectName}
-PROJECT ID: ${projectId}
-PROJECT CODE: ${projectCode}
-
-MCP TOOLS:
-- codehero_get_project with project_id: ${projectId} → Get project stats
-- codehero_list_tickets with project_id: ${projectId} → List all tickets
-- codehero_get_ticket with ticket_number e.g. "${projectCode}-0001" → Get ticket details
-- codehero_create_ticket with project_id: ${projectId} → Create new ticket
-- codehero_start_ticket → Start ticket immediately (jump queue)
-- codehero_retry_ticket → Retry a failed ticket
-- codehero_update_ticket → Update status/priority
-
-WHAT YOU CAN DO:
-1. Show project progress and status
-2. List tickets (open, in_progress, failed, completed)
-3. Find blocked tickets
-4. Retry failed tickets
-5. Add new tickets
-6. Start ticket immediately
-
-LANGUAGE: Respond in the same language the user uses (Greek or English).
-
-${contextQuestion ? 'The user asked: "' + contextQuestion + '". Answer using the MCP tools.' : 'Greet the user and ask how you can help with project "' + projectName + '".'}`;
-                            sendContextPrompt('Project Assistant: ' + projectName, prompt);
-                        }, 2000);
-                    }
-
-                    // Default mode - general assistant with MCP tools
-                    if (!mode && !projectId && !blueprintSent) {
-                        blueprintSent = true;
-                        setTimeout(() => {
-                            const prompt = `You are the CodeHero AI Assistant. You help users with EVERYTHING related to the platform.
-
-## YOUR CAPABILITIES:
-
-### 1. PROJECT & TICKET MANAGEMENT (MCP Tools)
-- codehero_list_projects, codehero_get_project, codehero_create_project
-- codehero_list_tickets, codehero_get_ticket, codehero_create_ticket
-- codehero_bulk_create_tickets: Create multiple tickets with sequence/dependencies
-- codehero_start_ticket, codehero_retry_ticket, codehero_delete_ticket
-- codehero_dashboard_stats, codehero_kill_switch
-
-### 2. PLATFORM HELP & TROUBLESHOOTING
-You can help users understand how the platform works:
-- How to create projects and tickets
-- How the daemon processes tickets
-- How dependencies and sequences work
-- Ticket types: feature, bug, task, improvement, docs, rnd, debug
-
-### 3. LINUX SYSTEM ADMINISTRATION
-You can run bash commands to help with:
-- Installing packages: apt install, pip install, npm install
-- Checking services: systemctl status codehero-web codehero-daemon
-- Viewing logs: journalctl -u codehero-daemon
-- File permissions, disk space, etc.
-
-### 4. ADMIN PANEL CODE FIXES
-If something is broken in the admin panel, you can:
-- Read files: /opt/codehero/web/app.py, /opt/codehero/web/templates/*.html
-- Edit files to fix bugs
-- Restart services: sudo systemctl restart codehero-web codehero-daemon
-
-Key paths:
-- Source code: /home/claude/codehero/
-- Production: /opt/codehero/
-- After editing source, copy to production and restart services
-
-### 5. UPGRADE TROUBLESHOOTING
-If upgrade.sh fails, you can:
-- Check the upgrade script: cat /opt/codehero/upgrade.sh
-- Run upgrade manually step by step
-- Fix permission issues
-- Check database migrations
-- Restore from backup if needed
-
-Backups are at: /home/claude/codehero-*.zip
-
-## LANGUAGE:
-Respond in the same language the user uses (Greek or English).
-
-## SAFETY:
-- Always ask before making destructive changes
-- Create backups before major edits
-- Test changes before deploying to production
-
-Greet the user and ask how you can help!`;
-                            sendContextPrompt('General Assistant', prompt);
-                        }, 2000);
-                    }
+                    // Enable context controls
+                    document.getElementById('contextTemplate').disabled = false;
+                    document.getElementById('loadContextBtn').disabled = false;
+                    document.getElementById('contextWarning').classList.remove('hidden');
+                    document.getElementById('contextStatus').textContent = '';
                 } else {
                     setStatus('Failed to start', false);
                     term.writeln('\x1b[31mFailed to start: ' + (data.error || 'Unknown error') + '\x1b[0m');
@@ -684,15 +858,26 @@ Greet the user and ask how you can help!`;
 
                 if (data.output) {
                     term.write(data.output);
-                    // Check if we have a pending context prompt to send
-                    checkAndSendPendingPrompt();
+                    // Claude has output - try to send context if pending
+                    trySendContext();
                 }
 
                 if (!data.running) {
                     stopPolling();
+                    // Reset context flags so next session will send context again
+                    blueprintSent = false;
+                    pendingContext = null;
+                    contextSent = false;
+                    if (contextTimeout) clearTimeout(contextTimeout);
+
                     document.getElementById('startBtn').disabled = false;
                     document.getElementById('stopBtn').disabled = true;
                     document.getElementById('modelSelect').disabled = false;
+                    document.getElementById('contextTemplate').disabled = true;
+                    document.getElementById('loadContextBtn').disabled = true;
+                    document.getElementById('loadContextBtn').textContent = 'Load Context';
+                    document.getElementById('contextStatus').textContent = '';
+                    disableInputArea();
                     setStatus('Session ended', false);
                     term.writeln('\n\x1b[38;5;246m Session ended. Click "Start Session" to begin again. \x1b[0m');
                 }
@@ -742,9 +927,20 @@ Greet the user and ask how you can help!`;
                 } catch (e) {}
                 sessionId = null;
             }
+            // Reset context flags so next session will send context again
+            blueprintSent = false;
+            pendingContext = null;
+            contextSent = false;
+            if (contextTimeout) clearTimeout(contextTimeout);
+
             document.getElementById('startBtn').disabled = false;
             document.getElementById('stopBtn').disabled = true;
             document.getElementById('modelSelect').disabled = false;
+            document.getElementById('contextTemplate').disabled = true;
+            document.getElementById('loadContextBtn').disabled = true;
+            document.getElementById('loadContextBtn').textContent = 'Load Context';
+            document.getElementById('contextStatus').textContent = '';
+            disableInputArea();
             setStatus('Stopped', false);
             term.writeln('\n\x1b[38;5;246m Session stopped. \x1b[0m');
         }
@@ -759,9 +955,148 @@ Greet the user and ask how you can help!`;
             }
         }
 
+        // Voice recognition variables
+        let recognition = null;
+        let isRecording = false;
+        let silenceTimeout = null;
+
+        function initVoiceRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                return null;
+            }
+
+            const rec = new SpeechRecognition();
+            rec.continuous = true;
+            rec.interimResults = false;
+            const lang = document.getElementById('voiceLang').value;
+            if (lang) rec.lang = lang;
+
+            rec.onresult = (event) => {
+                resetSilenceTimeout();
+                const lastResult = event.results[event.results.length - 1];
+                if (lastResult.isFinal) {
+                    const transcript = lastResult[0].transcript;
+                    const input = document.getElementById('userInput');
+                    if (input.value && !input.value.endsWith(' ')) {
+                        input.value += ' ';
+                    }
+                    input.value += transcript;
+                    input.focus();
+                }
+            };
+
+            rec.onend = () => {
+                if (isRecording) {
+                    try { rec.start(); } catch(e) {}
+                    return;
+                }
+                stopVoiceRecording();
+            };
+
+            rec.onerror = (event) => {
+                stopVoiceRecording();
+                if (event.error === 'not-allowed') {
+                    alert('Microphone access denied. Please allow microphone access.');
+                }
+            };
+
+            return rec;
+        }
+
+        function resetSilenceTimeout() {
+            if (silenceTimeout) clearTimeout(silenceTimeout);
+            silenceTimeout = setTimeout(() => {
+                if (isRecording) {
+                    recognition.stop();
+                    stopVoiceRecording();
+                }
+            }, 10000); // 10 seconds silence = auto stop
+        }
+
+        function stopVoiceRecording() {
+            isRecording = false;
+            if (silenceTimeout) clearTimeout(silenceTimeout);
+            const btn = document.getElementById('voiceBtn');
+            btn.classList.remove('recording');
+            btn.title = 'Voice input';
+        }
+
+        function toggleVoiceInput() {
+            const btn = document.getElementById('voiceBtn');
+
+            if (isRecording) {
+                if (recognition) recognition.stop();
+                stopVoiceRecording();
+                return;
+            }
+
+            // Always create new recognition with current language
+            recognition = initVoiceRecognition();
+
+            if (!recognition) {
+                alert('Voice input is not supported in your browser. Please use Chrome, Edge, or Safari.');
+                return;
+            }
+
+            recognition.start();
+            isRecording = true;
+            btn.classList.add('recording');
+            btn.title = 'Recording... Click to stop';
+            resetSilenceTimeout();
+        }
+
+        function sendUserMessage() {
+            const input = document.getElementById('userInput');
+            const message = input.value.trim();
+            if (!message || !sessionId) return;
+
+            sendInput(message + '\r');
+            input.value = '';
+            input.focus();
+        }
+
+        function enableInputArea() {
+            document.getElementById('userInput').disabled = false;
+            document.getElementById('uploadBtn').disabled = false;
+            document.getElementById('voiceLang').disabled = false;
+            document.getElementById('voiceBtn').disabled = false;
+            document.getElementById('sendBtn').disabled = false;
+        }
+
+        function disableInputArea() {
+            document.getElementById('userInput').disabled = true;
+            document.getElementById('uploadBtn').disabled = true;
+            document.getElementById('voiceLang').disabled = true;
+            document.getElementById('voiceBtn').disabled = true;
+            document.getElementById('sendBtn').disabled = true;
+            if (isRecording && recognition) {
+                recognition.stop();
+                stopVoiceRecording();
+            }
+        }
+
         // Initialize on load
         document.addEventListener('DOMContentLoaded', () => {
             initTerminal();
+
+            // Pre-select the appropriate template based on mode
+            const templateSelect = document.getElementById('contextTemplate');
+            if (mode === 'blueprint') {
+                templateSelect.value = 'planner';
+            } else if (projectId) {
+                templateSelect.value = 'progress';
+            } else {
+                templateSelect.value = 'general';
+            }
+
+            // Handle Enter key in input
+            document.getElementById('userInput').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendUserMessage();
+                }
+            });
         });
 
         // Cleanup on page unload
