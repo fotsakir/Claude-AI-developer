@@ -5,6 +5,22 @@ All notable changes to CodeHero will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.72.1] - 2026-01-18
+
+### Added
+- **MCP Auto-Configuration** - Setup now creates MCP config automatically
+  - Creates `/home/claude/.claude.json` with MCP server config
+  - Creates `/home/claude/CLAUDE.md` with assistant instructions
+  - No manual MCP configuration needed after installation
+
+### Improved
+- **Assistant Templates** - Stronger emphasis on MCP tool usage
+  - All 3 templates now explicitly require MCP tools
+  - Clear examples of how to call each tool
+  - "DO NOT use curl/HTTP" instruction added
+
+---
+
 ## [2.72.0] - 2026-01-18
 
 ### Added
