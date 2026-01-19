@@ -5,6 +5,36 @@ All notable changes to CodeHero will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.73.0] - 2026-01-19
+
+### Added
+- **Production-Ready Global Context** - Comprehensive rewrite for autonomous AI coding
+  - Reorganized into 7 logical parts (Critical Rules → Writing Code → Finishing)
+  - Reduced from 1800+ lines to 516 lines (70% smaller, same coverage)
+  - All content in English for consistency
+  - Clear ❌/✅ examples for every rule
+
+### New Rules Added
+- **Timeouts** - All external calls must have timeouts
+- **Transactions** - All-or-nothing database operations
+- **Idempotency** - Safe to run operations multiple times
+- **Race Conditions** - Atomic operations to prevent data corruption
+- **Null Checks** - Defensive programming patterns
+- **Password Hashing** - Never plain text (bcrypt required)
+- **Database Constraints** - FK, unique, not null enforcement
+- **Atomic File Writes** - Prevent corrupted files
+- **Resource Cleanup** - Context managers for connections/files
+- **Retry Logic** - Exponential backoff for external services
+- **Date/Time** - Always UTC internally
+- **UTF-8** - Encoding everywhere
+- **Pagination** - Never unlimited queries
+- **Config Defaults** - Fail fast or use defaults
+
+### Removed
+- Git workflow section (handled automatically by daemon)
+
+---
+
 ## [2.72.7] - 2026-01-19
 
 ### Fixed

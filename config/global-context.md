@@ -1,535 +1,516 @@
 # Global Project Context
 
-## THE MISSION
+> **MISSION:** Build simple, testable code that AI can maintain without human help.
+
+---
+
+## ⛔ PART 1: CRITICAL RULES (Read FIRST!)
+
+### 1.1 PROTECTED PATHS - FORBIDDEN!
 ```
-Human + Machine = EVOLUTION
-We build simple systems that AI can test, fix, and evolve.
-Adapt or die. Simplicity is survival.
+/opt/codehero/           ← Platform will break
+/etc/codehero/           ← Platform config
+/var/backups/codehero/   ← Backups
+/etc/nginx/              ← Web server
+/etc/systemd/            ← System services
+/home/claude/.claude*    ← Claude CLI
+```
+
+**YOUR WORKSPACE ONLY:**
+- Web projects: `/var/www/projects/{project}/`
+- App projects: `/opt/apps/{project}/`
+
+**IF USER ASKS:**
+- "Fix 403 error" → Only inside PROJECT folder
+- "Fix nginx" → REFUSE, tell them to do it manually
+- "Fix the app" → ASK which app, NOT CodeHero
+
+### 1.2 SECURITY - NON-NEGOTIABLE
+```python
+# SQL - ALWAYS prepared statements
+# ❌ NEVER: f"SELECT * FROM users WHERE id = {id}"
+# ✅ ALWAYS: db.query("SELECT * FROM users WHERE id = ?", [id])
+
+# Output - ALWAYS escape
+# ❌ NEVER: echo $userInput
+# ✅ ALWAYS: echo htmlspecialchars($userInput, ENT_QUOTES, 'UTF-8')
+
+# Passwords - ALWAYS hash
+# ❌ NEVER: db.save(password)
+# ✅ ALWAYS: db.save(bcrypt.hash(password))
+```
+
+### 1.3 CREDENTIALS - NEVER HARDCODED
+```python
+# ❌ NEVER
+db = connect("mysql://admin:secret123@localhost/app")
+
+# ✅ ALWAYS .env
+load_dotenv()
+db = connect(os.getenv('DATABASE_URL'))
 ```
 
 ---
 
-## ⛔ PROTECTED PATHS - NEVER MODIFY!
+## 📋 PART 2: BEFORE WRITING CODE
 
-**These directories are OFF-LIMITS. Do not read, write, delete, or change permissions:**
-
-| Path | Reason |
-|------|--------|
-| `/opt/codehero/` | Platform admin panel & daemon |
-| `/etc/codehero/` | Platform configuration |
-| `/var/backups/codehero/` | Project backups - NEVER touch! |
-| `/etc/nginx/` | Web server configuration |
-| `/etc/systemd/` | System service files |
-| `/var/www/html/` | Default web root |
-| `/home/claude/.claude*` | Claude CLI configuration |
-
-**If user asks to:**
-- Fix 403/permission errors → Only fix within the PROJECT directory, not system paths
-- Change nginx config → REFUSE and ask user to do it manually
-- Restore from backup → REFUSE and tell user to use the Admin Panel
-- Fix "the app" → Clarify WHICH app - never touch CodeHero itself
-
-**Your workspace is ONLY:**
-- `/var/www/projects/{project}/` - for web projects
-- `/opt/apps/{project}/` - for app projects
-
-Everything else is READ-ONLY or OFF-LIMITS!
-
----
-
-## CORE RULES (Memorize These!)
-
-### 1. TEAM MINDSET
-Code like you're in a 10-person team. Ask: "Can someone else continue this at 3am?"
-- Bus Factor Test: If you're gone, can others continue?
+### 2.1 TEAM MINDSET
+- Write as if a junior developer reads it at 3am
+- If you leave, can someone else continue?
 - Comment the WHY, not the WHAT
-- Document everything in TECHNOLOGIES.md
 
-### 2. SIMPLE CODE
-- Junior developer must understand it
-- Descriptive names: `calculateTotal()` not `calc()`
-- No clever tricks - readable beats clever
-
-### 3. SELF-DOCUMENTING MODULES (Black Boxes)
-Every script/module = **mini library with documented API + test file**
-
-**Structure for EVERY backend script:**
+### 2.2 PROJECT STRUCTURE
 ```
 /src
   /services
-    UserService.py        ← Implementation
-    UserService.md        ← API Documentation
-    UserService_test.py   ← Test script with examples
+    UserService.py       ← Code
+    UserService.md       ← API docs (REQUIRED)
+    UserService_test.py  ← Tests (REQUIRED)
 ```
 
-**API Documentation (script_name.md) - REQUIRED:**
-```markdown
-# UserService API
-
-## Purpose
-Handles user registration, authentication, and profile management.
-
-## Functions
-
-### create_user(email, password, name) → User
-Creates a new user account.
-- **email**: Valid email address
-- **password**: Min 8 chars
-- **name**: Display name
-- **Returns**: User object with id, email, name, created_at
-- **Raises**: ValidationError, DuplicateEmailError
-
-### get_user(user_id) → User | None
-Retrieves user by ID.
-
-## Usage Example
-```python
-from services.UserService import create_user, get_user
-user = create_user("test@example.com", "password123", "John")
-print(user.id)
-```
-
-## Dependencies
-- Database connection (db.py)
-- EmailValidator (utils/validators.py)
-```
-
-**Test Script (script_name_test.py) - REQUIRED:**
-```python
-"""
-Test script for UserService
-Run: python UserService_test.py
-"""
-from UserService import create_user, get_user
-
-# Test 1: Create user
-user = create_user("test@example.com", "pass123", "Test")
-assert user.id is not None
-print("✓ create_user works")
-
-# Test 2: Get user
-found = get_user(user.id)
-assert found.email == "test@example.com"
-print("✓ get_user works")
-
-print("All tests passed!")
-```
-
-**Why this matters:**
-- AI reads `.md` file → knows what script does WITHOUT opening it
-- AI runs test script → verifies it works
-- AI uses the API → doesn't need to understand implementation
-- AI only opens source code IF there's a bug to fix
-
-**Build bottom-up:** Utilities → Core → Services → App
-
-### 4. CODE COMMENTS & SEARCH TAGS
-**Every file must have searchable comments for AI navigation.**
-
-**File Header (REQUIRED at top of every file):**
+### 2.3 FILE HEADER (in EVERY file)
 ```python
 """
 @file: UserService.py
-@description: Handles user registration, authentication, profile management
-@author: ProjectName Team
-@created: 2024-01-15
-@modified: 2024-01-20
+@description: User registration, login, profile
+@tags: #auth #users #login
 @dependencies: db.py, validators.py
-@tags: #auth #users #login #registration
 """
 ```
 
-**Function/Method Comments (REQUIRED):**
+### 2.4 NAMING CONVENTIONS
+| Type | Convention | Example |
+|------|------------|---------|
+| Python files | snake_case | `user_service.py` |
+| PHP files | PascalCase | `UserService.php` |
+| Classes | PascalCase | `UserService` |
+| Functions | camelCase | `createUser()` |
+| Constants | UPPER_SNAKE | `MAX_RETRIES` |
+| DB tables | snake_case plural | `order_items` |
+
+---
+
+## 💻 PART 3: WRITING CODE
+
+### 3.1 ERROR HANDLING - Never silent failures!
 ```python
-def create_user(email: str, password: str, name: str) -> User:
-    """
-    Creates a new user account with validation.
+# ❌ BAD - Nobody knows what happened
+try:
+    do_something()
+except:
+    pass
 
-    @param email: Valid email address (will be validated)
-    @param password: Plain text password (min 8 chars, will be hashed)
-    @param name: Display name for the user
-    @returns: User object with id, email, name, created_at
-    @raises: ValidationError if email/password invalid
-    @raises: DuplicateEmailError if email exists
-    @example: user = create_user("test@example.com", "pass123", "John")
-    @see: get_user(), delete_user()
-    @tags: #user #create #registration
-    """
+# ✅ GOOD
+try:
+    do_something()
+except SpecificError as e:
+    logger.error(f"Failed to do X: {e}")
+    raise
 ```
 
-**Inline Tags for Search:**
+### 3.2 NULL CHECKS - Always check first!
 ```python
-# @TODO: Implement email verification (ticket #123)
-# @FIXME: Race condition when multiple users register same email
-# @HACK: Temporary fix until we upgrade the library
-# @NOTE: This must run before database connection
-# @SECURITY: Validate input to prevent SQL injection
-# @PERFORMANCE: Cache this result, called 1000x/sec
-# @DEPRECATED: Use create_user_v2() instead
-# @CONFIG: Change this value in .env file
+# ❌ Crash if user=None
+return f"Hello {user.name}"
+
+# ✅ Safe
+if not user:
+    return "Hello Guest"
+return f"Hello {user.name}"
+
+# ✅ Safe dict access
+name = data.get('name', 'Unknown')
 ```
 
-**Why tags matter:**
-- AI searches `@TODO` → finds all pending work
-- AI searches `#auth` → finds all authentication code
-- AI searches `@SECURITY` → finds security-critical code
-- AI searches `@see: delete_user` → finds related functions
-
-### 5. ERROR HANDLING (Never Silent Failures!)
-**Every error must be caught, logged, and reported.**
-
+### 3.3 TIMEOUTS - Never wait forever!
 ```python
-# ❌ BAD - Silent failure
-def get_user(id):
-    try:
-        return db.query(f"SELECT * FROM users WHERE id={id}")
-    except:
-        return None  # SILENT FAILURE - NO ONE KNOWS!
+# ❌ Hangs forever
+response = requests.get(url)
 
-# ✅ GOOD - Proper error handling
-def get_user(id: int) -> User | None:
-    """
-    @raises: DatabaseError on connection issues
-    @raises: ValueError if id is invalid
-    """
-    if not isinstance(id, int) or id < 1:
-        raise ValueError(f"Invalid user id: {id}")
-
-    try:
-        result = db.query("SELECT * FROM users WHERE id = ?", [id])
-        if not result:
-            logger.info(f"User not found: {id}")  # Log it
-            return None
-        return User(**result)
-    except DatabaseError as e:
-        logger.error(f"Database error fetching user {id}: {e}")
-        raise  # Re-raise so caller knows!
+# ✅ Timeout required
+response = requests.get(url, timeout=10)
 ```
 
-**Error Handling Rules:**
-| Rule | Example |
-|------|---------|
-| Never empty `except:` | Always specify exception type |
-| Never `pass` in except | At minimum, log the error |
-| Validate inputs first | Check before processing |
-| Use meaningful messages | `"User 123 not found"` not `"Error"` |
-| Log with context | Include IDs, values, state |
-| Fail fast | Don't continue with bad data |
+| Operation | Timeout |
+|-----------|---------|
+| HTTP API | 10-30s |
+| DB query | 5-30s |
+| File upload | 60-120s |
 
-### 6. VERIFY BEFORE COMPLETING TASK
-**NEVER mark a task complete without verification!**
+### 3.4 TRANSACTIONS - All or nothing
+```python
+# ❌ Crash after charge = money taken, no order
+charge_card(user, amount)
+create_order(user, amount)  # <-- crash here
 
-**Verification Checklist:**
+# ✅ Transaction
+try:
+    db.begin()
+    order = create_order(user, amount)
+    charge_card(user, amount)
+    db.commit()
+except:
+    db.rollback()
+    raise
 ```
-□ Code runs without syntax errors
-□ Main functionality works (tested manually or with script)
-□ Edge cases handled (empty input, null, large data)
-□ Error cases return proper messages
-□ No console errors in browser (for frontend)
-□ Test script passes (if exists)
-□ Visual check with Playwright (for UI changes)
+
+### 3.5 IDEMPOTENCY - Safe to run twice
+```python
+# ❌ 2 runs = 2 users!
+db.execute("INSERT INTO users (email) VALUES (?)", [email])
+
+# ✅ Check first
+existing = db.query("SELECT id FROM users WHERE email = ?", [email])
+if existing:
+    return existing['id']
+db.execute("INSERT INTO users (email) VALUES (?)", [email])
+```
+
+```sql
+-- ✅ MySQL idempotent
+INSERT INTO users (email, name) VALUES (?, ?)
+ON DUPLICATE KEY UPDATE name = VALUES(name);
+```
+
+### 3.6 RACE CONDITIONS - Atomic operations
+```python
+# ❌ 2 users buy last item = stock -1!
+item = db.query("SELECT stock FROM items WHERE id = ?", [id])
+if item['stock'] > 0:
+    db.execute("UPDATE items SET stock = stock - 1 WHERE id = ?", [id])
+
+# ✅ Atomic
+result = db.execute("""
+    UPDATE items SET stock = stock - 1
+    WHERE id = ? AND stock > 0
+""", [id])
+if result.affected_rows == 0:
+    raise OutOfStockError()
+```
+
+### 3.7 DATABASE CONSTRAINTS
+```sql
+CREATE TABLE users (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    INDEX idx_email (email)
+);
+
+CREATE TABLE orders (
+    user_id INT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
+);
+```
+
+### 3.8 INPUT VALIDATION
+```python
+def validate_email(email):
+    if not email:
+        raise ValidationError("Email required")
+    if len(email) > 254:
+        raise ValidationError("Email too long")
+    if not re.match(r'^[^@]+@[^@]+\.[^@]+$', email):
+        raise ValidationError("Invalid email")
+    return email.strip().lower()
+```
+
+**File uploads:**
+```python
+ALLOWED = {'jpg', 'png', 'pdf'}
+MAX_SIZE = 10 * 1024 * 1024  # 10MB
+
+def validate_file(file):
+    ext = file.filename.rsplit('.', 1)[-1].lower()
+    if ext not in ALLOWED:
+        raise ValidationError(f"Type not allowed: {ext}")
+    if file.size > MAX_SIZE:
+        raise ValidationError("File too large")
+```
+
+### 3.9 ATOMIC FILE WRITES
+```python
+# ❌ Crash = corrupted file
+with open(path, 'w') as f:
+    f.write(data)
+
+# ✅ Write temp, then rename
+import tempfile
+fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path))
+with os.fdopen(fd, 'w') as f:
+    f.write(data)
+os.rename(tmp, path)
+```
+
+### 3.10 RESOURCE CLEANUP
+```python
+# ❌ Connection leak
+conn = db.connect()
+result = conn.query("SELECT * FROM users")
+return result  # Connection never closed!
+
+# ✅ Context manager
+with db.connect() as conn:
+    return conn.query("SELECT * FROM users")
+# Auto-closed!
+```
+
+### 3.11 RETRY LOGIC
+```python
+import time
+
+def retry(func, max_attempts=3):
+    for attempt in range(max_attempts):
+        try:
+            return func()
+        except (ConnectionError, TimeoutError) as e:
+            if attempt == max_attempts - 1:
+                raise
+            time.sleep(2 ** attempt)  # 1s, 2s, 4s
+```
+
+### 3.12 LOGGING
+```python
+import logging
+logger = logging.getLogger('myapp')
+
+# ✅ Log with context
+logger.info(f"Order created: user={user_id}, order={order_id}, total={total}")
+logger.error(f"Payment failed: user={user_id}, error={e}")
+
+# ❌ Never log passwords, credit cards
+```
+
+| Level | Usage |
+|-------|-------|
+| DEBUG | Development only |
+| INFO | Normal operations |
+| WARNING | Recoverable issues |
+| ERROR | Failures |
+| CRITICAL | System broken |
+
+### 3.13 DATE/TIME - Always UTC!
+```python
+from datetime import datetime, timezone
+
+# ❌ Local time = bugs
+now = datetime.now()
+
+# ✅ UTC internally
+now = datetime.now(timezone.utc)
+
+# Convert for display only
+from zoneinfo import ZoneInfo
+local = utc_time.astimezone(ZoneInfo('Europe/Athens'))
+```
+
+**DB:** Store as `TIMESTAMP` (auto UTC)
+**API:** ISO 8601 format `"2024-01-15T14:30:00Z"`
+
+### 3.14 UTF-8 - Everywhere!
+```python
+# Files
+with open('file.txt', 'r', encoding='utf-8') as f:
+
+# PHP
+mb_strlen($text, 'UTF-8');
+```
+
+```sql
+-- Database
+CREATE DATABASE myapp CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+### 3.15 PAGINATION - Never unlimited!
+```python
+# ❌ 1M records = crash
+users = db.query("SELECT * FROM users")
+
+# ✅ Always LIMIT
+def get_users(page=1, per_page=50):
+    per_page = min(per_page, 100)  # Max 100!
+    offset = (page - 1) * per_page
+    return db.query("SELECT * FROM users LIMIT ? OFFSET ?", [per_page, offset])
+```
+
+### 3.16 CONFIG DEFAULTS
+```python
+# ❌ Crash if missing
+api_key = os.environ['API_KEY']
+
+# ✅ Default or fail fast
+DEBUG = os.getenv('DEBUG', 'false') == 'true'
+DB_HOST = os.getenv('DB_HOST', 'localhost')
+
+def required_env(key):
+    val = os.getenv(key)
+    if not val:
+        raise EnvironmentError(f"Missing: {key}")
+    return val
+
+API_KEY = required_env('API_KEY')
+```
+
+---
+
+## ✅ PART 4: BEFORE FINISHING
+
+### 4.1 VERIFICATION CHECKLIST
+```
+□ Runs without errors?
+□ Main functionality works?
+□ Edge cases (null, empty, large data)?
+□ Test script passes?
 ```
 
 **How to verify:**
 ```bash
-# 1. Syntax check
-python -m py_compile my_script.py
-
-# 2. Run the code
-python my_script.py
-
-# 3. Run tests
-python my_script_test.py
-
-# 4. Check for errors in logs
-tail -f /var/log/app.log
+python -m py_compile script.py  # Syntax check
+python script_test.py           # Run tests
 ```
 
-**If you can't verify → ASK USER to test it!**
-
-### 7. NAMING CONVENTIONS
-**Consistent naming = Easy searching**
-
-| Type | Convention | Example |
-|------|------------|---------|
-| Files (Python) | snake_case | `user_service.py` |
-| Files (JS/TS) | camelCase or kebab | `userService.js` |
-| Files (PHP) | PascalCase | `UserService.php` |
-| Classes | PascalCase | `UserService`, `OrderManager` |
-| Functions | camelCase | `createUser()`, `getOrderById()` |
-| Variables | camelCase | `userName`, `orderTotal` |
-| Constants | UPPER_SNAKE | `MAX_RETRIES`, `API_URL` |
-| Private | _prefix | `_internalMethod()`, `_cache` |
-| Database tables | snake_case plural | `users`, `order_items` |
-| Database columns | snake_case | `created_at`, `user_id` |
-
-**Naming Tips:**
-- **Be specific**: `getUserById()` not `getUser()`
-- **Use verbs for functions**: `create`, `get`, `update`, `delete`, `validate`, `calculate`
-- **Use nouns for variables**: `user`, `orderList`, `totalAmount`
-- **Boolean prefix**: `isActive`, `hasPermission`, `canEdit`
-
-### 8. DEBUG WORKFLOW
-**When something doesn't work, follow this process:**
-
+### 4.2 DEBUG WORKFLOW
 ```
-1. READ THE ERROR MESSAGE
-   └→ 90% of bugs are explained in the error
-
-2. CHECK THE BASICS
-   ├→ Syntax errors? (missing brackets, typos)
-   ├→ Imports correct?
-   ├→ File exists at path?
-   └→ Permissions OK?
-
-3. ADD LOGGING
-   └→ print() or logger.debug() at key points
-
-4. ISOLATE THE PROBLEM
-   ├→ Comment out code until it works
-   ├→ Test each function separately
-   └→ Find the exact line that fails
-
-5. CHECK INPUTS/OUTPUTS
-   ├→ What value is actually being passed?
-   ├→ Is it the type you expect?
-   └→ Is it None/null when it shouldn't be?
-
-6. SEARCH FOR SIMILAR CODE
-   └→ How is it done elsewhere in the project?
-
-7. IF STILL STUCK → ASK USER
-   └→ Include: error message, what you tried, relevant code
+1. READ the error message (90% of solutions are there)
+2. Check basics: syntax, imports, file paths, permissions
+3. Add logging at key points
+4. Isolate: comment out until it works
+5. Check inputs: what value is ACTUALLY coming?
+6. STILL STUCK → Ask user
 ```
 
-**Debug Print Template:**
-```python
-def problematic_function(data):
-    print(f"DEBUG: Input data = {data}, type = {type(data)}")  # @DEBUG
-    result = process(data)
-    print(f"DEBUG: Result = {result}")  # @DEBUG
-    return result
-```
+### 4.3 ASK WHEN < 90% CONFIDENT
+- Multiple options? → ASK
+- Unclear requirements? → ASK
+- Might break something? → ASK
 
-**Remember to remove @DEBUG comments before completing!**
+---
 
-### 9. ASK WHEN < 90% CONFIDENT
-Multiple options? Unclear requirements? Could break something? → ASK FIRST
+## 🎨 PART 5: UI RULES
 
-### 10. SECURITY (MANDATORY)
-```php
-// ❌ NEVER: $sql = "SELECT * FROM users WHERE id = $id";
-// ✅ ALWAYS: $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
-
-// ❌ NEVER: echo $userInput;
-// ✅ ALWAYS: echo htmlspecialchars($userInput, ENT_QUOTES, 'UTF-8');
-```
-- ALL SQL = Prepared statements
-- ALL inputs = Validated
-- ALL outputs = Escaped
-
-**NO PERSONAL INFO in config files!**
-When creating composer.json, package.json, or any config with author fields:
-```json
-// ✅ ALWAYS use project name:
-"author": "ProjectName Team"
-// ✅ Or generic:
-"author": "Development Team"
-// ❌ NEVER use personal emails or real names
-```
-
-### 11. PLAYWRIGHT-READY
-All UI elements need `data-testid` so AI can test:
+### 6.1 PLAYWRIGHT TEST IDs
 ```html
-<button data-testid="submit-login-btn">Login</button>
-<input data-testid="email-input" type="email">
-<div data-testid="error-message">...</div>
+<button data-testid="login-btn">Login</button>
+<input data-testid="email-input">
+<div data-testid="error-message">
 ```
 
-### 12. ARCHITECTURE
-- **UI**: Grid-based, minimalist, mobile-first, fast
-- **Libraries**: Popular (Tailwind, Alpine.js, PDO) - avoid bloat
-- **Wrappers**: Every external service gets a wrapper (DB, Email, Payment)
-- **Size matters**: Smaller = fewer tokens = faster AI = lower cost
-- **Future-proof**: Standard features, no framework magic
+### 6.2 VISUAL CONSISTENCY
+- Same spacing everywhere (8px, 16px, 24px, 32px)
+- Same size for similar elements
+- Use flexbox/grid, not manual positioning
 
-### 13. VISUAL CONSISTENCY (UI Polish)
-**Every UI must look professional, balanced, and uniform.**
+**Before finishing UI → Screenshot with Playwright and check if uniform!**
 
-**Core Principles:**
-- **Alignment**: All elements align properly (left, center, grid lines)
-- **Spacing**: Consistent margins/padding throughout (use a system: 8px, 16px, 24px, 32px)
-- **Sizing**: Similar elements = same size (buttons, cards, icons, inputs)
-- **Typography**: Same font sizes for same hierarchy levels (all h2 = same size)
-- **Colors**: Consistent color palette - don't mix random colors
-- **Borders/Shadows**: Same style for similar elements
-
-**Common Problems to CHECK:**
-| Problem | Solution |
-|---------|----------|
-| Cards different heights | Use `display: flex; align-items: stretch` or CSS Grid |
-| Text overflows container | Use `overflow: hidden; text-overflow: ellipsis` |
-| Uneven spacing | Use consistent padding/margin values |
-| Elements not aligned | Use flexbox/grid, not manual positioning |
-| Buttons different sizes | Set consistent `min-width` or use same class |
-| Icons different sizes | Set fixed `width/height` for all icons |
-
-**Before finishing ANY UI work - use Playwright to screenshot and verify:**
-1. Does everything align properly?
-2. Are similar elements the same size?
-3. Is spacing consistent everywhere?
-4. Does text fit in its containers?
-5. Does it look **professional and polished**?
-
-**⚠️ If something looks off → FIX IT before completing the task!**
-
-### 14. DOCUMENTATION
-Create `TECHNOLOGIES.md` in every project listing:
-- Stack (PHP/Python/Node, framework, DB)
-- APIs & Services (Google Maps, Stripe, etc.)
-- Libraries with versions
-- Environment variables
-
-### 15. PROJECT MAP (Bird's Eye View)
-**Create and UPDATE `PROJECT_MAP.md` as you work on tickets!**
-
-When starting a ticket:
-1. Read PROJECT_MAP.md first (if exists)
-2. Understand the big picture before coding
-
-While working:
-3. Add new files/folders you create
-4. Update data flow if it changes
-5. Add new API endpoints
-
-When finishing:
-6. Make sure map reflects current state
-
-```markdown
-# Project Map (updated: 2024-01-15)
-
-## Structure
-/src
-  /controllers    → Handle requests (UserController, OrderController)
-  /models         → Database entities (User, Order, Product)
-  /services       → Business logic (AuthService, PaymentService)
-  /utils          → Helpers (validation, formatting)
-
-## Data Flow
-User → Controller → Service → Model → Database
-
-## Key Files
-- index.php         → Entry point, routing
-- Database.php      → DB wrapper (all queries go through here)
-- AuthService.php   → Login, logout, 2FA, sessions
-
-## API Endpoints
-POST /api/login     → AuthController::login
-GET  /api/users     → UserController::list
-```
-
-**This is your GPS - keep it updated!**
-
----
-
-## CHECKLIST (Before finishing ANY code)
-
-**Code Quality:**
-- [ ] Junior can understand?
-- [ ] Comments explain WHY with @tags?
-- [ ] File header with @file, @description, @tags?
-- [ ] Names are descriptive and consistent?
-- [ ] Functions are small (one job)?
-
-**Documentation:**
-- [ ] API documentation (.md file) exists?
-- [ ] Test script exists and passes?
-- [ ] TECHNOLOGIES.md updated?
-- [ ] PROJECT_MAP.md updated?
-
-**Verification (CRITICAL!):**
-- [ ] Code runs without errors?
-- [ ] Main functionality tested?
-- [ ] Edge cases handled?
-- [ ] Error messages are meaningful?
-- [ ] No silent failures?
-
-**Security:**
-- [ ] SQL uses prepared statements?
-- [ ] Inputs validated, outputs escaped?
-- [ ] No sensitive data in logs?
-
-**UI (if applicable):**
-- [ ] data-testid on all UI elements?
-- [ ] Visual consistency checked with Playwright?
-- [ ] All similar elements same size?
-- [ ] Text fits in containers?
-
----
-
-## SERVER ENVIRONMENT
-
-| Tool | Version | Notes |
-|------|---------|-------|
-| Ubuntu | 24.04 LTS | |
-| PHP | 8.3 | + extensions |
-| Node.js | 22.x | |
-| MySQL | 8.0 | |
-| .NET | 8.0 | + PowerShell 7.5 |
-| Java | GraalVM 24 | |
-| Playwright | Python | Chromium included |
-
-**Ports**: Admin=9453, Projects=9867, MySQL=3306
-
-**Paths**:
-- PHP: `/var/www/projects/[code]/`
-- Apps: `/opt/apps/[code]/`
-
-**Multimedia**: ffmpeg, ImageMagick, tesseract-ocr, sox, poppler
-
----
-
-## AI BEHAVIOR
-
-### Visual Testing (Playwright)
-
-**Web Project URLs** (projects in `/var/www/projects/`):
-- Internal URL: `https://127.0.0.1:9867/{folder_name}/`
-- folder_name = last part of web_path (e.g., `/var/www/projects/mysite` → `mysite`)
-- **ALWAYS use `ignore_https_errors=True`** (self-signed certificate)
-
+### 6.3 PLAYWRIGHT URL
 ```python
 from playwright.sync_api import sync_playwright
 
-# Get folder name from web_path
-web_path = "/var/www/projects/dellaportadr"
-folder_name = web_path.rstrip('/').split('/')[-1]  # "dellaportadr"
-url = f"https://127.0.0.1:9867/{folder_name}/"
+url = "https://127.0.0.1:9867/{folder_name}/"
 
 with sync_playwright() as p:
-    browser = p.chromium.launch(headless=True)
-    # IMPORTANT: ignore_https_errors for self-signed cert
-    context = browser.new_context(ignore_https_errors=True)
+    browser = p.chromium.launch()
+    context = browser.new_context(ignore_https_errors=True)  # REQUIRED!
     page = context.new_page()
     page.goto(url)
     page.screenshot(path='/tmp/screenshot.png')
-    browser.close()
 ```
-
-**Playwright Config (playwright.config.js)**:
-```javascript
-module.exports = {
-    use: {
-        baseURL: 'https://127.0.0.1:9867/folder_name/',
-        ignoreHTTPSErrors: true,  // REQUIRED for self-signed cert
-    }
-};
-```
-
-### Before Installing
-Check first: `which [tool]` or `[tool] --version`
-Most tools are already installed!
 
 ---
 
-**Remember: Simple rules → Big projects. Black boxes → Easy maintenance. Evolution → Survival.**
+## 📄 PART 6: DOCUMENTATION
+
+### 7.1 TECHNOLOGIES.md (in every project)
+```markdown
+# Technologies
+
+## Stack
+- PHP 8.3 / Laravel 10
+- MySQL 8.0
+- Tailwind CSS
+
+## APIs
+- Stripe (payments)
+- SendGrid (email)
+
+## Environment Variables
+- DB_HOST, DB_NAME, DB_USER, DB_PASS
+- STRIPE_KEY
+```
+
+### 7.2 PROJECT_MAP.md
+```markdown
+# Project Map
+
+## Structure
+/src
+  /controllers  → Handle HTTP requests
+  /services     → Business logic
+  /models       → Database entities
+
+## Key Files
+- index.php → Entry point
+- AuthService.php → Login/logout
+
+## API Endpoints
+POST /api/login → AuthController::login
+```
+
+---
+
+## 🖥️ PART 7: SERVER INFO
+
+| Tool | Version |
+|------|---------|
+| Ubuntu | 24.04 |
+| PHP | 8.3 |
+| Node.js | 22.x |
+| MySQL | 8.0 |
+| Python | 3.12 |
+
+**Ports:** Admin=9453, Projects=9867, MySQL=3306
+
+**Paths:**
+- PHP: `/var/www/projects/{code}/`
+- Apps: `/opt/apps/{code}/`
+
+**Before installing:** `which tool` - probably already installed!
+
+---
+
+## ✔️ FINAL CHECKLIST
+
+**Security:**
+- [ ] SQL prepared statements
+- [ ] Inputs validated, outputs escaped
+- [ ] Passwords hashed (bcrypt)
+- [ ] No hardcoded credentials
+
+**Reliability:**
+- [ ] Timeouts on all external calls
+- [ ] Transactions for related DB ops
+- [ ] Null checks before using values
+- [ ] Idempotent operations (safe to run twice)
+- [ ] Race conditions prevented (atomic ops)
+- [ ] Resources cleaned up (connections, files)
+- [ ] Config has defaults or fails fast
+- [ ] Dates in UTC
+- [ ] UTF-8 everywhere
+- [ ] Queries paginated
+
+**Code Quality:**
+- [ ] Junior can understand?
+- [ ] File headers with @tags
+- [ ] API docs (.md) exists
+- [ ] Test script exists & passes
+- [ ] TECHNOLOGIES.md updated
+
+**UI:**
+- [ ] data-testid on elements
+- [ ] Visual consistency check
+
+---
+
+> **Remember:** Simple code → Easy maintenance → AI can fix it → Evolution!
