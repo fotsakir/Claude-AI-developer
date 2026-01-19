@@ -1368,6 +1368,20 @@ Complete this task. When finished, say "TASK COMPLETED" with a summary."""
                     self.current_process = None
                 return 'permission_needed'
 
+            # Drain any remaining output from the buffer after process ends
+            # This prevents losing messages that were written just before exit
+            try:
+                remaining_output = process.stdout.read()
+                if remaining_output:
+                    for line in remaining_output.strip().split('\n'):
+                        if line.strip():
+                            drain_result = self.parse_claude_output(line)
+                            if drain_result:
+                                result = drain_result
+                    self.log(f"Drained {len(remaining_output)} bytes of remaining output", "DEBUG")
+            except Exception as e:
+                self.log(f"Error draining output: {e}", "WARNING")
+
             final_result = result if result else ('success' if process.returncode == 0 else 'failed')
             self.log(f"Claude finished - returncode: {process.returncode}, result: {result}, final: {final_result}", "DEBUG")
 
