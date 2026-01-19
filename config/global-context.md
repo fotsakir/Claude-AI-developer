@@ -482,6 +482,28 @@ User: "Plain PHP, no frameworks"        → Use plain PHP
 
 **Always follow user's technology preferences over these defaults.**
 
+### Libraries: Download Locally (No CDN!)
+**Always download libraries locally. Do NOT use CDN links.**
+
+```bash
+# ✅ GOOD - Install locally
+npm install primevue chart.js alpinejs
+
+# ❌ BAD - CDN links
+<script src="https://cdn.jsdelivr.net/npm/..."></script>
+```
+
+**Why local:**
+- Works offline
+- Faster (no external requests)
+- More secure (no third-party CDN)
+- Reliable (CDN might go down)
+
+**Exceptions (cannot download):**
+- Google Maps API
+- Google Fonts (or download fonts manually)
+- Other APIs that require remote loading
+
 ---
 
 ## 📄 PART 7: DOCUMENTATION
