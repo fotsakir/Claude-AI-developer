@@ -22,6 +22,21 @@ NC='\033[0m'
 # Paths
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="/opt/codehero"
+
+# Safety check: SOURCE must not be same as INSTALL
+if [ "$SOURCE_DIR" = "$INSTALL_DIR" ]; then
+    echo -e "${RED}ERROR: Cannot run upgrade from ${INSTALL_DIR}${NC}"
+    echo ""
+    echo "You extracted the zip to the wrong location!"
+    echo ""
+    echo "Correct procedure:"
+    echo "  1. cd /root"
+    echo "  2. unzip codehero-X.Y.Z.zip"
+    echo "  3. cd codehero"
+    echo "  4. sudo ./upgrade.sh"
+    echo ""
+    exit 1
+fi
 BACKUP_DIR="/var/backups/codehero"
 CONFIG_DIR="/etc/codehero"
 UPGRADES_DIR="${SOURCE_DIR}/upgrades"
