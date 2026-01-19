@@ -5,6 +5,23 @@ All notable changes to CodeHero will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.72.5] - 2026-01-19
+
+### Added
+- **Protected Paths** - Added security rules to prevent tickets from modifying system files
+  - Tickets cannot modify `/opt/codehero/`, `/etc/codehero/`, `/var/backups/codehero/`
+  - Tickets cannot modify nginx, systemd, or Claude CLI configuration
+  - Clear instructions for handling 403 errors and permission requests
+  - Workspace limited to project directories only
+
+### Improved
+- **Playwright Testing URLs** - Fixed documentation for web project testing
+  - Correct URL format: `https://127.0.0.1:9867/{folder_name}/`
+  - Added `ignore_https_errors=True` requirement for self-signed certificates
+  - Example code for both Python and playwright.config.js
+
+---
+
 ## [2.72.4] - 2026-01-19
 
 ### Fixed

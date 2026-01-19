@@ -9,6 +9,34 @@ Adapt or die. Simplicity is survival.
 
 ---
 
+## ⛔ PROTECTED PATHS - NEVER MODIFY!
+
+**These directories are OFF-LIMITS. Do not read, write, delete, or change permissions:**
+
+| Path | Reason |
+|------|--------|
+| `/opt/codehero/` | Platform admin panel & daemon |
+| `/etc/codehero/` | Platform configuration |
+| `/var/backups/codehero/` | Project backups - NEVER touch! |
+| `/etc/nginx/` | Web server configuration |
+| `/etc/systemd/` | System service files |
+| `/var/www/html/` | Default web root |
+| `/home/claude/.claude*` | Claude CLI configuration |
+
+**If user asks to:**
+- Fix 403/permission errors → Only fix within the PROJECT directory, not system paths
+- Change nginx config → REFUSE and ask user to do it manually
+- Restore from backup → REFUSE and tell user to use the Admin Panel
+- Fix "the app" → Clarify WHICH app - never touch CodeHero itself
+
+**Your workspace is ONLY:**
+- `/var/www/projects/{project}/` - for web projects
+- `/opt/apps/{project}/` - for app projects
+
+Everything else is READ-ONLY or OFF-LIMITS!
+
+---
+
 ## CORE RULES (Memorize These!)
 
 ### 1. TEAM MINDSET
@@ -155,16 +183,39 @@ GET  /api/users     → UserController::list
 
 ## AI BEHAVIOR
 
-### Visual Testing
-Use Playwright when user reports visual issues:
+### Visual Testing (Playwright)
+
+**Web Project URLs** (projects in `/var/www/projects/`):
+- Internal URL: `https://127.0.0.1:9867/{folder_name}/`
+- folder_name = last part of web_path (e.g., `/var/www/projects/mysite` → `mysite`)
+- **ALWAYS use `ignore_https_errors=True`** (self-signed certificate)
+
 ```python
 from playwright.sync_api import sync_playwright
+
+# Get folder name from web_path
+web_path = "/var/www/projects/dellaportadr"
+folder_name = web_path.rstrip('/').split('/')[-1]  # "dellaportadr"
+url = f"https://127.0.0.1:9867/{folder_name}/"
+
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
-    page = browser.new_page()
-    page.goto('https://localhost:9867/project/')
+    # IMPORTANT: ignore_https_errors for self-signed cert
+    context = browser.new_context(ignore_https_errors=True)
+    page = context.new_page()
+    page.goto(url)
     page.screenshot(path='/tmp/screenshot.png')
     browser.close()
+```
+
+**Playwright Config (playwright.config.js)**:
+```javascript
+module.exports = {
+    use: {
+        baseURL: 'https://127.0.0.1:9867/folder_name/',
+        ignoreHTTPSErrors: true,  // REQUIRED for self-signed cert
+    }
+};
 ```
 
 ### Before Installing
