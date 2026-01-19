@@ -429,7 +429,62 @@ with sync_playwright() as p:
 
 ---
 
-## 📄 PART 6: DOCUMENTATION
+## 🛠️ PART 6: DEFAULT TECH STACK
+
+**⚠️ USER PREFERENCE ALWAYS WINS!** If user specifies a technology, use that instead of defaults.
+
+### Default by Project Type:
+
+| Project Type | Default Stack |
+|--------------|---------------|
+| **Complex Dashboard / Admin / ERP** | Vue 3 + PrimeVue + Vite |
+| **Landing Page / Marketing Site** | HTML + Tailwind CSS + Alpine.js |
+| **E-commerce (with SEO)** | Nuxt 3 + PrimeVue |
+| **Simple Website** | HTML + Tailwind CSS |
+| **API / Backend** | Based on project's tech_stack setting |
+
+### Complex Dashboards (Vue 3 + PrimeVue):
+```bash
+npm create vite@latest myapp -- --template vue
+cd myapp
+npm install primevue primeicons primeflex
+```
+
+```javascript
+// main.js
+import PrimeVue from 'primevue/config'
+import 'primevue/resources/themes/lara-dark-indigo/theme.css'
+import 'primeicons/primeicons.css'
+import 'primeflex/primeflex.css'
+
+app.use(PrimeVue)
+```
+
+**PrimeVue includes:** DataTable (with child rows, filtering, sorting, export), Charts, TreeTable, Drag&Drop, MultiSelect, and 90+ components.
+
+### Landing Pages (Tailwind + Alpine.js):
+```html
+<head>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+```
+
+**Use for:** Marketing sites, landing pages, simple interactivity.
+
+### If User Specifies Something Else:
+```
+User: "Use React instead of Vue"        → Use React
+User: "Use Bootstrap not Tailwind"      → Use Bootstrap
+User: "Use Angular with AG Grid"        → Use Angular + AG Grid
+User: "Plain PHP, no frameworks"        → Use plain PHP
+```
+
+**Always follow user's technology preferences over these defaults.**
+
+---
+
+## 📄 PART 7: DOCUMENTATION
 
 ### 7.1 TECHNOLOGIES.md (in every project)
 ```markdown
@@ -469,7 +524,7 @@ POST /api/login → AuthController::login
 
 ---
 
-## 🖥️ PART 7: SERVER INFO
+## 🖥️ PART 8: SERVER INFO
 
 | Tool | Version |
 |------|---------|
