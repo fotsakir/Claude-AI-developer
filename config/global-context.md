@@ -381,10 +381,19 @@ python script_test.py           # Run tests
 6. STILL STUCK → Ask user
 ```
 
-### 4.3 ASK WHEN < 90% CONFIDENT
-- Multiple options? → ASK
-- Unclear requirements? → ASK
-- Might break something? → ASK
+### 4.3 ASK ONLY WHEN NECESSARY
+**Default behavior: PROCEED autonomously. Only ask if truly stuck.**
+
+Ask ONLY if:
+- Requirements are ambiguous AND you cannot make a reasonable assumption
+- Multiple valid approaches AND the choice significantly affects the outcome
+- Action might cause data loss or break existing functionality
+
+Do NOT ask for:
+- Minor implementation details (just pick one)
+- Styling preferences (follow existing patterns)
+- Obvious decisions (use common sense)
+- Confirmation of your plan (just do it)
 
 ---
 
