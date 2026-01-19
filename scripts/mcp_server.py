@@ -589,6 +589,18 @@ def handle_create_project(args: Dict[str, Any]) -> Dict[str, Any]:
                 except Exception as e:
                     pass  # Directory creation failed, continue anyway
 
+        # Initialize Git repository
+        git_initialized = False
+        git_path = web_path or app_path
+        if git_path and os.path.exists(git_path):
+            try:
+                from git_manager import GitManager
+                gm = GitManager(git_path, project_type, tech_stack)
+                success, msg = gm.init_repo()
+                git_initialized = success
+            except Exception as e:
+                pass  # Git init failed, continue anyway
+
         # Generate database credentials
         db_name = f"proj_{project_slug}"
         db_user = f"proj_{project_slug}"
@@ -647,6 +659,7 @@ def handle_create_project(args: Dict[str, Any]) -> Dict[str, Any]:
             "db_name": db_name,
             "db_user": db_user,
             "db_created": db_created,
+            "git_initialized": git_initialized,
             "message": f"Project '{name}' created successfully with code '{code}'"
         }
 
