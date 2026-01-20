@@ -237,5 +237,5 @@ For helping users design projects:
 ```
 
 ---
-**Last updated:** 2026-01-15
-**Version:** 2.65.0
+**Last updated:** 2026-01-20
+**Version:** 2.76.0
