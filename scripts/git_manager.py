@@ -118,7 +118,13 @@ class GitManager:
             repo_path: Path to the repository directory
             project_type: Type of project (web, app, php, python, etc.)
             tech_stack: Technology stack string for gitignore generation
+
+        Raises:
+            ValueError: If repo_path contains invalid characters
         """
+        # Validate repo_path to prevent command injection - only allow safe path characters
+        if not re.match(r'^[a-zA-Z0-9/_.-]+$', repo_path):
+            raise ValueError(f"Invalid repository path format: {repo_path}")
         self.repo_path = repo_path
         self.project_type = project_type
         self.tech_stack = tech_stack.lower() if tech_stack else ''

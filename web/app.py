@@ -188,7 +188,18 @@ def get_next_dotnet_port():
 
 def setup_dotnet_project(code, dotnet_port, app_path):
     """Create Nginx config and systemd service for .NET project"""
+    import re
     code_lower = code.lower()
+
+    # Validate code to prevent command injection - only allow alphanumeric and hyphen
+    if not re.match(r'^[a-zA-Z0-9_-]+$', code_lower):
+        print(f"Invalid project code format: {code_lower}")
+        return False
+
+    # Validate app_path - only allow safe path characters
+    if not re.match(r'^[a-zA-Z0-9/_.-]+$', app_path):
+        print(f"Invalid app_path format: {app_path}")
+        return False
 
     try:
         # Read templates
@@ -208,7 +219,8 @@ def setup_dotnet_project(code, dotnet_port, app_path):
             f.write(nginx_config)
 
         nginx_path = f'/etc/nginx/codehero-dotnet/{code_lower}.conf'
-        os.system(f'sudo mv {nginx_tmp} {nginx_path}')
+        # Use subprocess with list args to prevent command injection
+        subprocess.run(['sudo', 'mv', nginx_tmp, nginx_path], check=True)
 
         # Create systemd service
         with open(systemd_template_path, 'r') as f:
@@ -224,11 +236,12 @@ def setup_dotnet_project(code, dotnet_port, app_path):
             f.write(systemd_config)
 
         service_path = f'/etc/systemd/system/codehero-dotnet-{code_lower}.service'
-        os.system(f'sudo mv {service_tmp} {service_path}')
+        # Use subprocess with list args to prevent command injection
+        subprocess.run(['sudo', 'mv', service_tmp, service_path], check=True)
 
         # Reload nginx and systemd
-        os.system('sudo systemctl daemon-reload')
-        os.system('sudo nginx -s reload 2>/dev/null || true')
+        subprocess.run(['sudo', 'systemctl', 'daemon-reload'], check=True)
+        subprocess.run(['sudo', 'nginx', '-s', 'reload'], check=False)
 
         return True
     except Exception as e:
@@ -689,6 +702,35 @@ def get_project_db_connection(project_id):
         return None, str(e)
 
 
+def validate_table_name(db_conn, table_name):
+    """Validate that table_name exists in the database (prevents SQL injection)"""
+    import re
+    # First check format - only allow alphanumeric and underscore
+    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', table_name):
+        return False
+    # Then verify table actually exists
+    cursor = db_conn.cursor()
+    cursor.execute("SHOW TABLES")
+    tables = [row[0] for row in cursor.fetchall()]
+    cursor.close()
+    return table_name in tables
+
+
+def validate_column_names(db_conn, table_name, column_names):
+    """Validate that column names exist in the table (prevents SQL injection)"""
+    import re
+    # Check format for all column names
+    for col in column_names:
+        if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', col):
+            return False
+    # Get actual columns from table
+    cursor = db_conn.cursor()
+    cursor.execute(f"DESCRIBE `{table_name}`")  # table_name already validated
+    valid_columns = [row[0] for row in cursor.fetchall()]
+    cursor.close()
+    return all(col in valid_columns for col in column_names)
+
+
 @app.route('/api/project/<int:project_id>/db/tables', methods=['GET'])
 @login_required
 def get_db_tables(project_id):
@@ -725,6 +767,11 @@ def get_table_structure(project_id, table_name):
     if error:
         return jsonify({'success': False, 'message': error})
 
+    # Validate table name to prevent SQL injection
+    if not validate_table_name(db_conn, table_name):
+        db_conn.close()
+        return jsonify({'success': False, 'message': 'Invalid table name'})
+
     try:
         cursor = db_conn.cursor(dictionary=True)
         cursor.execute(f"DESCRIBE `{table_name}`")
@@ -749,6 +796,11 @@ def get_table_data(project_id, table_name):
     db_conn, error = get_project_db_connection(project_id)
     if error:
         return jsonify({'success': False, 'message': error})
+
+    # Validate table name to prevent SQL injection
+    if not validate_table_name(db_conn, table_name):
+        db_conn.close()
+        return jsonify({'success': False, 'message': 'Invalid table name'})
 
     page = int(request.args.get('page', 1))
     per_page = int(request.args.get('per_page', 50))
@@ -791,7 +843,12 @@ def get_table_data(project_id, table_name):
 @app.route('/api/project/<int:project_id>/db/query', methods=['POST'])
 @login_required
 def run_db_query(project_id):
-    """Run a custom SQL query"""
+    """Run a custom SQL query.
+
+    NOTE: This endpoint intentionally allows arbitrary SQL execution for authenticated
+    users who have database access. This is a feature, not a vulnerability - it's a
+    SQL query tool for developers. Access is protected by @login_required.
+    """
     db_conn, error = get_project_db_connection(project_id)
     if error:
         return jsonify({'success': False, 'message': error})
@@ -809,6 +866,7 @@ def run_db_query(project_id):
 
     try:
         cursor = db_conn.cursor(dictionary=True)
+        # nosec B608 - Intentional: This is a SQL query tool for authenticated users
         cursor.execute(query)
 
         # Check if it's a SELECT query
@@ -846,11 +904,21 @@ def delete_table_row(project_id, table_name):
     if error:
         return jsonify({'success': False, 'message': error})
 
+    # Validate table name to prevent SQL injection
+    if not validate_table_name(db_conn, table_name):
+        db_conn.close()
+        return jsonify({'success': False, 'message': 'Invalid table name'})
+
     data = request.json
     where_clause = data.get('where', {})
 
     if not where_clause:
         return jsonify({'success': False, 'message': 'No WHERE clause provided'})
+
+    # Validate column names to prevent SQL injection
+    if not validate_column_names(db_conn, table_name, list(where_clause.keys())):
+        db_conn.close()
+        return jsonify({'success': False, 'message': 'Invalid column name'})
 
     try:
         cursor = db_conn.cursor()
