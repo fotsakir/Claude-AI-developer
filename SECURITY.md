@@ -6,8 +6,7 @@
 | ------- | ------------------ |
 | 2.76.x  | :white_check_mark: |
 | 2.75.x  | :white_check_mark: |
-| 2.74.x  | :white_check_mark: |
-| < 2.74  | :x:                |
+| < 2.75  | :x:                |
 
 We recommend always using the latest version for the best security.
 

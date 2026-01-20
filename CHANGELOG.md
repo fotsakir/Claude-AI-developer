@@ -5,6 +5,20 @@ All notable changes to CodeHero will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.76.1] - 2026-01-20
+
+### Security
+- **SQL Injection Protection** - Fixed potential SQL injection vulnerabilities in database editor
+  - Added `validate_table_name()` and `validate_column_names()` helper functions
+  - Table/column names validated against regex and database existence
+  - Affects: `get_table_structure`, `get_table_data`, `delete_table_row` endpoints
+- **Command Injection Protection** - Fixed command injection vulnerabilities
+  - Replaced `os.system()` with `subprocess.run()` using list arguments
+  - Added input validation for project codes and file paths
+  - Added `repo_path` validation in GitManager constructor
+
+---
+
 ## [2.76.0] - 2026-01-20
 
 ### Added
