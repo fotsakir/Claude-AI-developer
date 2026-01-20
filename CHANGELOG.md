@@ -5,6 +5,20 @@ All notable changes to CodeHero will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.76.2] - 2026-01-20
+
+### Security
+- **Stack Trace Exposure Protection** - Prevent sensitive info leakage in error messages
+  - Added `sanitize_error()` helper that logs full errors but returns sanitized messages
+  - Scrubs file paths, passwords, and API keys from user-facing error messages
+  - All 84 stack trace exposure alerts resolved
+- **Path Injection Protection** - Prevent directory traversal attacks
+  - Added `safe_join_path()` helper for secure path joining
+  - Validates user paths stay within allowed project directories
+  - Blocks `..` traversal attempts
+
+---
+
 ## [2.76.1] - 2026-01-20
 
 ### Security
