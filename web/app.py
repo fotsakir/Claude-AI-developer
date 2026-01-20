@@ -2256,6 +2256,15 @@ def api_projects():
         if not code.isalnum() or len(code) > 10:
             return jsonify({'success': False, 'message': 'Code must be alphanumeric, max 10 chars'})
 
+        # Check if code already exists
+        cursor.execute("SELECT id, name FROM projects WHERE code = %s", (code,))
+        existing = cursor.fetchone()
+        if existing:
+            return jsonify({
+                'success': False,
+                'message': f"Project code '{code}' already exists (used by project '{existing['name']}'). Please choose a different code."
+            })
+
         # Default paths based on type
         if not web_path and project_type in ('web', 'hybrid'):
             web_path = f'/var/www/projects/{code.lower()}'

@@ -624,9 +624,11 @@ def handle_create_project(args: Dict[str, Any]) -> Dict[str, Any]:
         ai_model = 'sonnet'
 
     # Generate code from name (up to 8 characters)
-    code = ''.join(c.upper() for c in name if c.isalnum())[:8]
-    if not code:
-        code = 'PROJ'
+    original_code = ''.join(c.upper() for c in name if c.isalnum())[:8]
+    if not original_code:
+        original_code = 'PROJ'
+    code = original_code
+    code_was_changed = False
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -638,14 +640,16 @@ def handle_create_project(args: Dict[str, Any]) -> Dict[str, Any]:
             return {"content": [{"type": "text", "text": f"Error: Project '{name}' already exists"}]}
 
         # Check code uniqueness and modify if needed
-        cursor.execute("SELECT code FROM projects WHERE code = %s", (code,))
-        if cursor.fetchone():
+        cursor.execute("SELECT id, name FROM projects WHERE code = %s", (code,))
+        existing = cursor.fetchone()
+        if existing:
             # Add number to make unique
             for i in range(1, 100):
-                new_code = f"{code[:3]}{i}"
+                new_code = f"{original_code[:5]}{i}"
                 cursor.execute("SELECT code FROM projects WHERE code = %s", (new_code,))
                 if not cursor.fetchone():
                     code = new_code
+                    code_was_changed = True
                     break
 
         # Generate paths based on project type
@@ -726,11 +730,18 @@ def handle_create_project(args: Dict[str, Any]) -> Dict[str, Any]:
         conn.commit()
         project_id = cursor.lastrowid
 
+        # Build message
+        msg = f"Project '{name}' created successfully with code '{code}'"
+        if code_was_changed:
+            msg += f" (NOTE: Code was changed from '{original_code}' because it was already in use)"
+
         result = {
             "success": True,
             "project_id": project_id,
             "name": name,
             "code": code,
+            "original_code": original_code if code_was_changed else None,
+            "code_was_changed": code_was_changed,
             "web_path": web_path,
             "app_path": app_path,
             "db_name": db_name,
@@ -738,7 +749,7 @@ def handle_create_project(args: Dict[str, Any]) -> Dict[str, Any]:
             "db_created": db_created,
             "git_initialized": git_initialized,
             "ai_model": ai_model,
-            "message": f"Project '{name}' created successfully with code '{code}'"
+            "message": msg
         }
 
         return {"content": [{"type": "text", "text": json.dumps(result, indent=2)}]}
