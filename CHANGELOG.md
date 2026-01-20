@@ -5,6 +5,25 @@ All notable changes to CodeHero will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.78.0] - 2026-01-20
+
+### Added
+- **ModSecurity WAF** - Web Application Firewall with OWASP Core Rule Set
+  - New `setup_waf.sh` script for easy installation
+  - Protection against SQL injection, XSS, command injection
+  - OWASP Top 10 attack prevention
+  - Custom exclusions for CodeHero (WebSocket, Terminal, Editor, API)
+- **WAF Setup in Package Manager** - Install WAF from web UI
+  - New card in Configuration Scripts section
+  - One-click installation with status tracking
+
+### Security
+- ModSecurity 3.x with OWASP CRS 3.3.5 (~2,800 rules)
+- Automatic blocking mode enabled
+- Protects Admin Panel (9453), Projects (9867), phpMyAdmin (9454)
+
+---
+
 ## [2.77.0] - 2026-01-20
 
 ### Added

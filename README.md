@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Dual-blue.svg" alt="License"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-2.77.0-green.svg" alt="Version"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-2.78.0-green.svg" alt="Version"></a>
   <img src="https://img.shields.io/badge/Ubuntu-22.04%20|%2024.04-orange.svg" alt="Ubuntu">
   <a href="https://anthropic.com"><img src="https://img.shields.io/badge/Powered%20by-Claude%20AI-blueviolet.svg" alt="Claude AI"></a>
   <a href="https://github.com/fotsakir/codehero/stargazers"><img src="https://img.shields.io/github/stars/fotsakir/codehero?style=social" alt="Stars"></a>
@@ -360,8 +360,8 @@ apt-get update && apt-get install -y unzip wget net-tools
 
 # Download and extract
 cd /root
-wget https://github.com/fotsakir/codehero/releases/latest/download/codehero-2.77.0.zip
-unzip codehero-2.77.0.zip
+wget https://github.com/fotsakir/codehero/releases/latest/download/codehero-2.78.0.zip
+unzip codehero-2.78.0.zip
 cd codehero
 
 # Run setup
@@ -387,7 +387,7 @@ The installer automatically sets up:
 ```bash
 # Download new version
 cd /root
-unzip codehero-2.77.0.zip
+unzip codehero-2.78.0.zip
 cd codehero
 
 # Preview changes (recommended)
@@ -625,6 +625,7 @@ REVIEW_DEADLINE_DAYS=7
 | [One-Click Install](docs/MULTIPASS_INSTALL.md) | Easiest install for Windows, macOS, Linux |
 | [User Guide](docs/USER_GUIDE.md) | How to use the admin panel (with screenshots) |
 | [2FA Setup](docs/2FA_SETUP.md) | Enable Two-Factor Authentication with Google Authenticator |
+| [WAF Setup](docs/WAF_SETUP.md) | ModSecurity Web Application Firewall with OWASP rules |
 | [LSP Setup](docs/LSP_SETUP.md) | Install language servers for code editor features |
 | [Telegram Setup](docs/TELEGRAM_SETUP.md) | Get instant alerts on your phone |
 | [VM Installation](docs/VM_INSTALLATION.md) | Install on VMware, Hyper-V, VirtualBox, UTM, Parallels |
