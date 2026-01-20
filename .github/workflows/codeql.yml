@@ -20,7 +20,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [ 'python', 'javascript' ]
+        # Only Python - JavaScript is third-party (Monaco editor)
+        language: [ 'python' ]
 
     steps:
     - name: Checkout repository
