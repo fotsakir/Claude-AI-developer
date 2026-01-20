@@ -38,6 +38,13 @@ fi
 chown -R ${CLAUDE_USER}:${CLAUDE_USER} ${INSTALL_DIR}/references 2>/dev/null || true
 chmod 755 ${INSTALL_DIR}/references 2>/dev/null || true
 
+# Deleted projects backup directory
+if [ ! -d "/var/backups/codehero/deleted-projects" ]; then
+    log_info "Creating deleted-projects backup directory..."
+    mkdir -p /var/backups/codehero/deleted-projects
+fi
+chown -R ${CLAUDE_USER}:${CLAUDE_USER} /var/backups/codehero 2>/dev/null || true
+
 # Make scripts executable
 chmod +x ${INSTALL_DIR}/scripts/*.sh 2>/dev/null || true
 

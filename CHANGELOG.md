@@ -5,6 +5,22 @@ All notable changes to CodeHero will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.75.0] - 2026-01-20
+
+### Added
+- **Delete Project Feature** - Safe project deletion with automatic backup
+  - Confirmation modal requires typing project name to confirm
+  - Backs up all project paths (web_path, app_path, reference_path)
+  - Backs up project database using mysqldump
+  - Verifies backup before proceeding with deletion
+  - Backups stored in `/var/backups/codehero/deleted-projects/{CODE}_{timestamp}/`
+  - Backup directory created automatically on install/upgrade
+
+### Improved
+- **Project Code Length** - Increased from 4 to 8 characters for auto-generated codes
+
+---
+
 ## [2.74.0] - 2026-01-20
 
 ### Added

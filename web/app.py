@@ -1452,6 +1452,163 @@ def api_delete_backup(project_id, filename):
         return jsonify({'success': False, 'message': str(e)})
 
 
+@app.route('/api/project/<int:project_id>/delete', methods=['DELETE'])
+@login_required
+def api_delete_project(project_id):
+    """Delete a project permanently (with backup first)"""
+    import shutil
+    import subprocess
+    from datetime import datetime
+
+    try:
+        conn = get_db()
+        cursor = conn.cursor(dictionary=True)
+
+        # Get project info
+        cursor.execute("""
+            SELECT id, name, code, web_path, app_path, reference_path,
+                   db_name, db_user, db_password, db_host
+            FROM projects WHERE id = %s
+        """, (project_id,))
+        project = cursor.fetchone()
+
+        if not project:
+            cursor.close()
+            conn.close()
+            return jsonify({'success': False, 'message': 'Project not found'})
+
+        # Create backup directory for deleted projects
+        deleted_backup_dir = '/var/backups/codehero/deleted-projects'
+        os.makedirs(deleted_backup_dir, exist_ok=True)
+
+        # Create timestamped backup folder
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        backup_folder = os.path.join(deleted_backup_dir, f"{project['code']}_{timestamp}")
+        os.makedirs(backup_folder, exist_ok=True)
+
+        # Track what was backed up
+        backup_report = []
+        backup_success = True
+
+        # Backup project files (web_path, app_path, reference_path)
+        for path_key in ['web_path', 'app_path', 'reference_path']:
+            path = project.get(path_key)
+            if path and os.path.exists(path):
+                dest = os.path.join(backup_folder, path_key)
+                try:
+                    shutil.copytree(path, dest)
+                    file_count = sum(len(files) for _, _, files in os.walk(dest))
+                    backup_report.append(f"{path_key}: {file_count} files backed up")
+                except Exception as e:
+                    backup_report.append(f"{path_key}: FAILED - {str(e)}")
+                    backup_success = False
+
+        # Backup project database (if exists)
+        if project.get('db_name') and project.get('db_user'):
+            db_backup_file = os.path.join(backup_folder, 'database.sql')
+            try:
+                # Use mysqldump to backup the database
+                cmd = [
+                    'mysqldump',
+                    '-h', project.get('db_host', 'localhost'),
+                    '-u', project['db_user'],
+                    f"-p{project['db_password']}",
+                    project['db_name']
+                ]
+                with open(db_backup_file, 'w') as f:
+                    result = subprocess.run(cmd, stdout=f, stderr=subprocess.PIPE, timeout=60)
+
+                if result.returncode == 0 and os.path.getsize(db_backup_file) > 0:
+                    size_kb = os.path.getsize(db_backup_file) // 1024
+                    backup_report.append(f"database: {size_kb}KB backed up")
+                else:
+                    backup_report.append(f"database: FAILED - {result.stderr.decode()[:100]}")
+                    backup_success = False
+            except Exception as e:
+                backup_report.append(f"database: FAILED - {str(e)}")
+                # Don't fail if DB backup fails - project might not have a DB
+
+        # Move existing project backups
+        project_backup_dir = os.path.join(BACKUP_DIR, project['code'])
+        if os.path.exists(project_backup_dir):
+            try:
+                shutil.move(project_backup_dir, os.path.join(backup_folder, 'backups'))
+                backup_report.append("backups: moved to backup folder")
+            except Exception as e:
+                backup_report.append(f"backups: move failed - {str(e)}")
+
+        # Write project info and backup report
+        info_file = os.path.join(backup_folder, 'project_info.txt')
+        with open(info_file, 'w') as f:
+            f.write(f"Project: {project['name']}\n")
+            f.write(f"Code: {project['code']}\n")
+            f.write(f"Deleted at: {datetime.now().isoformat()}\n")
+            f.write(f"Web path: {project.get('web_path', 'N/A')}\n")
+            f.write(f"App path: {project.get('app_path', 'N/A')}\n")
+            f.write(f"Reference path: {project.get('reference_path', 'N/A')}\n")
+            f.write(f"Database: {project.get('db_name', 'N/A')}\n")
+            f.write(f"\n--- Backup Report ---\n")
+            for item in backup_report:
+                f.write(f"{item}\n")
+
+        # Verify backup has content before deleting
+        backup_contents = os.listdir(backup_folder)
+        if 'project_info.txt' not in backup_contents:
+            return jsonify({
+                'success': False,
+                'message': 'Backup verification failed - project_info.txt not created'
+            })
+
+        # Check if at least one path was backed up (if paths existed)
+        paths_existed = any(project.get(k) and os.path.exists(project.get(k))
+                          for k in ['web_path', 'app_path'])
+        paths_backed_up = any(k in backup_contents for k in ['web_path', 'app_path', 'reference_path'])
+
+        if paths_existed and not paths_backed_up:
+            return jsonify({
+                'success': False,
+                'message': 'Backup verification failed - project files not backed up'
+            })
+
+        # All checks passed - proceed with deletion
+
+        # Delete project files
+        for path_key in ['web_path', 'app_path']:
+            path = project.get(path_key)
+            if path and os.path.exists(path):
+                try:
+                    shutil.rmtree(path)
+                except Exception as e:
+                    pass  # Continue even if delete fails
+
+        # Delete reference path (only if in /opt/codehero/references/)
+        ref_path = project.get('reference_path')
+        if ref_path and os.path.exists(ref_path) and '/opt/codehero/references/' in ref_path:
+            try:
+                shutil.rmtree(ref_path)
+            except Exception as e:
+                pass
+
+        # Delete from database (cascade will handle tickets, conversations, etc.)
+        cursor.execute("DELETE FROM tickets WHERE project_id = %s", (project_id,))
+        cursor.execute("DELETE FROM project_maps WHERE project_id = %s", (project_id,))
+        cursor.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+        conn.commit()
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': 'Project deleted successfully',
+            'backup_path': backup_folder,
+            'backup_report': backup_report
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
 # ==========================================
 # GIT VERSION CONTROL ROUTES
 # ==========================================

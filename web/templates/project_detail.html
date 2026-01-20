@@ -721,6 +721,172 @@
 
         .backup-empty { color: var(--text-muted); text-align: center; padding: 24px; }
 
+        /* Danger Zone */
+        .danger-zone {
+            margin-top: 32px;
+            margin-bottom: 40px;
+            padding: 24px;
+            background: rgba(239, 68, 68, 0.05);
+            border: 2px solid rgba(239, 68, 68, 0.3);
+            border-radius: 12px;
+        }
+
+        .danger-zone h3 {
+            color: var(--accent-red);
+            font-size: 1rem;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .danger-zone p {
+            color: var(--text-secondary);
+            font-size: 13px;
+            margin-bottom: 16px;
+        }
+
+        .btn-danger {
+            background: var(--accent-red);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+        }
+
+        /* Delete Confirmation Modal */
+        .delete-modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .delete-modal-overlay.active { display: flex; }
+
+        .delete-modal {
+            background: var(--bg-secondary);
+            border: 2px solid var(--accent-red);
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 0 40px rgba(239, 68, 68, 0.3);
+        }
+
+        .delete-modal h3 {
+            color: var(--accent-red);
+            font-size: 1.5rem;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .delete-modal .warning {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .delete-modal .warning p {
+            color: var(--accent-red);
+            font-size: 14px;
+            margin: 0 0 8px 0;
+        }
+
+        .delete-modal .warning ul {
+            margin: 0;
+            padding-left: 20px;
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        .delete-modal .confirm-input {
+            margin-bottom: 20px;
+        }
+
+        .delete-modal .confirm-input label {
+            display: block;
+            color: var(--text-secondary);
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+
+        .delete-modal .confirm-input code {
+            color: var(--accent-cyan);
+            background: var(--bg-primary);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .delete-modal .confirm-input input {
+            width: 100%;
+            padding: 12px 16px;
+            background: var(--bg-primary);
+            border: 2px solid var(--border-subtle);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .delete-modal .confirm-input input:focus {
+            outline: none;
+            border-color: var(--accent-red);
+        }
+
+        .delete-modal .actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .delete-modal .btn-cancel {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border-subtle);
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .delete-modal .btn-delete {
+            background: var(--accent-red);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        .delete-modal .btn-delete.enabled {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .delete-modal .btn-delete.enabled:hover {
+            background: #dc2626;
+        }
+
         /* Tickets Section */
         .section-header {
             display: flex;
@@ -1131,6 +1297,37 @@
             </div>
             <div class="backup-list" id="backupList">
                 <div class="backup-empty">Loading backups...</div>
+            </div>
+        </div>
+
+        <!-- Danger Zone -->
+        <div class="danger-zone">
+            <h3>⚠️ Danger Zone</h3>
+            <p>Deleting a project will remove all files, database records, and tickets. A backup will be created automatically before deletion.</p>
+            <button class="btn-danger" onclick="showDeleteModal()">🗑️ Delete Project</button>
+        </div>
+
+        <!-- Delete Confirmation Modal -->
+        <div class="delete-modal-overlay" id="deleteModal">
+            <div class="delete-modal">
+                <h3>⚠️ Delete Project</h3>
+                <div class="warning">
+                    <p><strong>This action is irreversible!</strong></p>
+                    <ul>
+                        <li>All project files will be deleted</li>
+                        <li>All tickets and their history will be removed</li>
+                        <li>Database records will be deleted</li>
+                        <li>A backup will be saved to <code>/var/backups/codehero/deleted-projects/</code></li>
+                    </ul>
+                </div>
+                <div class="confirm-input">
+                    <label>Type <code>{{ project.name }}</code> to confirm:</label>
+                    <input type="text" id="deleteConfirmInput" placeholder="Project name" oninput="checkDeleteConfirm()">
+                </div>
+                <div class="actions">
+                    <button class="btn-cancel" onclick="hideDeleteModal()">Cancel</button>
+                    <button class="btn-delete" id="confirmDeleteBtn" onclick="deleteProject()">Delete Project</button>
+                </div>
             </div>
         </div>
 
@@ -2011,6 +2208,64 @@
         }
 
         loadBackups();
+
+        // Delete Project Functions
+        const projectName = "{{ project.name }}";
+
+        function showDeleteModal() {
+            document.getElementById('deleteModal').classList.add('active');
+            document.getElementById('deleteConfirmInput').value = '';
+            document.getElementById('confirmDeleteBtn').classList.remove('enabled');
+        }
+
+        function hideDeleteModal() {
+            document.getElementById('deleteModal').classList.remove('active');
+        }
+
+        function checkDeleteConfirm() {
+            const input = document.getElementById('deleteConfirmInput').value;
+            const btn = document.getElementById('confirmDeleteBtn');
+            if (input === projectName) {
+                btn.classList.add('enabled');
+            } else {
+                btn.classList.remove('enabled');
+            }
+        }
+
+        async function deleteProject() {
+            const input = document.getElementById('deleteConfirmInput').value;
+            if (input !== projectName) return;
+
+            const btn = document.getElementById('confirmDeleteBtn');
+            btn.textContent = 'Deleting...';
+            btn.classList.remove('enabled');
+
+            try {
+                const resp = await fetch(`/api/project/${projectId}/delete`, {
+                    method: 'DELETE',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                const result = await resp.json();
+
+                if (result.success) {
+                    alert('Project deleted successfully. Backup saved to: ' + result.backup_path);
+                    window.location.href = '/projects';
+                } else {
+                    alert('Error: ' + result.message);
+                    btn.textContent = 'Delete Project';
+                    btn.classList.add('enabled');
+                }
+            } catch (err) {
+                alert('Error deleting project: ' + err.message);
+                btn.textContent = 'Delete Project';
+                btn.classList.add('enabled');
+            }
+        }
+
+        // Close modal on outside click
+        document.getElementById('deleteModal').addEventListener('click', function(e) {
+            if (e.target === this) hideDeleteModal();
+        });
 
         // Voice recognition
         let voiceRecognition = null;

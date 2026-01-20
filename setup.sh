@@ -544,6 +544,7 @@ mkdir -p ${INSTALL_DIR}/references
 mkdir -p ${LOG_DIR}
 mkdir -p /var/run/codehero
 mkdir -p /var/backups/codehero
+mkdir -p /var/backups/codehero/deleted-projects
 
 # Create tmpfiles.d config
 cat > /etc/tmpfiles.d/codehero.conf << TMPEOF

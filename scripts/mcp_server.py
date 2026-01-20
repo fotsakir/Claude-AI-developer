@@ -623,8 +623,8 @@ def handle_create_project(args: Dict[str, Any]) -> Dict[str, Any]:
     if ai_model not in ('opus', 'sonnet', 'haiku'):
         ai_model = 'sonnet'
 
-    # Generate code from name
-    code = ''.join(c.upper() for c in name if c.isalnum())[:4]
+    # Generate code from name (up to 8 characters)
+    code = ''.join(c.upper() for c in name if c.isalnum())[:8]
     if not code:
         code = 'PROJ'
 
