@@ -357,6 +357,7 @@ CREATE TABLE `tickets` (
   `is_forced` tinyint(1) DEFAULT '0',
   `retry_count` int DEFAULT '0',
   `max_retries` int DEFAULT '3',
+  `retry_after` datetime DEFAULT NULL,
   `max_duration_minutes` int DEFAULT '60',
   `parent_ticket_id` int DEFAULT NULL,
   `test_command` varchar(255) DEFAULT NULL,
@@ -387,6 +388,7 @@ CREATE TABLE `tickets` (
   KEY `idx_ticket_sequence` (`project_id`,`sequence_order`,`is_forced`,`priority`),
   KEY `idx_parent_ticket` (`parent_ticket_id`),
   KEY `idx_tickets_review_scheduled` (`status`,`review_scheduled_at`),
+  KEY `idx_tickets_retry_after` (`retry_after`),
   CONSTRAINT `tickets_ibfk_1` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_parent_ticket` FOREIGN KEY (`parent_ticket_id`) REFERENCES `tickets` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

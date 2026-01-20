@@ -440,7 +440,40 @@ if [ ${#PENDING_MIGRATIONS[@]} -gt 0 ]; then
 fi
 
 # =====================================================
-# STEP 6: RESTART SERVICES
+# STEP 6: UPDATE CONFIG (add new parameters if missing)
+# =====================================================
+
+log_info "Checking config parameters..."
+CONFIG_UPDATED=false
+
+# Add RATE_LIMIT_COOLDOWN_MINUTES if missing
+if ! grep -q "^RATE_LIMIT_COOLDOWN_MINUTES" ${CONFIG_DIR}/system.conf 2>/dev/null; then
+    echo "" >> ${CONFIG_DIR}/system.conf
+    echo "# Retry Cooldown Settings (added in v2.76.0)" >> ${CONFIG_DIR}/system.conf
+    echo "RATE_LIMIT_COOLDOWN_MINUTES=30" >> ${CONFIG_DIR}/system.conf
+    echo "  Added: RATE_LIMIT_COOLDOWN_MINUTES=30"
+    CONFIG_UPDATED=true
+fi
+
+# Add RETRY_COOLDOWN_MINUTES if missing
+if ! grep -q "^RETRY_COOLDOWN_MINUTES" ${CONFIG_DIR}/system.conf 2>/dev/null; then
+    if [ "$CONFIG_UPDATED" = false ]; then
+        echo "" >> ${CONFIG_DIR}/system.conf
+        echo "# Retry Cooldown Settings (added in v2.76.0)" >> ${CONFIG_DIR}/system.conf
+    fi
+    echo "RETRY_COOLDOWN_MINUTES=5" >> ${CONFIG_DIR}/system.conf
+    echo "  Added: RETRY_COOLDOWN_MINUTES=5"
+    CONFIG_UPDATED=true
+fi
+
+if [ "$CONFIG_UPDATED" = true ]; then
+    log_success "Config updated with new parameters"
+else
+    echo "  (no new parameters needed)"
+fi
+
+# =====================================================
+# STEP 7: RESTART SERVICES
 # =====================================================
 
 log_info "Restarting services..."
@@ -454,7 +487,7 @@ sleep 1
 log_success "Services restarted"
 
 # =====================================================
-# STEP 7: VERIFY
+# STEP 8: VERIFY
 # =====================================================
 
 log_info "Verifying services..."

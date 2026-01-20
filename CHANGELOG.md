@@ -5,6 +5,18 @@ All notable changes to CodeHero will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.76.0] - 2026-01-20
+
+### Added
+- **Smart Retry Cooldown System** - Intelligent handling of API rate limits and errors
+  - Rate limit errors (429, overloaded): Wait 30 minutes before retry, no retry count increment
+  - Other errors: Wait 5 minutes between retries (max 3 retries)
+  - New `retry_after` column tracks when ticket can be retried
+  - Daemon automatically skips tickets in cooldown period
+  - Prevents hammering the API during rate limit periods
+
+---
+
 ## [2.75.1] - 2026-01-20
 
 ### Fixed

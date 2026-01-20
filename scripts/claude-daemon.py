@@ -69,6 +69,10 @@ STUCK_TIMEOUT_MINUTES = 30
 POLL_INTERVAL = 3
 MAX_PARALLEL_PROJECTS = 3
 
+# Rate limit and retry cooldown settings (defaults, can be overridden in system.conf)
+RATE_LIMIT_COOLDOWN_MINUTES = 30  # Wait time after hitting API rate limit
+RETRY_COOLDOWN_MINUTES = 5        # Wait time between retries for other errors
+
 # Telegram notification settings (loaded from config)
 TELEGRAM_BOT_TOKEN = ""
 TELEGRAM_CHAT_ID = ""
@@ -408,6 +412,7 @@ class ProjectWorker(threading.Thread):
                 WHERE t.project_id = %s
                   AND t.status IN ('open', 'new', 'pending')
                   AND t.parent_ticket_id IS NULL  -- Skip sub-tickets (handled by parent)
+                  AND (t.retry_after IS NULL OR t.retry_after <= NOW())  -- Skip if in cooldown
                   AND NOT EXISTS (
                       -- Skip if has unfinished dependencies
                       -- Respects deps_include_awaiting per ticket:
@@ -457,6 +462,7 @@ class ProjectWorker(threading.Thread):
                 JOIN projects p ON t.project_id = p.id
                 WHERE t.parent_ticket_id = %s
                   AND t.status NOT IN ('done', 'skipped', 'failed', 'awaiting_input')
+                  AND (t.retry_after IS NULL OR t.retry_after <= NOW())  -- Skip if in cooldown
                   AND NOT EXISTS (
                       -- Respect dependencies for sub-tickets too
                       SELECT 1 FROM ticket_dependencies td
@@ -573,25 +579,43 @@ class ProjectWorker(threading.Thread):
                 conn.close()
                 return
 
+            # Handle rate limit - wait 30 minutes, don't count as failure
+            if status == 'rate_limited' and ticket_info:
+                cursor.execute("""
+                    UPDATE tickets SET status = 'open',
+                    retry_after = DATE_ADD(NOW(), INTERVAL %s MINUTE),
+                    result_summary = %s, updated_at = NOW()
+                    WHERE id = %s
+                """, (RATE_LIMIT_COOLDOWN_MINUTES,
+                      f"Rate limited - will retry after {RATE_LIMIT_COOLDOWN_MINUTES} minutes",
+                      ticket_id))
+                conn.commit()
+                self.log(f"⏳ Rate limit cooldown set for ticket {ticket_info.get('ticket_number', ticket_id)}")
+                cursor.close()
+                conn.close()
+                return  # Will be picked up after cooldown
+
             # Handle retry logic for failed tickets
             if status == 'failed' and ticket_info:
                 retry_count = ticket_info.get('retry_count') or 0
                 max_retries = ticket_info.get('max_retries') or 3
 
                 if retry_count < max_retries:
-                    # Increment retry count and reset to open for another attempt
+                    # Increment retry count and set cooldown before retry
                     new_retry_count = retry_count + 1
                     cursor.execute("""
                         UPDATE tickets SET status = 'open', retry_count = %s,
+                        retry_after = DATE_ADD(NOW(), INTERVAL %s MINUTE),
                         result_summary = %s, updated_at = NOW()
                         WHERE id = %s
-                    """, (new_retry_count, f"Retry {new_retry_count}/{max_retries}: {result[:500] if result else 'Unknown error'}",
+                    """, (new_retry_count, RETRY_COOLDOWN_MINUTES,
+                          f"Retry {new_retry_count}/{max_retries}: {result[:500] if result else 'Unknown error'}",
                           ticket_id))
                     conn.commit()
-                    self.log(f"Retry {new_retry_count}/{max_retries} for ticket {ticket_info.get('ticket_number', ticket_id)}")
+                    self.log(f"Retry {new_retry_count}/{max_retries} for ticket {ticket_info.get('ticket_number', ticket_id)} (cooldown {RETRY_COOLDOWN_MINUTES} min)")
                     cursor.close()
                     conn.close()
-                    return  # Will be picked up again
+                    return  # Will be picked up after cooldown
 
             actual_status = status
             reset_forced = False
@@ -606,7 +630,7 @@ class ProjectWorker(threading.Thread):
                     review_deadline = DATE_ADD(NOW(), INTERVAL 7 DAY),
                     review_scheduled_at = DATE_ADD(NOW(), INTERVAL {AUTO_REVIEW_DELAY_MINUTES} MINUTE),
                     updated_at = NOW(),
-                    is_forced = FALSE, retry_count = 0
+                    is_forced = FALSE, retry_count = 0, retry_after = NULL
                     WHERE id = %s
                 """, (result[:1000] if result else None, ticket_id))
             elif status == 'failed':
@@ -614,12 +638,12 @@ class ProjectWorker(threading.Thread):
                 reset_forced = ticket_info.get('is_forced', False)
                 cursor.execute("""
                     UPDATE tickets SET status = %s, result_summary = %s, updated_at = NOW(),
-                    is_forced = FALSE
+                    is_forced = FALSE, retry_after = NULL
                     WHERE id = %s
                 """, (status, result[:1000] if result else None, ticket_id))
             else:
                 cursor.execute("""
-                    UPDATE tickets SET status = %s, result_summary = %s, updated_at = NOW()
+                    UPDATE tickets SET status = %s, result_summary = %s, updated_at = NOW(), retry_after = NULL
                     WHERE id = %s
                 """, (status, result[:1000] if result else None, ticket_id))
             conn.commit()
@@ -1205,8 +1229,24 @@ Complete this task. When finished, say "TASK COMPLETED" with a summary."""
 
             elif msg_type == 'error':
                 error = data.get('error', {}).get('message', 'Unknown error')
+                error_type = data.get('error', {}).get('type', '')
                 self.save_message('system', f"Error: {error}")
                 self.save_log('error', error)
+
+                # Detect rate limit and overload errors
+                error_lower = error.lower()
+                is_rate_limit = (
+                    error_type == 'rate_limit_error' or
+                    'rate_limit' in error_lower or
+                    'rate limit' in error_lower or
+                    '429' in error or
+                    'overloaded' in error_lower or
+                    'capacity' in error_lower or
+                    ('exceeded' in error_lower and 'limit' in error_lower)
+                )
+                if is_rate_limit:
+                    self.log(f"⏳ Rate limit detected: {error}", "WARNING")
+                    return 'rate_limited'
 
         except json.JSONDecodeError:
             if line.strip():
@@ -1562,6 +1602,13 @@ Complete this task. When finished, say "TASK COMPLETED" with a summary."""
                     self.log(f"✅ Success: {ticket['ticket_number']} - awaiting user input")
                     break
 
+            elif result == 'rate_limited':
+                # Rate limit - wait 30 minutes before retrying (don't count as failure)
+                self.update_ticket(ticket['id'], 'rate_limited', 'API rate limit reached')
+                self.end_session(self.current_session_id, 'rate_limited')
+                self.log(f"⏳ Rate limited: {ticket['ticket_number']} - will retry in {RATE_LIMIT_COOLDOWN_MINUTES} minutes", "WARNING")
+                break
+
             else:
                 self.update_ticket(ticket['id'], 'failed', str(result))
                 self.end_session(self.current_session_id, 'failed')
@@ -1868,6 +1915,12 @@ class ClaudeDaemon:
         NOTIFY_SETTINGS['watchdog_alert'] = self.config.get('NOTIFY_WATCHDOG_ALERT', 'yes').lower() == 'yes'
         if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
             print(f"[INFO] Telegram notifications enabled")
+
+        # Load retry cooldown settings
+        global RATE_LIMIT_COOLDOWN_MINUTES, RETRY_COOLDOWN_MINUTES
+        RATE_LIMIT_COOLDOWN_MINUTES = int(self.config.get('RATE_LIMIT_COOLDOWN_MINUTES', '30'))
+        RETRY_COOLDOWN_MINUTES = int(self.config.get('RETRY_COOLDOWN_MINUTES', '5'))
+        print(f"[INFO] Retry cooldowns: rate_limit={RATE_LIMIT_COOLDOWN_MINUTES}min, errors={RETRY_COOLDOWN_MINUTES}min")
 
         # Load Auto-review settings (uses Claude CLI with --model haiku)
         global AUTO_REVIEW_ENABLED, AUTO_REVIEW_DELAY_MINUTES
