@@ -49,7 +49,13 @@ echo ""
 # =====================================================
 log_info "Installing ModSecurity and OWASP CRS..."
 
-apt-get update -qq
+# Fix common repo issues (expired MySQL GPG key)
+if [ -f /etc/apt/sources.list.d/mysql.list ]; then
+    log_info "Disabling problematic MySQL repository..."
+    mv /etc/apt/sources.list.d/mysql.list /etc/apt/sources.list.d/mysql.list.disabled 2>/dev/null || true
+fi
+
+apt-get update -qq 2>/dev/null || apt-get update 2>&1 | grep -v "GPG error\|InRelease" || true
 apt-get install -y libmodsecurity3 libnginx-mod-http-modsecurity >/dev/null 2>&1
 
 if ! dpkg -l | grep -q "libmodsecurity3"; then
