@@ -83,7 +83,8 @@ gh release create vX.Y.Z /home/claude/codehero-X.Y.Z.zip --title "vX.Y.Z - Descr
 
 ## New Release Checklist (FOLLOW THIS ORDER!)
 
-Όταν φτιάχνεις νέα έκδοση, ακολούθησε αυτά τα βήματα με τη σειρά:
+**"κάνε νέα έκδοση X.Y.Z"** = Βήματα 1-5 ΜΟΝΟ (preparation, NO commit)
+**"κάνε νέα έκδοση X.Y.Z με commit"** = ΟΛΑ τα βήματα (1-8) + ΠΑΝΤΑ update local zip
 
 ### Step 1: Update VERSION
 ```bash
@@ -103,22 +104,43 @@ Add new entry at the TOP with:
 - `## [X.Y.Z] - YYYY-MM-DD`
 - `### Added` / `### Improved` / `### Fixed` sections
 
-### Step 4: Copy to Production
+### Step 4: Check Database (IMPORTANT!)
+**Migration:** Αν έχεις κάνει αλλαγές στη βάση, φτιάξε migration file:
+```bash
+# Check if migration exists
+ls database/migrations/X.Y.Z_*.sql
+# If not, create one for DB changes
+```
+
+**Schema:** Έλεγξε ότι το schema.sql έχει ΟΛΑ τα νέα columns/tables για fresh install:
+```bash
+# Search for new columns in schema
+grep "new_column_name" database/schema.sql
+# If missing, ADD them to schema.sql!
+```
+
+⚠️ **ΠΡΟΣΟΧΗ:** Migration = για upgrades, Schema = για νέες εγκαταστάσεις. ΠΡΕΠΕΙ να είναι in sync!
+
+### Step 5: Copy to Production
 ```bash
 sudo cp /home/claude/codehero/VERSION /opt/codehero/
 sudo cp /home/claude/codehero/CHANGELOG.md /opt/codehero/
 sudo cp /home/claude/codehero/README.md /opt/codehero/
 sudo cp /home/claude/codehero/INSTALL.md /opt/codehero/
 sudo cp -r /home/claude/codehero/docs/* /opt/codehero/docs/
+sudo cp /home/claude/codehero/database/schema.sql /opt/codehero/database/
+sudo cp /home/claude/codehero/database/migrations/*.sql /opt/codehero/database/migrations/ 2>/dev/null || true
 ```
 
-### Step 5: Create ZIP (don't delete old ones!)
+**--- STOP HERE αν ΔΕΝ είπε "με commit" ---**
+
+### Step 6: Create ZIP (don't delete old ones!)
 ```bash
 cd /home/claude
 zip -r codehero-X.Y.Z.zip codehero -x "*.pyc" -x "*__pycache__*" -x "*.git*"
 ```
 
-### Step 6: Git Commit, Tag, Push
+### Step 7: Git Commit, Tag, Push
 ```bash
 git add -A
 git commit -m "Release vX.Y.Z - Short Description"
@@ -127,7 +149,7 @@ git push origin main
 git push origin vX.Y.Z
 ```
 
-### Step 7: Create GitHub Release
+### Step 8: Create GitHub Release
 ```bash
 gh release create vX.Y.Z /home/claude/codehero-X.Y.Z.zip \
   --title "vX.Y.Z - Short Description" \

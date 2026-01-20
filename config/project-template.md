@@ -20,6 +20,41 @@ Use this template with Claude Assistant to design your solution. Copy the comple
 
 ---
 
+## 1.5 Existing Code (If Importing)
+
+**Skip this section for new projects.**
+
+### Import Source
+- **Source Type:** [ZIP / Git / Local Path]
+- **Source URL/Path:** [URL or path to existing code]
+- **Import Mode:** [Extend (continue developing) / Reference (use as template)]
+
+### What Exists
+*After analysis, fill in:*
+- **Primary Language:** [Auto-detected]
+- **Framework:** [Auto-detected]
+- **File Count:** [Auto-detected]
+- **Entry Points:** [Auto-detected]
+
+### What to Keep
+- [ ] Database schema / migrations
+- [ ] Authentication system
+- [ ] API structure
+- [ ] UI components
+- [ ] Configuration files
+- [ ] Business logic
+
+### What to Change/Add
+1. [Feature/change to add]
+2. [Feature/change to add]
+3. [Feature/change to add]
+
+### Known Issues / Technical Debt
+- [Issue 1]
+- [Issue 2]
+
+---
+
 ## 2. Tech Stack
 
 ### Frontend

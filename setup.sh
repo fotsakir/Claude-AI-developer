@@ -540,6 +540,7 @@ mkdir -p ${APP_ROOT}
 mkdir -p ${INSTALL_DIR}/scripts
 mkdir -p ${INSTALL_DIR}/web/templates
 mkdir -p ${INSTALL_DIR}/web/static
+mkdir -p ${INSTALL_DIR}/references
 mkdir -p ${LOG_DIR}
 mkdir -p /var/run/codehero
 mkdir -p /var/backups/codehero
@@ -579,6 +580,7 @@ chmod +x ${INSTALL_DIR}/scripts/*.sh 2>/dev/null || true
 chown -R ${CLAUDE_USER}:${CLAUDE_USER} ${WEB_ROOT}
 chown -R ${CLAUDE_USER}:${CLAUDE_USER} ${APP_ROOT}
 chown -R ${CLAUDE_USER}:${CLAUDE_USER} ${INSTALL_DIR}
+chown -R ${CLAUDE_USER}:${CLAUDE_USER} ${INSTALL_DIR}/references
 chown -R ${CLAUDE_USER}:${CLAUDE_USER} ${LOG_DIR}
 touch ${LOG_DIR}/daemon.log ${LOG_DIR}/web.log
 chown ${CLAUDE_USER}:${CLAUDE_USER} ${LOG_DIR}/daemon.log ${LOG_DIR}/web.log

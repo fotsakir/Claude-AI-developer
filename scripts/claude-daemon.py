@@ -402,7 +402,7 @@ class ProjectWorker(threading.Thread):
                        p.ai_model as project_ai_model, t.ai_model as ticket_ai_model,
                        p.android_device_type, p.android_remote_host, p.android_remote_port, p.android_screen_size,
                        p.dotnet_port, p.default_test_command,
-                       p.default_execution_mode
+                       p.default_execution_mode, p.reference_path
                 FROM tickets t
                 JOIN projects p ON t.project_id = p.id
                 WHERE t.project_id = %s
@@ -452,7 +452,7 @@ class ProjectWorker(threading.Thread):
                        p.project_type, p.tech_stack, p.context as project_context, t.context as ticket_context,
                        p.db_name, p.db_user, p.db_password, p.db_host,
                        p.ai_model as project_ai_model, t.ai_model as ticket_ai_model,
-                       p.default_test_command
+                       p.default_test_command, p.reference_path
                 FROM tickets t
                 JOIN projects p ON t.project_id = p.id
                 WHERE t.parent_ticket_id = %s
@@ -1025,6 +1025,14 @@ class ProjectWorker(threading.Thread):
         smart_context_str = ""
         if self.context_manager:
             try:
+                # Refresh tree structure before building context (fast, ~20-60ms)
+                self.context_manager.refresh_project_tree(
+                    ticket.get('project_id'),
+                    web_path=ticket.get('web_path'),
+                    app_path=ticket.get('app_path'),
+                    reference_path=ticket.get('reference_path')
+                )
+
                 smart_ctx = self.context_manager.build_full_context(ticket)
                 if smart_ctx.get('system_context'):
                     smart_context_str = smart_ctx['system_context']
@@ -1083,15 +1091,33 @@ Password: {ticket['db_password']}
             except Exception as e:
                 self.log(f"Error getting Git context: {e}", "DEBUG")
 
+        # Reference project context (imported templates)
+        reference_context = ""
+        if ticket.get('reference_path') and os.path.exists(ticket.get('reference_path', '')):
+            reference_context = f"""
+=== REFERENCE PROJECT ===
+A reference project has been imported for this project.
+Location: {ticket['reference_path']}
+Use this as a template/reference when building features.
+You can READ from this path to understand patterns and structure.
+Do NOT modify files in the reference path - only use it for reference.
+=========================
+"""
+
         # Allowed paths
         allowed_paths = []
         if ticket.get('web_path'): allowed_paths.append(ticket['web_path'])
         if ticket.get('app_path'): allowed_paths.append(ticket['app_path'])
         allowed_str = " and ".join(allowed_paths) if allowed_paths else "/var/www/projects"
 
+        # Allow reading reference path but not writing
+        read_paths = list(allowed_paths)
+        if ticket.get('reference_path') and os.path.exists(ticket.get('reference_path', '')):
+            read_paths.append(f"{ticket['reference_path']} (read-only reference)")
+
         system = f"""You are working on project: {ticket['project_name']}
 {paths_str}{tech_info}
-{global_context_str}{smart_context_str}{db_info}{project_context}{ticket_context}{git_context}
+{global_context_str}{smart_context_str}{db_info}{project_context}{ticket_context}{git_context}{reference_context}
 Ticket: {ticket['ticket_number']} - {ticket['title']}
 
 IMPORTANT: You can ONLY create/modify files within: {allowed_str}

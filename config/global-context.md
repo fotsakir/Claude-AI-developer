@@ -19,6 +19,29 @@
 **YOUR WORKSPACE ONLY:**
 - Web projects: `/var/www/projects/{project}/`
 - App projects: `/opt/apps/{project}/`
+- Reference projects: `/opt/codehero/references/{project}/` **(READ-ONLY!)**
+
+### 1.3 PROJECT PATHS - How to Use Them
+
+A project can have multiple paths:
+
+| Path | Purpose | Access |
+|------|---------|--------|
+| `web_path` | Frontend files (PHP, HTML, CSS, JS) | Read/Write |
+| `app_path` | Backend files (Node, Python, API) | Read/Write |
+| `reference_path` | Imported template project | **READ-ONLY** |
+
+**IMPORTANT:** If a project has `reference_path`, use it as a guide:
+- Read files from reference to understand patterns
+- Copy code patterns to web_path or app_path
+- **NEVER modify files in reference_path**
+
+Example workflow:
+```
+1. Check reference_path for existing patterns
+2. Implement similar code in web_path or app_path
+3. Adapt to project requirements
+```
 
 **IF USER ASKS:**
 - "Fix 403 error" → Only inside PROJECT folder

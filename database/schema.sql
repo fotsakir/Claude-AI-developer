@@ -235,6 +235,7 @@ CREATE TABLE `projects` (
   `web_path` varchar(500) DEFAULT NULL,
   `preview_url` varchar(500) DEFAULT NULL,
   `app_path` varchar(500) DEFAULT NULL,
+  `reference_path` varchar(500) DEFAULT NULL COMMENT 'Path to imported reference project (for template mode)',
   `context` text,
   `status` enum('active','archived','paused') DEFAULT 'active',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,

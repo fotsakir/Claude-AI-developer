@@ -117,6 +117,11 @@ TOOLS = [
                 "app_path": {
                     "type": "string",
                     "description": "Path for app/backend files"
+                },
+                "ai_model": {
+                    "type": "string",
+                    "description": "Default AI model for tickets: opus (Master Developer), sonnet (Senior Developer), haiku (Junior Developer). Default: sonnet",
+                    "enum": ["opus", "sonnet", "haiku"]
                 }
             },
             "required": ["name"]
@@ -216,6 +221,11 @@ TOOLS = [
                 "deps_include_awaiting": {
                     "type": "boolean",
                     "description": "Set to TRUE for 'relaxed' mode (tickets run continuously), FALSE for 'strict' mode (waits between tickets). Default: false (strict)"
+                },
+                "ai_model": {
+                    "type": "string",
+                    "description": "AI model for this ticket: opus (Master Developer), sonnet (Senior Developer), haiku (Junior Developer). Default: inherit from project",
+                    "enum": ["opus", "sonnet", "haiku"]
                 }
             },
             "required": ["project_id", "title"]
@@ -244,6 +254,11 @@ TOOLS = [
                 "reply": {
                     "type": "string",
                     "description": "Add a user reply to the ticket conversation"
+                },
+                "ai_model": {
+                    "type": "string",
+                    "description": "Change AI model: opus (Master), sonnet (Senior), haiku (Junior)",
+                    "enum": ["opus", "sonnet", "haiku"]
                 }
             },
             "required": ["ticket_id"]
@@ -316,7 +331,8 @@ TOOLS = [
                             "priority": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
                             "sequence_order": {"type": "integer"},
                             "depends_on": {"type": "array", "items": {"type": "integer"}},
-                            "parent_sequence": {"type": "integer", "description": "Sequence order of parent ticket (for sub-tickets)"}
+                            "parent_sequence": {"type": "integer", "description": "Sequence order of parent ticket (for sub-tickets)"},
+                            "ai_model": {"type": "string", "enum": ["opus", "sonnet", "haiku"], "description": "AI model for this ticket"}
                         },
                         "required": ["title"]
                     }
@@ -413,6 +429,62 @@ TOOLS = [
             "type": "object",
             "properties": {},
             "required": []
+        }
+    },
+    {
+        "name": "codehero_import_project",
+        "description": "Import an existing project into CodeHero. Supports ZIP files, git repos, or local paths. Two modes: 'extend' (add to existing project) or 'reference' (use as template for new project).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_id": {
+                    "type": "integer",
+                    "description": "The project ID to import into (required)"
+                },
+                "source_type": {
+                    "type": "string",
+                    "description": "Type of source: zip (URL or path to ZIP), git (git clone URL), path (local folder path)",
+                    "enum": ["zip", "git", "path"]
+                },
+                "source": {
+                    "type": "string",
+                    "description": "The source location: URL for zip/git, or path for local folder"
+                },
+                "mode": {
+                    "type": "string",
+                    "description": "Import mode: extend (copy to project path, modify existing), reference (store separately as template)",
+                    "enum": ["extend", "reference"],
+                    "default": "extend"
+                },
+                "git_username": {
+                    "type": "string",
+                    "description": "Git username (for private repos)"
+                },
+                "git_token": {
+                    "type": "string",
+                    "description": "Git personal access token or app password (for private repos). GitHub/GitLab: use PAT. Bitbucket: use app password."
+                }
+            },
+            "required": ["project_id", "source_type", "source"]
+        }
+    },
+    {
+        "name": "codehero_analyze_project",
+        "description": "Analyze/re-analyze a project to build its map (structure, tech stack, entry points). The map is used to provide context to AI when working on tickets.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_id": {
+                    "type": "integer",
+                    "description": "The project ID to analyze (required)"
+                },
+                "force": {
+                    "type": "boolean",
+                    "description": "Force re-analysis even if a recent map exists. Default: false",
+                    "default": False
+                }
+            },
+            "required": ["project_id"]
         }
     }
 ]
@@ -545,6 +617,11 @@ def handle_create_project(args: Dict[str, Any]) -> Dict[str, Any]:
     tech_stack = args.get('tech_stack', 'php')
     web_path = args.get('web_path', '')
     app_path = args.get('app_path', '')
+    ai_model = args.get('ai_model', 'sonnet')
+
+    # Validate ai_model
+    if ai_model not in ('opus', 'sonnet', 'haiku'):
+        ai_model = 'sonnet'
 
     # Generate code from name
     code = ''.join(c.upper() for c in name if c.isalnum())[:4]
@@ -641,10 +718,10 @@ def handle_create_project(args: Dict[str, Any]) -> Dict[str, Any]:
         # Insert project
         cursor.execute("""
             INSERT INTO projects (name, description, project_type, tech_stack, web_path, app_path, code, status,
-                                  db_name, db_user, db_password, db_host)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, 'active', %s, %s, %s, %s)
+                                  db_name, db_user, db_password, db_host, ai_model)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, 'active', %s, %s, %s, %s, %s)
         """, (name, description, project_type, tech_stack, web_path, app_path, code,
-              db_name, db_user, db_password, db_host))
+              db_name, db_user, db_password, db_host, ai_model))
 
         conn.commit()
         project_id = cursor.lastrowid
@@ -660,6 +737,7 @@ def handle_create_project(args: Dict[str, Any]) -> Dict[str, Any]:
             "db_user": db_user,
             "db_created": db_created,
             "git_initialized": git_initialized,
+            "ai_model": ai_model,
             "message": f"Project '{name}' created successfully with code '{code}'"
         }
 
@@ -787,10 +865,15 @@ def handle_create_ticket(args: Dict[str, Any]) -> Dict[str, Any]:
     parent_ticket_id = args.get('parent_ticket_id')
     execution_mode = args.get('execution_mode')  # None = inherit from project
     deps_include_awaiting = args.get('deps_include_awaiting', False)  # Relaxed mode for deps
+    ai_model = args.get('ai_model')  # None = inherit from project
 
     # Validate execution_mode (None = inherit from project)
     if execution_mode and execution_mode not in ('autonomous', 'supervised'):
         execution_mode = None
+
+    # Validate ai_model (None = inherit from project)
+    if ai_model and ai_model not in ('opus', 'sonnet', 'haiku'):
+        ai_model = None
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -828,10 +911,10 @@ def handle_create_ticket(args: Dict[str, Any]) -> Dict[str, Any]:
 
         cursor.execute("""
             INSERT INTO tickets (project_id, ticket_number, title, description, status, priority,
-                                 ticket_type, sequence_order, parent_ticket_id, execution_mode, deps_include_awaiting)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                 ticket_type, sequence_order, parent_ticket_id, execution_mode, deps_include_awaiting, ai_model)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (project_id, ticket_number, title, description, status, priority,
-              ticket_type, sequence_order, parent_ticket_id, execution_mode, deps_include_awaiting))
+              ticket_type, sequence_order, parent_ticket_id, execution_mode, deps_include_awaiting, ai_model))
 
         conn.commit()
         ticket_id = cursor.lastrowid
@@ -865,6 +948,7 @@ def handle_create_ticket(args: Dict[str, Any]) -> Dict[str, Any]:
             "ticket_type": ticket_type,
             "sequence_order": sequence_order,
             "status": status,
+            "ai_model": ai_model or "inherit",
             "message": f"Ticket {ticket_number} created successfully"
         }
 
@@ -902,6 +986,12 @@ def handle_update_ticket(args: Dict[str, Any]) -> Dict[str, Any]:
         if 'priority' in args:
             updates.append("priority = %s")
             params.append(args['priority'])
+
+        if 'ai_model' in args:
+            ai_model = args['ai_model']
+            if ai_model in ('opus', 'sonnet', 'haiku'):
+                updates.append("ai_model = %s")
+                params.append(ai_model)
 
         if updates:
             updates.append("updated_at = NOW()")
@@ -1168,16 +1258,21 @@ def handle_bulk_create_tickets(args: Dict[str, Any]) -> Dict[str, Any]:
             priority = ticket_data.get('priority', 'medium')
             ticket_type = ticket_data.get('ticket_type', 'task')
             sequence_order = ticket_data.get('sequence_order', i + 1)
+            ticket_ai_model = ticket_data.get('ai_model')  # Per-ticket model
+
+            # Validate ai_model
+            if ticket_ai_model and ticket_ai_model not in ('opus', 'sonnet', 'haiku'):
+                ticket_ai_model = None
 
             ticket_number = f"{code}-{next_num:04d}"
             next_num += 1
 
             cursor.execute("""
                 INSERT INTO tickets (project_id, ticket_number, title, description, status, priority,
-                                     ticket_type, sequence_order, execution_mode, deps_include_awaiting)
-                VALUES (%s, %s, %s, %s, 'open', %s, %s, %s, %s, %s)
+                                     ticket_type, sequence_order, execution_mode, deps_include_awaiting, ai_model)
+                VALUES (%s, %s, %s, %s, 'open', %s, %s, %s, %s, %s, %s)
             """, (project_id, ticket_number, title, description, priority, ticket_type, sequence_order,
-                  execution_mode, deps_include_awaiting))
+                  execution_mode, deps_include_awaiting, ticket_ai_model))
 
             ticket_id = cursor.lastrowid
             ticket_id_map[sequence_order] = ticket_id
@@ -1186,7 +1281,8 @@ def handle_bulk_create_tickets(args: Dict[str, Any]) -> Dict[str, Any]:
                 "ticket_id": ticket_id,
                 "ticket_number": ticket_number,
                 "title": title,
-                "sequence_order": sequence_order
+                "sequence_order": sequence_order,
+                "ai_model": ticket_ai_model or "inherit"
             })
 
             # Add initial message if description
@@ -1316,6 +1412,35 @@ def handle_get_project_progress(args: Dict[str, Any]) -> Dict[str, Any]:
         """, (project_id,))
         blocked_tickets = [row['ticket_number'] for row in cursor.fetchall()]
 
+        # Model distribution
+        cursor.execute("""
+            SELECT COALESCE(ai_model, 'inherit') as model, COUNT(*) as count
+            FROM tickets
+            WHERE project_id = %s AND parent_ticket_id IS NULL
+            GROUP BY COALESCE(ai_model, 'inherit')
+        """, (project_id,))
+        model_distribution = {row['model']: row['count'] for row in cursor.fetchall()}
+
+        # All tickets with details (for management)
+        cursor.execute("""
+            SELECT id, ticket_number, title, status, priority,
+                   COALESCE(ai_model, 'inherit') as ai_model, sequence_order
+            FROM tickets
+            WHERE project_id = %s AND parent_ticket_id IS NULL
+            ORDER BY sequence_order, id
+        """, (project_id,))
+        tickets_list = []
+        for row in cursor.fetchall():
+            tickets_list.append({
+                "id": row['id'],
+                "ticket_number": row['ticket_number'],
+                "title": row['title'],
+                "status": row['status'],
+                "priority": row['priority'],
+                "ai_model": row['ai_model'],
+                "sequence_order": row['sequence_order']
+            })
+
         result = {
             "project_id": project_id,
             "project_name": project['name'],
@@ -1331,7 +1456,9 @@ def handle_get_project_progress(args: Dict[str, Any]) -> Dict[str, Any]:
             "by_type": by_type,
             "current_ticket": current_ticket,
             "failed_tickets": failed_tickets,
-            "blocked_tickets": blocked_tickets
+            "blocked_tickets": blocked_tickets,
+            "model_distribution": model_distribution,
+            "tickets": tickets_list
         }
 
         return {"content": [{"type": "text", "text": json.dumps(result, indent=2)}]}
@@ -1514,6 +1641,409 @@ def handle_start_ticket(args: Dict[str, Any]) -> Dict[str, Any]:
         conn.close()
 
 
+def handle_import_project(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Import an existing project via ZIP, git, or path."""
+    import subprocess
+    import tempfile
+    import shutil
+    import urllib.request
+
+    project_id = args.get('project_id')
+    source_type = args.get('source_type')
+    source = args.get('source')
+    mode = args.get('mode', 'extend')
+
+    if not project_id:
+        return {"content": [{"type": "text", "text": "Error: project_id is required"}]}
+    if not source_type or source_type not in ('zip', 'git', 'path'):
+        return {"content": [{"type": "text", "text": "Error: source_type must be 'zip', 'git', or 'path'"}]}
+    if not source:
+        return {"content": [{"type": "text", "text": "Error: source is required"}]}
+    if mode not in ('extend', 'reference'):
+        mode = 'extend'
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        # Get project details
+        cursor.execute("SELECT id, code, web_path, app_path FROM projects WHERE id = %s", (project_id,))
+        project = cursor.fetchone()
+        if not project:
+            return {"content": [{"type": "text", "text": f"Error: Project ID {project_id} not found"}]}
+
+        project_code = project['code']
+        project_path = project['web_path'] or project['app_path']
+
+        # Determine destination path
+        if mode == 'extend':
+            if not project_path:
+                return {"content": [{"type": "text", "text": "Error: Project has no web_path or app_path set"}]}
+            dest_path = project_path
+        else:  # reference
+            dest_path = f"/opt/codehero/references/{project_code}"
+            # Create references directory if not exists
+            os.makedirs("/opt/codehero/references", exist_ok=True)
+
+        # Create temp directory for processing
+        temp_dir = tempfile.mkdtemp(prefix='codehero_import_')
+
+        try:
+            # Get source files based on source_type
+            if source_type == 'path':
+                # Local path - verify it exists
+                if not os.path.exists(source):
+                    return {"content": [{"type": "text", "text": f"Error: Source path does not exist: {source}"}]}
+                source_path = source
+
+            elif source_type == 'git':
+                # Git clone (with optional credentials for private repos)
+                clone_dir = os.path.join(temp_dir, 'repo')
+                git_url = source
+                git_username = args.get('git_username')
+                git_token = args.get('git_token')
+
+                # If credentials provided, inject into URL
+                if git_token:
+                    # Parse the git URL and inject credentials
+                    # Supports: github.com, gitlab.com, bitbucket.org
+                    import re
+                    match = re.match(r'https?://([^/]+)/(.+)', source)
+                    if match:
+                        host = match.group(1)
+                        path = match.group(2)
+
+                        if 'gitlab' in host:
+                            # GitLab uses oauth2:token format
+                            git_url = f"https://oauth2:{git_token}@{host}/{path}"
+                        elif git_username:
+                            # GitHub/Bitbucket use username:token format
+                            git_url = f"https://{git_username}:{git_token}@{host}/{path}"
+                        else:
+                            # GitHub can use just token
+                            git_url = f"https://{git_token}@{host}/{path}"
+
+                result = subprocess.run(
+                    ['git', 'clone', '--depth', '1', git_url, clone_dir],
+                    capture_output=True, text=True, timeout=300
+                )
+                if result.returncode != 0:
+                    # Hide credentials from error message
+                    error_msg = result.stderr
+                    if git_token:
+                        error_msg = error_msg.replace(git_token, '***')
+                    if git_username:
+                        error_msg = error_msg.replace(git_username, '***')
+                    return {"content": [{"type": "text", "text": f"Error cloning git repo: {error_msg}"}]}
+                source_path = clone_dir
+
+            elif source_type == 'zip':
+                # Download or copy ZIP, then extract
+                zip_path = os.path.join(temp_dir, 'source.zip')
+
+                if source.startswith('http://') or source.startswith('https://'):
+                    # Download ZIP
+                    try:
+                        urllib.request.urlretrieve(source, zip_path)
+                    except Exception as e:
+                        return {"content": [{"type": "text", "text": f"Error downloading ZIP: {str(e)}"}]}
+                else:
+                    # Local ZIP file
+                    if not os.path.exists(source):
+                        return {"content": [{"type": "text", "text": f"Error: ZIP file not found: {source}"}]}
+                    shutil.copy2(source, zip_path)
+
+                # Extract ZIP
+                extract_dir = os.path.join(temp_dir, 'extracted')
+                os.makedirs(extract_dir)
+                result = subprocess.run(
+                    ['unzip', '-q', zip_path, '-d', extract_dir],
+                    capture_output=True, text=True
+                )
+                if result.returncode != 0:
+                    return {"content": [{"type": "text", "text": f"Error extracting ZIP: {result.stderr}"}]}
+
+                # Find the root directory (might be inside a single folder)
+                contents = os.listdir(extract_dir)
+                if len(contents) == 1 and os.path.isdir(os.path.join(extract_dir, contents[0])):
+                    source_path = os.path.join(extract_dir, contents[0])
+                else:
+                    source_path = extract_dir
+
+            # Copy files to destination
+            os.makedirs(dest_path, exist_ok=True)
+
+            if source_type == 'path':
+                # For local path in extend mode, copy files
+                result = subprocess.run(
+                    ['rsync', '-av', '--exclude', '.git', f'{source_path}/', f'{dest_path}/'],
+                    capture_output=True, text=True
+                )
+            else:
+                # For git/zip, copy from temp
+                result = subprocess.run(
+                    ['rsync', '-av', '--exclude', '.git', f'{source_path}/', f'{dest_path}/'],
+                    capture_output=True, text=True
+                )
+
+            if result.returncode != 0:
+                return {"content": [{"type": "text", "text": f"Error copying files: {result.stderr}"}]}
+
+            # Set ownership
+            subprocess.run(['sudo', 'chown', '-R', 'claude:claude', dest_path], capture_output=True)
+
+            # Update project with reference path if reference mode
+            if mode == 'reference':
+                cursor.execute("""
+                    UPDATE projects SET reference_path = %s WHERE id = %s
+                """, (dest_path, project_id))
+                conn.commit()
+
+            # Count imported files
+            file_count = sum(len(files) for _, _, files in os.walk(dest_path))
+
+            result_data = {
+                "success": True,
+                "project_id": project_id,
+                "mode": mode,
+                "source_type": source_type,
+                "destination": dest_path,
+                "files_imported": file_count,
+                "message": f"Project imported successfully to {dest_path}. Use codehero_analyze_project to build the project map."
+            }
+
+            return {"content": [{"type": "text", "text": json.dumps(result_data, indent=2)}]}
+
+        finally:
+            # Cleanup temp directory
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir, ignore_errors=True)
+
+    except Exception as e:
+        return {"content": [{"type": "text", "text": f"Error importing project: {str(e)}"}]}
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def handle_analyze_project(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Analyze or re-analyze a project to build its map."""
+    project_id = args.get('project_id')
+    force = args.get('force', False)
+
+    if not project_id:
+        return {"content": [{"type": "text", "text": "Error: project_id is required"}]}
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        # Get project details
+        cursor.execute("""
+            SELECT id, code, name, web_path, app_path, reference_path
+            FROM projects WHERE id = %s
+        """, (project_id,))
+        project = cursor.fetchone()
+
+        if not project:
+            return {"content": [{"type": "text", "text": f"Error: Project ID {project_id} not found"}]}
+
+        # Determine project path to analyze
+        project_path = project['web_path'] or project['app_path']
+        reference_path = project.get('reference_path')
+
+        if not project_path and not reference_path:
+            return {"content": [{"type": "text", "text": "Error: Project has no paths set (web_path, app_path, or reference_path)"}]}
+
+        paths_to_analyze = []
+        if project_path and os.path.exists(project_path):
+            paths_to_analyze.append(('main', project_path))
+        if reference_path and os.path.exists(reference_path):
+            paths_to_analyze.append(('reference', reference_path))
+
+        if not paths_to_analyze:
+            return {"content": [{"type": "text", "text": "Error: No valid paths found to analyze"}]}
+
+        # Check if analysis needed
+        if not force:
+            cursor.execute("""
+                SELECT generated_at, expires_at FROM project_maps
+                WHERE project_id = %s AND (expires_at IS NULL OR expires_at > NOW())
+            """, (project_id,))
+            existing_map = cursor.fetchone()
+            if existing_map:
+                return {"content": [{"type": "text", "text": json.dumps({
+                    "success": True,
+                    "project_id": project_id,
+                    "message": "Project map already exists and is valid. Use force=true to re-analyze.",
+                    "generated_at": existing_map['generated_at'].isoformat() if existing_map['generated_at'] else None
+                }, indent=2)}]}
+
+        # Import smart_context and run analysis
+        import sys
+        sys.path.insert(0, '/opt/codehero/scripts')
+        try:
+            from smart_context import SmartContextManager
+            import mysql.connector.pooling
+
+            # Create a simple pool for the context manager
+            pool = mysql.connector.pooling.MySQLConnectionPool(
+                pool_name="analysis_pool",
+                pool_size=1,
+                **DB_CONFIG
+            )
+
+            scm = SmartContextManager(pool)
+
+            # Collect all paths to analyze (web_path, app_path, reference_path)
+            def has_content(path):
+                """Check if path has actual content (not just .git)"""
+                if not path or not os.path.exists(path):
+                    return False
+                contents = [f for f in os.listdir(path) if not f.startswith('.')]
+                return len(contents) > 0
+
+            paths_to_analyze = []
+            path_labels = []
+
+            # Add web_path if has content
+            if has_content(project.get('web_path')):
+                paths_to_analyze.append(project['web_path'])
+                path_labels.append('web')
+
+            # Add app_path if has content (and different from web_path)
+            if has_content(project.get('app_path')) and project.get('app_path') != project.get('web_path'):
+                paths_to_analyze.append(project['app_path'])
+                path_labels.append('app')
+
+            # Add reference_path if has content (always include alongside other paths)
+            if has_content(reference_path):
+                paths_to_analyze.append(reference_path)
+                path_labels.append('reference')
+
+            if not paths_to_analyze:
+                return {"content": [{"type": "text", "text": "Error: No paths with content found to analyze"}]}
+
+            # If multiple paths, analyze each and combine results
+            if len(paths_to_analyze) == 1:
+                # Single path - use standard analysis
+                result = scm.generate_project_map(project_id, paths_to_analyze[0])
+            else:
+                # Multiple paths - combine analysis
+                combined_tree = []
+                combined_files = 0
+                combined_size = 0
+                all_tech_stack = set()
+                all_entry_points = []
+                languages = {}
+
+                for i, path in enumerate(paths_to_analyze):
+                    label = path_labels[i]
+                    # Get stats for this path
+                    file_count, size_kb = scm._get_project_stats(path)
+                    combined_files += file_count
+                    combined_size += size_kb
+
+                    # Get tree output
+                    tree = scm._get_tree_output(path)
+                    if tree:
+                        combined_tree.append(f"=== {label.upper()} ({path}) ===\n{tree}")
+
+                    # Detect language
+                    lang = scm._detect_language(path)
+                    if lang and lang != 'unknown':
+                        languages[lang] = languages.get(lang, 0) + file_count
+
+                    # Detect entry points
+                    entries = scm._detect_entry_points(path)
+                    for ep in entries:
+                        all_entry_points.append(f"[{label}] {ep}")
+
+                    # Detect tech stack
+                    tech = scm._detect_tech_stack(path, None, None)
+                    all_tech_stack.update(tech)
+
+                # Determine primary language (most files)
+                primary_language = max(languages, key=languages.get) if languages else 'unknown'
+
+                # Save combined result
+                from datetime import datetime, timedelta
+                cursor.execute("""
+                    INSERT INTO project_maps
+                    (project_id, structure_summary, entry_points, key_files, tech_stack,
+                     file_count, total_size_kb, primary_language, generated_at, expires_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s)
+                    ON DUPLICATE KEY UPDATE
+                    structure_summary = VALUES(structure_summary),
+                    entry_points = VALUES(entry_points),
+                    tech_stack = VALUES(tech_stack),
+                    file_count = VALUES(file_count),
+                    total_size_kb = VALUES(total_size_kb),
+                    primary_language = VALUES(primary_language),
+                    generated_at = NOW(),
+                    expires_at = VALUES(expires_at)
+                """, (
+                    project_id,
+                    '\n\n'.join(combined_tree)[:5000],
+                    json.dumps(all_entry_points),
+                    json.dumps([]),
+                    json.dumps(list(all_tech_stack)),
+                    combined_files,
+                    combined_size,
+                    primary_language,
+                    datetime.now() + timedelta(days=7)
+                ))
+                conn.commit()
+                result = True
+
+            if result:
+                # Get the generated map
+                cursor.execute("""
+                    SELECT file_count, total_size_kb, primary_language, tech_stack, entry_points
+                    FROM project_maps WHERE project_id = %s
+                """, (project_id,))
+                pmap = cursor.fetchone()
+
+                # Parse JSON fields for display
+                tech_stack = []
+                entry_points = []
+                if pmap:
+                    if pmap.get('tech_stack'):
+                        try:
+                            tech_stack = json.loads(pmap['tech_stack']) if isinstance(pmap['tech_stack'], str) else pmap['tech_stack']
+                        except:
+                            pass
+                    if pmap.get('entry_points'):
+                        try:
+                            entry_points = json.loads(pmap['entry_points']) if isinstance(pmap['entry_points'], str) else pmap['entry_points']
+                        except:
+                            pass
+
+                return {"content": [{"type": "text", "text": json.dumps({
+                    "success": True,
+                    "project_id": project_id,
+                    "project_name": project['name'],
+                    "analyzed_paths": paths_to_analyze,
+                    "file_count": pmap['file_count'] if pmap else 0,
+                    "total_size_kb": pmap['total_size_kb'] if pmap else 0,
+                    "primary_language": pmap['primary_language'] if pmap else None,
+                    "tech_stack": tech_stack,
+                    "entry_points": entry_points,
+                    "message": "Project analyzed successfully. Map is now available for AI tickets."
+                }, indent=2)}]}
+            else:
+                return {"content": [{"type": "text", "text": "Error: Analysis returned no result"}]}
+
+        except ImportError as e:
+            return {"content": [{"type": "text", "text": f"Error: Could not import smart_context module: {str(e)}"}]}
+
+    except Exception as e:
+        return {"content": [{"type": "text", "text": f"Error analyzing project: {str(e)}"}]}
+    finally:
+        cursor.close()
+        conn.close()
+
+
 # Tool handlers mapping
 TOOL_HANDLERS = {
     "codehero_list_projects": handle_list_projects,
@@ -1532,6 +2062,8 @@ TOOL_HANDLERS = {
     "codehero_set_ticket_sequence": handle_set_ticket_sequence,
     "codehero_start_ticket": handle_start_ticket,
     "codehero_reload": handle_reload,
+    "codehero_import_project": handle_import_project,
+    "codehero_analyze_project": handle_analyze_project,
 }
 
 def handle_request(request: Dict[str, Any]) -> Dict[str, Any]:

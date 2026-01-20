@@ -167,7 +167,7 @@ class SmartContextManager:
                 'structure_summary': tree_output[:5000] if tree_output else '',
                 'entry_points': json.dumps(self._detect_entry_points(project_path)),
                 'key_files': json.dumps([]),
-                'tech_stack': json.dumps(self._detect_tech_stack(requirements, package_json)),
+                'tech_stack': json.dumps(self._detect_tech_stack(project_path, requirements, package_json)),
                 'dependencies': json.dumps({'raw': requirements[:2000]}) if requirements else None,
                 'architecture_type': None,
                 'design_patterns': json.dumps([]),
@@ -228,6 +228,77 @@ class SmartContextManager:
         if pmap:
             return pmap
         return self.generate_project_map(project_id, project_path)
+
+    def refresh_project_tree(self, project_id: int, web_path: str = None, app_path: str = None, reference_path: str = None) -> bool:
+        """Lightweight refresh of just the tree structure (fast, runs at ticket start)
+
+        Handles web_path, app_path, and reference_path, combining them if multiple exist.
+        """
+        def has_content(path):
+            if not path or not os.path.exists(path):
+                return False
+            contents = [f for f in os.listdir(path) if not f.startswith('.')]
+            return len(contents) > 0
+
+        paths_to_scan = []
+        if has_content(web_path):
+            paths_to_scan.append(('web', web_path))
+        if has_content(app_path) and app_path != web_path:
+            paths_to_scan.append(('app', app_path))
+        if has_content(reference_path):
+            paths_to_scan.append(('reference', reference_path))
+
+        if not paths_to_scan:
+            return False
+
+        try:
+            tree_parts = []
+            total_files = 0
+            total_size = 0
+
+            for label, path in paths_to_scan:
+                tree_output = self._get_tree_output(path)
+                if tree_output:
+                    if len(paths_to_scan) > 1:
+                        tree_parts.append(f"[{label}] {tree_output}")
+                    else:
+                        tree_parts.append(tree_output)
+
+                files, size = self._get_project_stats(path)
+                total_files += files
+                total_size += size
+
+            if not tree_parts:
+                return False
+
+            combined_tree = "\n".join(tree_parts)
+
+            conn = self.get_db()
+            cursor = conn.cursor()
+
+            # Update only structure_summary and file_count (fast update)
+            cursor.execute("""
+                UPDATE project_maps
+                SET structure_summary = %s, file_count = %s, total_size_kb = %s
+                WHERE project_id = %s
+            """, (combined_tree, total_files, total_size // 1024, project_id))
+
+            # If no rows updated, the map doesn't exist yet - create it
+            if cursor.rowcount == 0:
+                cursor.close()
+                conn.close()
+                main_path = web_path or app_path
+                self.generate_project_map(project_id, main_path)
+                return True
+
+            conn.commit()
+            cursor.close()
+            conn.close()
+            self.log(f"Tree refreshed for project {project_id}: {total_files} files")
+            return True
+        except Exception as e:
+            self.log(f"Error refreshing tree: {e}", "ERROR")
+            return False
 
     def build_project_map_context(self, project_id: int, project_path: str) -> str:
         """Build project map context string for system prompt"""
@@ -303,12 +374,57 @@ class SmartContextManager:
     def _detect_language(self, path: str) -> str:
         """Detect primary programming language"""
         extensions = {}
+
+        # All supported extensions
+        supported_extensions = [
+            # Web
+            '.html', '.htm', '.css', '.scss', '.sass', '.less',
+            # JavaScript/TypeScript
+            '.js', '.ts', '.jsx', '.tsx', '.mjs', '.cjs', '.vue', '.svelte',
+            # Python
+            '.py', '.pyx', '.pyw',
+            # PHP
+            '.php', '.phtml',
+            # C/C++
+            '.c', '.h', '.cpp', '.hpp', '.cc', '.cxx', '.hxx', '.c++', '.h++',
+            # C#
+            '.cs',
+            # Java/Kotlin
+            '.java', '.kt', '.kts',
+            # Go
+            '.go',
+            # Rust
+            '.rs',
+            # Ruby
+            '.rb', '.erb',
+            # Swift/Objective-C
+            '.swift', '.m', '.mm',
+            # Dart/Flutter
+            '.dart',
+            # Lua
+            '.lua',
+            # Perl
+            '.pl', '.pm',
+            # Shell
+            '.sh', '.bash', '.zsh',
+            # SQL
+            '.sql',
+            # Scala
+            '.scala',
+            # Elixir/Erlang
+            '.ex', '.exs', '.erl',
+            # Haskell
+            '.hs',
+            # R
+            '.r', '.R',
+        ]
+
         try:
             for root, dirs, files in os.walk(path):
-                dirs[:] = [d for d in dirs if d not in ['__pycache__', 'node_modules', '.git', 'venv']]
+                dirs[:] = [d for d in dirs if d not in ['__pycache__', 'node_modules', '.git', 'venv', '.venv', 'vendor', 'bin', 'obj']]
                 for f in files:
                     ext = os.path.splitext(f)[1].lower()
-                    if ext in ['.py', '.js', '.ts', '.jsx', '.tsx', '.php', '.java', '.go', '.rs', '.rb']:
+                    if ext in supported_extensions:
                         extensions[ext] = extensions.get(ext, 0) + 1
         except:
             pass
@@ -316,31 +432,129 @@ class SmartContextManager:
         if not extensions:
             return 'unknown'
 
-        lang_map = {'.py': 'Python', '.js': 'JavaScript', '.ts': 'TypeScript',
-                    '.jsx': 'React', '.tsx': 'React/TypeScript', '.php': 'PHP',
-                    '.java': 'Java', '.go': 'Go', '.rs': 'Rust', '.rb': 'Ruby'}
+        lang_map = {
+            # Web
+            '.html': 'HTML', '.htm': 'HTML', '.css': 'CSS',
+            '.scss': 'SCSS', '.sass': 'Sass', '.less': 'Less',
+            # JavaScript/TypeScript
+            '.js': 'JavaScript', '.ts': 'TypeScript', '.jsx': 'React',
+            '.tsx': 'React/TypeScript', '.mjs': 'JavaScript', '.cjs': 'JavaScript',
+            '.vue': 'Vue', '.svelte': 'Svelte',
+            # Python
+            '.py': 'Python', '.pyx': 'Cython', '.pyw': 'Python',
+            # PHP
+            '.php': 'PHP', '.phtml': 'PHP',
+            # C/C++
+            '.c': 'C', '.h': 'C', '.cpp': 'C++', '.hpp': 'C++',
+            '.cc': 'C++', '.cxx': 'C++', '.hxx': 'C++', '.c++': 'C++', '.h++': 'C++',
+            # C#
+            '.cs': 'C#',
+            # Java/Kotlin
+            '.java': 'Java', '.kt': 'Kotlin', '.kts': 'Kotlin',
+            # Go
+            '.go': 'Go',
+            # Rust
+            '.rs': 'Rust',
+            # Ruby
+            '.rb': 'Ruby', '.erb': 'Ruby/ERB',
+            # Swift/Objective-C
+            '.swift': 'Swift', '.m': 'Objective-C', '.mm': 'Objective-C++',
+            # Dart/Flutter
+            '.dart': 'Dart',
+            # Lua
+            '.lua': 'Lua',
+            # Perl
+            '.pl': 'Perl', '.pm': 'Perl',
+            # Shell
+            '.sh': 'Shell', '.bash': 'Bash', '.zsh': 'Zsh',
+            # SQL
+            '.sql': 'SQL',
+            # Scala
+            '.scala': 'Scala',
+            # Elixir/Erlang
+            '.ex': 'Elixir', '.exs': 'Elixir', '.erl': 'Erlang',
+            # Haskell
+            '.hs': 'Haskell',
+            # R
+            '.r': 'R', '.R': 'R',
+        }
 
         top_ext = max(extensions, key=extensions.get)
         return lang_map.get(top_ext, top_ext)
 
     def _detect_entry_points(self, path: str) -> List[Dict]:
         """Detect common entry points"""
-        entry_files = ['app.py', 'main.py', 'index.js', 'index.ts', 'server.py',
-                       'manage.py', 'wsgi.py', 'asgi.py', 'index.php', 'main.go']
+        entry_files = {
+            # Web
+            'index.html': 'Web entry point',
+            'index.htm': 'Web entry point',
+            'index.php': 'PHP entry point',
+            # Python
+            'app.py': 'Python app entry',
+            'main.py': 'Python main entry',
+            'server.py': 'Python server entry',
+            'manage.py': 'Django management',
+            'wsgi.py': 'WSGI entry',
+            'asgi.py': 'ASGI entry',
+            '__main__.py': 'Python package entry',
+            # JavaScript/TypeScript
+            'index.js': 'JavaScript entry',
+            'index.ts': 'TypeScript entry',
+            'app.js': 'JavaScript app entry',
+            'app.ts': 'TypeScript app entry',
+            'server.js': 'Node.js server',
+            'server.ts': 'Node.js server (TS)',
+            # C/C++
+            'main.c': 'C entry point',
+            'main.cpp': 'C++ entry point',
+            'main.cc': 'C++ entry point',
+            # C#
+            'Program.cs': 'C# entry point',
+            'Startup.cs': 'ASP.NET startup',
+            # Java
+            'Main.java': 'Java entry point',
+            'Application.java': 'Java/Spring entry',
+            # Go
+            'main.go': 'Go entry point',
+            # Rust
+            'main.rs': 'Rust entry point',
+            'lib.rs': 'Rust library entry',
+            # Ruby
+            'app.rb': 'Ruby app entry',
+            'config.ru': 'Rack config',
+            # Swift
+            'main.swift': 'Swift entry point',
+            'AppDelegate.swift': 'iOS app delegate',
+            # Dart/Flutter
+            'main.dart': 'Dart/Flutter entry',
+            # Kotlin
+            'Main.kt': 'Kotlin entry point',
+            'Application.kt': 'Kotlin app entry',
+        }
         found = []
         try:
-            for f in entry_files:
+            for f, purpose in entry_files.items():
                 fp = os.path.join(path, f)
                 if os.path.exists(fp):
-                    found.append({'file': f, 'purpose': 'Entry point'})
+                    found.append({'file': f, 'purpose': purpose})
+
+            # Also check src/ and app/ subdirectories
+            for subdir in ['src', 'app', 'lib']:
+                subpath = os.path.join(path, subdir)
+                if os.path.isdir(subpath):
+                    for f, purpose in entry_files.items():
+                        fp = os.path.join(subpath, f)
+                        if os.path.exists(fp):
+                            found.append({'file': f'{subdir}/{f}', 'purpose': purpose})
         except:
             pass
         return found
 
-    def _detect_tech_stack(self, requirements: str, package_json: str) -> List[str]:
-        """Detect tech stack from dependency files"""
+    def _detect_tech_stack(self, project_path: str, requirements: str = None, package_json: str = None) -> List[str]:
+        """Detect tech stack from dependency files and project structure"""
         stack = []
 
+        # Python (requirements.txt, Pipfile, pyproject.toml)
         if requirements:
             if 'flask' in requirements.lower():
                 stack.append('Flask')
@@ -352,7 +566,16 @@ class SmartContextManager:
                 stack.append('SQLAlchemy')
             if 'pytest' in requirements.lower():
                 stack.append('pytest')
+            if 'numpy' in requirements.lower():
+                stack.append('NumPy')
+            if 'pandas' in requirements.lower():
+                stack.append('Pandas')
+            if 'tensorflow' in requirements.lower():
+                stack.append('TensorFlow')
+            if 'pytorch' in requirements.lower() or 'torch' in requirements.lower():
+                stack.append('PyTorch')
 
+        # JavaScript/Node (package.json)
         if package_json:
             try:
                 pkg = json.loads(package_json)
@@ -361,14 +584,144 @@ class SmartContextManager:
                     stack.append('React')
                 if 'vue' in deps:
                     stack.append('Vue')
+                if 'angular' in deps or '@angular/core' in deps:
+                    stack.append('Angular')
+                if 'svelte' in deps:
+                    stack.append('Svelte')
                 if 'express' in deps:
                     stack.append('Express')
                 if 'next' in deps:
                     stack.append('Next.js')
+                if 'nuxt' in deps:
+                    stack.append('Nuxt')
+                if 'nestjs' in deps or '@nestjs/core' in deps:
+                    stack.append('NestJS')
+                if 'electron' in deps:
+                    stack.append('Electron')
+                if 'tailwindcss' in deps:
+                    stack.append('Tailwind CSS')
+                if 'bootstrap' in deps:
+                    stack.append('Bootstrap')
+                if 'jquery' in deps:
+                    stack.append('jQuery')
             except:
                 pass
 
-        return stack
+        # Check for other config files
+        if project_path:
+            try:
+                # PHP (composer.json)
+                composer_path = os.path.join(project_path, 'composer.json')
+                if os.path.exists(composer_path):
+                    with open(composer_path, 'r') as f:
+                        composer = json.load(f)
+                        require = {**composer.get('require', {}), **composer.get('require-dev', {})}
+                        if 'laravel/framework' in require:
+                            stack.append('Laravel')
+                        if 'symfony/symfony' in require or any('symfony/' in k for k in require):
+                            stack.append('Symfony')
+                        if 'codeigniter4/framework' in require:
+                            stack.append('CodeIgniter')
+                        if 'slim/slim' in require:
+                            stack.append('Slim')
+
+                # C# (.csproj)
+                for f in os.listdir(project_path):
+                    if f.endswith('.csproj'):
+                        stack.append('.NET')
+                        csproj_path = os.path.join(project_path, f)
+                        with open(csproj_path, 'r') as pf:
+                            content = pf.read().lower()
+                            if 'microsoft.aspnetcore' in content:
+                                stack.append('ASP.NET Core')
+                            if 'microsoft.entityframeworkcore' in content:
+                                stack.append('Entity Framework')
+                            if 'blazor' in content:
+                                stack.append('Blazor')
+                        break
+
+                # Java (pom.xml, build.gradle)
+                pom_path = os.path.join(project_path, 'pom.xml')
+                if os.path.exists(pom_path):
+                    stack.append('Maven')
+                    with open(pom_path, 'r') as f:
+                        content = f.read().lower()
+                        if 'spring-boot' in content:
+                            stack.append('Spring Boot')
+                        if 'spring-framework' in content:
+                            stack.append('Spring')
+
+                gradle_path = os.path.join(project_path, 'build.gradle')
+                if os.path.exists(gradle_path):
+                    stack.append('Gradle')
+                    with open(gradle_path, 'r') as f:
+                        content = f.read().lower()
+                        if 'spring-boot' in content:
+                            stack.append('Spring Boot')
+                        if 'android' in content:
+                            stack.append('Android')
+
+                # Go (go.mod)
+                go_mod_path = os.path.join(project_path, 'go.mod')
+                if os.path.exists(go_mod_path):
+                    stack.append('Go Modules')
+                    with open(go_mod_path, 'r') as f:
+                        content = f.read().lower()
+                        if 'gin-gonic' in content:
+                            stack.append('Gin')
+                        if 'echo' in content:
+                            stack.append('Echo')
+                        if 'fiber' in content:
+                            stack.append('Fiber')
+
+                # Rust (Cargo.toml)
+                cargo_path = os.path.join(project_path, 'Cargo.toml')
+                if os.path.exists(cargo_path):
+                    stack.append('Cargo')
+                    with open(cargo_path, 'r') as f:
+                        content = f.read().lower()
+                        if 'actix-web' in content:
+                            stack.append('Actix')
+                        if 'rocket' in content:
+                            stack.append('Rocket')
+                        if 'tokio' in content:
+                            stack.append('Tokio')
+
+                # C/C++ (CMakeLists.txt, Makefile)
+                cmake_path = os.path.join(project_path, 'CMakeLists.txt')
+                if os.path.exists(cmake_path):
+                    stack.append('CMake')
+
+                makefile_path = os.path.join(project_path, 'Makefile')
+                if os.path.exists(makefile_path):
+                    stack.append('Make')
+
+                # Flutter/Dart (pubspec.yaml)
+                pubspec_path = os.path.join(project_path, 'pubspec.yaml')
+                if os.path.exists(pubspec_path):
+                    stack.append('Flutter/Dart')
+
+                # Ruby (Gemfile)
+                gemfile_path = os.path.join(project_path, 'Gemfile')
+                if os.path.exists(gemfile_path):
+                    with open(gemfile_path, 'r') as f:
+                        content = f.read().lower()
+                        if 'rails' in content:
+                            stack.append('Ruby on Rails')
+                        if 'sinatra' in content:
+                            stack.append('Sinatra')
+
+                # Docker
+                if os.path.exists(os.path.join(project_path, 'Dockerfile')):
+                    stack.append('Docker')
+                if os.path.exists(os.path.join(project_path, 'docker-compose.yml')) or \
+                   os.path.exists(os.path.join(project_path, 'docker-compose.yaml')):
+                    stack.append('Docker Compose')
+
+            except Exception:
+                pass
+
+        return list(set(stack))  # Remove duplicates
 
     # ═══════════════════════════════════════════════════════════════════════════
     # PROJECT KNOWLEDGE

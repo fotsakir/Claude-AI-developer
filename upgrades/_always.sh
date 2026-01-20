@@ -30,6 +30,14 @@ if [ -d "/opt/apps" ]; then
     chmod 2775 /opt/apps 2>/dev/null || true
 fi
 
+# References directory (for imported project templates)
+if [ ! -d "${INSTALL_DIR}/references" ]; then
+    log_info "Creating references directory..."
+    mkdir -p ${INSTALL_DIR}/references
+fi
+chown -R ${CLAUDE_USER}:${CLAUDE_USER} ${INSTALL_DIR}/references 2>/dev/null || true
+chmod 755 ${INSTALL_DIR}/references 2>/dev/null || true
+
 # Make scripts executable
 chmod +x ${INSTALL_DIR}/scripts/*.sh 2>/dev/null || true
 

@@ -28,6 +28,8 @@ CodeHero is a self-hosted autonomous AI coding platform powered by Claude AI to 
 | `codehero_create_project` | Creates a new project | "Create a new project called X", "I want to start a new project" |
 | `codehero_list_tickets` | Shows tickets in a project | "What tickets are open?", "Show tickets for project X" |
 | `codehero_get_ticket` | Gets ticket details | "What's the status of ticket X?", "Show me ticket details" |
+| `codehero_import_project` | Import existing project (ZIP/git/path) | "Import this repo", "Use this as reference" |
+| `codehero_analyze_project` | Analyze project structure | "Analyze the project", "Build project map" |
 | `codehero_create_ticket` | Creates a new ticket | "Create a ticket to do X", "Add a task for Y" |
 | `codehero_update_ticket` | Updates a ticket | "Close ticket X", "Change priority of ticket" |
 | `codehero_dashboard_stats` | Shows platform overview | "How many projects?", "Give me a summary" |

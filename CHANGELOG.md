@@ -5,6 +5,44 @@ All notable changes to CodeHero will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.74.0] - 2026-01-20
+
+### Added
+- **Project Import Feature** - Import existing/legacy projects into CodeHero
+  - Support for 3 import methods: ZIP file, Git clone, local path
+  - Two modes: "extend" (continue development) and "reference" (read-only template)
+  - Reference projects stored at `/opt/codehero/references/{project_code}/`
+- **New MCP Tools**
+  - `codehero_import_project` - Import projects via ZIP/git/path with extend or reference mode
+  - `codehero_analyze_project` - Analyze/re-analyze project to build context maps
+- **Git Credentials Support** - Private repository authentication
+  - GitHub: Personal Access Token (PAT)
+  - GitLab: OAuth2 token
+  - Bitbucket: App password with username
+- **Combined Path Analysis** - Projects can have both web_path AND app_path
+  - Smart analysis combines both paths with [web]/[app]/[reference] labels
+  - Entry points and tech stack detected from all paths
+- **Reference Path Context** - Daemon injects reference_path info into AI prompts
+  - AI knows to READ from reference path, not modify it
+
+- **Smart Context Tree Refresh** - Project maps refresh at ticket start/resume
+  - Supports all 3 paths: web_path, app_path, reference_path
+  - Fast refresh (~20-60ms) using tree command
+  - New files automatically detected between sessions
+- **Library Documentation System** - Per-project knowledge base for external libraries
+  - AI creates mini-manuals in `.codehero/docs/{library}/`
+  - Asks user for official documentation sources (no guessing)
+  - Tags for easy search, grows over time
+  - Works like "virtual MCP" for API knowledge
+
+### Improved
+- **Global Context** - Updated with reference_path documentation and Library Docs (PART 9)
+- **Platform Knowledge** - Added new import/analyze tools
+- **Project Template** - Added "Existing Code" section for imports
+- **Assistant CLAUDE.md** - Added import workflow, git credentials guide, and project planning flow
+
+---
+
 ## [2.73.3] - 2026-01-19
 
 ### Fixed
