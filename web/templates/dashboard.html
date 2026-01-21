@@ -117,6 +117,11 @@
             opacity: 0;
             transition: opacity 0.8s ease;
             overflow: hidden;
+            /* GPU acceleration for Firefox - prevents flickering */
+            transform: translateZ(0);
+            will-change: opacity;
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
         }
 
         .code-rain.active {
@@ -138,6 +143,10 @@
             animation: rain linear infinite;
             white-space: nowrap;
             letter-spacing: 2px;
+            /* GPU acceleration for Firefox */
+            will-change: transform;
+            transform: translateZ(0);
+            backface-visibility: hidden;
         }
 
         .code-column:nth-child(odd) {
