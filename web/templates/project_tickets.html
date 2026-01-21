@@ -144,7 +144,8 @@
             background: var(--bg-card-hover);
         }
 
-        .ticket-item.selected {
+        .ticket-item.selected,
+        .ticket-item-content.selected {
             background: rgba(99, 102, 241, 0.15);
             border-left: 3px solid var(--accent-primary);
             padding-left: 11px;
@@ -338,6 +339,106 @@
             border-radius: 3px;
             margin: 0 2px;
         }
+
+        /* Bulk selection */
+        .ticket-checkbox {
+            width: 14px;
+            height: 14px;
+            cursor: pointer;
+            accent-color: var(--accent-primary);
+            flex-shrink: 0;
+        }
+
+        .bulk-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border-bottom: 1px solid var(--border-subtle);
+            background: rgba(99, 102, 241, 0.05);
+        }
+        .bulk-header label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .bulk-header .count {
+            margin-left: auto;
+            font-size: 10px;
+            color: var(--accent-cyan);
+            font-weight: 500;
+        }
+
+        /* Bulk actions floating bar */
+        .bulk-actions-bar {
+            position: fixed;
+            bottom: 16px;
+            left: 150px;
+            background: rgba(13, 13, 22, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-glow);
+            border-radius: 12px;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(20px);
+            transition: all 0.2s ease;
+        }
+        .bulk-actions-bar.visible {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateY(0);
+        }
+        .bulk-actions-bar .count {
+            color: var(--accent-cyan);
+            font-weight: 600;
+            font-size: 11px;
+            padding-right: 8px;
+            border-right: 1px solid var(--border-subtle);
+        }
+        .bulk-btn {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .bulk-btn.close { background: var(--accent-green); color: white; }
+        .bulk-btn.close:hover { background: #059669; }
+        .bulk-btn.reopen { background: var(--accent-orange); color: white; }
+        .bulk-btn.reopen:hover { background: #d97706; }
+        .bulk-btn.retry { background: var(--accent-cyan); color: #0d0d16; }
+        .bulk-btn.retry:hover { background: #06b6d4; }
+        .bulk-btn.delete { background: var(--accent-red); color: white; }
+        .bulk-btn.delete:hover { background: #dc2626; }
+        .bulk-btn.cancel { background: transparent; color: var(--text-muted); }
+        .bulk-btn.cancel:hover { color: var(--text-primary); }
+
+        .ticket-item-wrapper {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .ticket-item-wrapper .ticket-checkbox {
+            margin-top: 2px;
+        }
+        .ticket-item-content {
+            flex: 1;
+            min-width: 0;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -362,25 +463,37 @@
                     <a href="/project/{{ project.id if project else '' }}#new-ticket" class="new-ticket-btn">+ New</a>
                 </div>
             </div>
+            {% if tickets %}
+            <div class="bulk-header">
+                <label>
+                    <input type="checkbox" id="selectAll" class="ticket-checkbox" onchange="toggleSelectAll()">
+                    All
+                </label>
+                <span class="count" id="selectedCount"></span>
+            </div>
+            {% endif %}
             <div class="ticket-list" id="ticketList">
                 {% if tickets %}
                     {% for t in tickets %}
-                    <div class="ticket-item" data-ticket-id="{{ t.id }}" data-status="{{ t.status }}" onclick="selectTicket({{ t.id }})">
-                        <div class="ticket-item-header">
-                            <span class="ticket-number">{{ t.ticket_number }}</span>
-                            <span style="display:flex;align-items:center;gap:4px">
-                                {% if t.is_forced %}<span class="forced-badge">!</span>{% endif %}
-                                {% if t.sequence_order %}<span class="seq-badge">#{{ t.sequence_order }}</span>{% endif %}
-                                <span class="status-dot {{ t.status }}" title="{{ t.status }}"></span>
-                            </span>
-                        </div>
-                        <div class="ticket-title" title="{{ t.title }}">{{ t.title }}</div>
-                        <div class="ticket-meta">
-                            <span style="display:flex;align-items:center;gap:4px">
-                                <span class="type-badge type-{{ t.ticket_type or 'task' }}">{{ (t.ticket_type or 'task')[:4] }}</span>
-                                <span class="priority-badge {{ t.priority or 'medium' }}">{{ t.priority or 'med' }}</span>
-                            </span>
-                            <span class="time-ago" data-time="{{ t.updated_at.isoformat() if t.updated_at else '' }}">{{ t.updated_at.strftime('%m/%d %H:%M') if t.updated_at else '-' }}</span>
+                    <div class="ticket-item-wrapper" data-ticket-id="{{ t.id }}" data-status="{{ t.status }}">
+                        <input type="checkbox" class="ticket-checkbox" data-ticket-id="{{ t.id }}" data-status="{{ t.status }}" onchange="updateSelection()" onclick="event.stopPropagation()">
+                        <div class="ticket-item-content" onclick="selectTicket({{ t.id }})">
+                            <div class="ticket-item-header">
+                                <span class="ticket-number">{{ t.ticket_number }}</span>
+                                <span style="display:flex;align-items:center;gap:4px">
+                                    {% if t.is_forced %}<span class="forced-badge">!</span>{% endif %}
+                                    {% if t.sequence_order %}<span class="seq-badge">#{{ t.sequence_order }}</span>{% endif %}
+                                    <span class="status-dot {{ t.status }}" title="{{ t.status }}"></span>
+                                </span>
+                            </div>
+                            <div class="ticket-title" title="{{ t.title }}">{{ t.title }}</div>
+                            <div class="ticket-meta">
+                                <span style="display:flex;align-items:center;gap:4px">
+                                    <span class="type-badge type-{{ t.ticket_type or 'task' }}">{{ (t.ticket_type or 'task')[:4] }}</span>
+                                    <span class="priority-badge {{ t.priority or 'medium' }}">{{ t.priority or 'med' }}</span>
+                                </span>
+                                <span class="time-ago" data-time="{{ t.updated_at.isoformat() if t.updated_at else '' }}">{{ t.updated_at.strftime('%m/%d %H:%M') if t.updated_at else '-' }}</span>
+                            </div>
                         </div>
                     </div>
                     {% endfor %}
@@ -407,7 +520,17 @@
     </div>
 
     <div class="keyboard-hint">
-        <kbd>↑</kbd><kbd>↓</kbd> Navigate &nbsp; <kbd>Enter</kbd> Open in new tab
+        <kbd>↑</kbd><kbd>↓</kbd> Navigate &nbsp; <kbd>Enter</kbd> Open in new tab &nbsp; <kbd>Esc</kbd> Clear selection
+    </div>
+
+    <!-- Bulk Actions Bar -->
+    <div class="bulk-actions-bar" id="bulkActionsBar">
+        <span class="count"><span id="bulkCount">0</span> selected</span>
+        <button class="bulk-btn close" onclick="bulkAction('close')">✓ Close</button>
+        <button class="bulk-btn reopen" onclick="bulkAction('reopen')">↺ Reopen</button>
+        <button class="bulk-btn retry" onclick="bulkAction('retry')">⟳ Retry</button>
+        <button class="bulk-btn delete" onclick="bulkAction('delete')">🗑 Delete</button>
+        <button class="bulk-btn cancel" onclick="clearSelection()">✕</button>
     </div>
 
     <script>
@@ -419,7 +542,7 @@
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
-            ticketItems = Array.from(document.querySelectorAll('.ticket-item'));
+            ticketItems = Array.from(document.querySelectorAll('.ticket-item-wrapper'));
             filterTickets();
             updateTimeAgo();
             setInterval(updateTimeAgo, 60000);
@@ -459,28 +582,30 @@
                 // Rebuild ticket list
                 let html = '';
                 for (const t of tickets) {
-                    const isSelected = t.id === currentSelectedId ? ' selected' : '';
                     const typeClass = t.ticket_type || 'task';
                     const priorityClass = t.priority || 'medium';
                     const updatedAt = t.updated_at ? new Date(t.updated_at).toISOString() : '';
 
                     html += `
-                        <div class="ticket-item${isSelected}" data-ticket-id="${t.id}" data-status="${t.status}" onclick="selectTicket(${t.id})">
-                            <div class="ticket-item-header">
-                                <span class="ticket-number">${t.ticket_number}</span>
-                                <span style="display:flex;align-items:center;gap:4px">
-                                    ${t.is_forced ? '<span class="forced-badge">!</span>' : ''}
-                                    ${t.sequence_order ? `<span class="seq-badge">#${t.sequence_order}</span>` : ''}
-                                    <span class="status-dot ${t.status}" title="${t.status}"></span>
-                                </span>
-                            </div>
-                            <div class="ticket-title" title="${t.title}">${t.title}</div>
-                            <div class="ticket-meta">
-                                <span style="display:flex;align-items:center;gap:4px">
-                                    <span class="type-badge type-${typeClass}">${typeClass.substring(0,4)}</span>
-                                    <span class="priority-badge ${priorityClass}">${priorityClass.substring(0,3)}</span>
-                                </span>
-                                <span class="time-ago" data-time="${updatedAt}">${timeAgo(new Date(updatedAt))}</span>
+                        <div class="ticket-item-wrapper" data-ticket-id="${t.id}" data-status="${t.status}">
+                            <input type="checkbox" class="ticket-checkbox" data-ticket-id="${t.id}" data-status="${t.status}" onchange="updateSelection()" onclick="event.stopPropagation()">
+                            <div class="ticket-item-content${t.id === currentSelectedId ? ' selected' : ''}" onclick="selectTicket(${t.id})">
+                                <div class="ticket-item-header">
+                                    <span class="ticket-number">${t.ticket_number}</span>
+                                    <span style="display:flex;align-items:center;gap:4px">
+                                        ${t.is_forced ? '<span class="forced-badge">!</span>' : ''}
+                                        ${t.sequence_order ? `<span class="seq-badge">#${t.sequence_order}</span>` : ''}
+                                        <span class="status-dot ${t.status}" title="${t.status}"></span>
+                                    </span>
+                                </div>
+                                <div class="ticket-title" title="${t.title}">${t.title}</div>
+                                <div class="ticket-meta">
+                                    <span style="display:flex;align-items:center;gap:4px">
+                                        <span class="type-badge type-${typeClass}">${typeClass.substring(0,4)}</span>
+                                        <span class="priority-badge ${priorityClass}">${priorityClass.substring(0,3)}</span>
+                                    </span>
+                                    <span class="time-ago" data-time="${updatedAt}">${timeAgo(new Date(updatedAt))}</span>
+                                </div>
                             </div>
                         </div>
                     `;
@@ -491,8 +616,14 @@
                 }
 
                 ticketList.innerHTML = html;
-                ticketItems = Array.from(document.querySelectorAll('.ticket-item'));
+                ticketItems = Array.from(document.querySelectorAll('.ticket-item-wrapper'));
                 filterTickets();
+
+                // Re-select the previously selected ticket
+                if (currentSelectedId) {
+                    const selectedContent = document.querySelector(`.ticket-item-wrapper[data-ticket-id="${currentSelectedId}"] .ticket-item-content`);
+                    if (selectedContent) selectedContent.classList.add('selected');
+                }
 
             } catch (e) {
                 console.error('Error refreshing tickets:', e);
@@ -524,9 +655,12 @@
 
         // Select ticket
         function selectTicket(ticketId) {
-            // Update selection UI
-            ticketItems.forEach(item => item.classList.remove('selected'));
-            const selectedItem = document.querySelector(`.ticket-item[data-ticket-id="${ticketId}"]`);
+            // Update selection UI - remove selected from all content divs
+            document.querySelectorAll('.ticket-item-content.selected, .ticket-item.selected').forEach(el => el.classList.remove('selected'));
+
+            // Find the wrapper and add selected to its content div
+            const wrapper = document.querySelector(`.ticket-item-wrapper[data-ticket-id="${ticketId}"]`);
+            const selectedItem = wrapper ? wrapper.querySelector('.ticket-item-content') : document.querySelector(`.ticket-item[data-ticket-id="${ticketId}"]`);
             if (selectedItem) {
                 selectedItem.classList.add('selected');
                 selectedItem.scrollIntoView({ block: 'nearest' });
@@ -570,8 +704,96 @@
                 if (item) selectTicket(parseInt(item.dataset.ticketId));
             } else if (e.key === 'Enter' && selectedTicketId) {
                 window.open(`/ticket/${selectedTicketId}`, '_blank');
+            } else if (e.key === 'Escape') {
+                clearSelection();
             }
         });
+
+        // Bulk selection functions
+        function getSelectedTickets() {
+            const checkboxes = document.querySelectorAll('.ticket-checkbox[data-ticket-id]:checked');
+            return Array.from(checkboxes).map(cb => ({
+                id: parseInt(cb.dataset.ticketId),
+                status: cb.dataset.status
+            }));
+        }
+
+        function updateSelection() {
+            const selected = getSelectedTickets();
+            const count = selected.length;
+            const total = document.querySelectorAll('.ticket-checkbox[data-ticket-id]').length;
+
+            // Update count display
+            const countEl = document.getElementById('selectedCount');
+            const bulkCountEl = document.getElementById('bulkCount');
+            if (countEl) countEl.textContent = count > 0 ? `${count}/${total}` : '';
+            if (bulkCountEl) bulkCountEl.textContent = count;
+
+            // Update select all checkbox
+            const selectAll = document.getElementById('selectAll');
+            if (selectAll) {
+                selectAll.checked = count === total && total > 0;
+                selectAll.indeterminate = count > 0 && count < total;
+            }
+
+            // Show/hide bulk actions bar
+            const bar = document.getElementById('bulkActionsBar');
+            if (bar) {
+                bar.classList.toggle('visible', count > 0);
+            }
+        }
+
+        function toggleSelectAll() {
+            const selectAll = document.getElementById('selectAll');
+            const checkboxes = document.querySelectorAll('.ticket-checkbox[data-ticket-id]');
+            checkboxes.forEach(cb => cb.checked = selectAll.checked);
+            updateSelection();
+        }
+
+        function clearSelection() {
+            const checkboxes = document.querySelectorAll('.ticket-checkbox');
+            checkboxes.forEach(cb => cb.checked = false);
+            updateSelection();
+        }
+
+        async function bulkAction(action) {
+            const selected = getSelectedTickets();
+            if (selected.length === 0) return;
+
+            // Confirmation for delete
+            if (action === 'delete') {
+                if (!confirm(`Delete ${selected.length} ticket(s)? This cannot be undone.`)) {
+                    return;
+                }
+            }
+
+            // Confirmation for other actions
+            const actionNames = { close: 'Close', reopen: 'Reopen', retry: 'Retry' };
+            if (actionNames[action] && !confirm(`${actionNames[action]} ${selected.length} ticket(s)?`)) {
+                return;
+            }
+
+            try {
+                const resp = await fetch('/api/tickets/bulk', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: action,
+                        ticket_ids: selected.map(t => t.id)
+                    })
+                });
+
+                const data = await resp.json();
+                if (data.success) {
+                    // Reload page to show changes
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + (data.message || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
 
         // Time ago
         function timeAgo(date) {

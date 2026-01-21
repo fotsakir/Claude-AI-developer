@@ -648,6 +648,7 @@
                     Show Archived
                 </label>
                 <button class="btn btn-secondary" onclick="openBlueprintPlanner()">Plan with AI</button>
+                <button class="btn btn-secondary" onclick="openImportModal()">📦 Import</button>
                 <button class="btn btn-primary" onclick="openModal()">+ New Project</button>
             </div>
         </div>
@@ -1050,6 +1051,167 @@
         </div>
     </div>
 
+    <!-- Import from Backup Modal -->
+    <div class="modal" id="importModal">
+        <div class="modal-content" style="max-width: 650px;">
+            <div class="modal-header">
+                <h3>📦 Import Project</h3>
+                <button class="modal-close" onclick="closeImportModal()">&times;</button>
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="import-tabs">
+                <button class="import-tab" onclick="showImportTab('simple')" id="tabSimple">Simple Import</button>
+                <button class="import-tab active" onclick="showImportTab('migration')" id="tabMigration">Migration Backup</button>
+                <button class="import-tab" onclick="showImportTab('existing')" id="tabExisting">Existing Backups</button>
+            </div>
+
+            <!-- Simple Import Tab -->
+            <div id="importTabSimple" style="display: none;">
+                <p style="color: var(--text-secondary); font-size: 12px; margin-bottom: 16px;">
+                    Import a ZIP with files and database. Creates a new project with the files copied to the specified paths.
+                </p>
+                <form id="simpleImportForm" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label>Backup File (ZIP) *</label>
+                        <input type="file" name="backup_file" id="simpleImportFile" accept=".zip" required>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Project Name *</label>
+                            <input type="text" name="project_name" id="simpleProjectName" required placeholder="My Project">
+                        </div>
+                        <div class="form-group">
+                            <label>Code *</label>
+                            <input type="text" name="project_code" id="simpleProjectCode" required placeholder="MYPROJ" maxlength="10" style="text-transform:uppercase" oninput="updateSimplePaths()">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Type</label>
+                            <select name="project_type" id="simpleProjectType">
+                                <option value="web">Web (PHP, HTML)</option>
+                                <option value="app">App (Node, Python)</option>
+                                <option value="hybrid">Hybrid</option>
+                                <option value="api">API</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Tech Stack</label>
+                            <input type="text" name="tech_stack" placeholder="PHP, MySQL, etc.">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Web Path</label>
+                            <input type="text" name="web_path" id="simpleWebPath" placeholder="/var/www/projects/...">
+                            <small>Files will be copied here</small>
+                        </div>
+                        <div class="form-group">
+                            <label>App Path</label>
+                            <input type="text" name="app_path" id="simpleAppPath" placeholder="/opt/apps/...">
+                            <small>Backend files location</small>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea name="description" rows="2" placeholder="Brief project description..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">Create Project & Import Files</button>
+                </form>
+            </div>
+
+            <!-- Migration Import Tab -->
+            <div id="importTabMigration">
+                <p style="color: var(--text-secondary); font-size: 12px; margin-bottom: 16px;">
+                    Import from a CodeHero migration backup. Restores all tickets, conversations, and settings.
+                </p>
+                <form id="importForm" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label>Migration Backup File (ZIP)</label>
+                        <input type="file" name="backup_file" id="importFile" accept=".zip">
+                    </div>
+                    <div class="form-group">
+                        <label>New Project Name (optional)</label>
+                        <input type="text" name="new_name" id="importNewName" placeholder="Leave empty to use original name">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Web Path (optional)</label>
+                            <input type="text" name="web_path" id="importWebPath" placeholder="/var/www/projects/...">
+                        </div>
+                        <div class="form-group">
+                            <label>App Path (optional)</label>
+                            <input type="text" name="app_path" id="importAppPath" placeholder="/opt/apps/...">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">Import Migration Backup</button>
+                </form>
+            </div>
+
+            <!-- Existing Backups Tab -->
+            <div id="importTabExisting" style="display: none;">
+                <p style="color: var(--text-secondary); font-size: 12px; margin-bottom: 16px;">
+                    Import from existing migration backups on the server.
+                </p>
+                <div id="existingBackupsList" style="max-height: 300px; overflow-y: auto;">
+                    <div style="color: var(--text-muted); text-align: center; padding: 20px;">Loading...</div>
+                </div>
+            </div>
+
+            <div id="importStatus" style="margin-top: 16px; padding: 12px; border-radius: 8px; display: none;"></div>
+        </div>
+    </div>
+
+    <style>
+        .import-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border-subtle);
+            padding-bottom: 12px;
+        }
+        .import-tab {
+            padding: 8px 16px;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 13px;
+            border-radius: 6px;
+            font-family: inherit;
+        }
+        .import-tab:hover { color: var(--text-primary); }
+        .import-tab.active {
+            background: var(--bg-card);
+            color: var(--accent-primary);
+        }
+        .existing-backup-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            background: var(--bg-card);
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        .existing-backup-item:hover { background: var(--bg-card-hover); }
+        .existing-backup-info { flex: 1; }
+        .existing-backup-name { color: var(--text-primary); font-size: 13px; font-weight: 500; }
+        .existing-backup-meta { color: var(--text-muted); font-size: 11px; margin-top: 4px; }
+        .backup-btn {
+            padding: 6px 12px;
+            font-size: 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .backup-btn-primary { background: var(--accent-primary); color: white; }
+        .backup-btn-secondary { background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-subtle); }
+        .backup-btn-danger { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+    </style>
+
     <script>
         function openModal() { document.getElementById('modal').classList.add('active'); }
         function closeModal() { document.getElementById('modal').classList.remove('active'); }
@@ -1379,6 +1541,235 @@
                 btn.title = 'Recording... Click to stop';
                 resetSilenceTimeout();
             }
+        }
+
+        // ============ IMPORT FROM BACKUP ============
+        function openImportModal() {
+            document.getElementById('importModal').classList.add('active');
+            showImportTab('migration');
+        }
+
+        function closeImportModal() {
+            document.getElementById('importModal').classList.remove('active');
+        }
+
+        document.getElementById('importModal').addEventListener('click', function(e) {
+            if (e.target === this) closeImportModal();
+        });
+
+        function showImportTab(tab) {
+            document.getElementById('importTabSimple').style.display = tab === 'simple' ? 'block' : 'none';
+            document.getElementById('importTabMigration').style.display = tab === 'migration' ? 'block' : 'none';
+            document.getElementById('importTabExisting').style.display = tab === 'existing' ? 'block' : 'none';
+            document.getElementById('tabSimple').classList.toggle('active', tab === 'simple');
+            document.getElementById('tabMigration').classList.toggle('active', tab === 'migration');
+            document.getElementById('tabExisting').classList.toggle('active', tab === 'existing');
+
+            if (tab === 'existing') {
+                loadExistingBackups();
+            }
+        }
+
+        // Update paths for simple import based on project code
+        function updateSimplePaths() {
+            const code = document.getElementById('simpleProjectCode').value.toLowerCase();
+            if (!code) return;
+
+            const webPath = document.getElementById('simpleWebPath');
+
+            // Only auto-fill web_path, leave app_path empty unless user wants it
+            if (!webPath.dataset.userEdited) {
+                webPath.value = `/var/www/projects/${code}`;
+            }
+        }
+
+        // Mark simple import paths as user-edited when manually changed
+        ['simpleWebPath', 'simpleAppPath'].forEach(id => {
+            document.getElementById(id)?.addEventListener('input', function() {
+                this.dataset.userEdited = 'true';
+            });
+        });
+
+        // Handle simple import form submission
+        document.getElementById('simpleImportForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const file = document.getElementById('simpleImportFile').files[0];
+            if (!file) {
+                showImportStatus('error', 'Please select a backup file');
+                return;
+            }
+
+            const projectName = document.getElementById('simpleProjectName').value.trim();
+            const projectCode = document.getElementById('simpleProjectCode').value.trim().toUpperCase();
+
+            if (!projectName || !projectCode) {
+                showImportStatus('error', 'Project name and code are required');
+                return;
+            }
+
+            showImportStatus('info', 'Creating project and importing files... This may take a while.');
+
+            const formData = new FormData(this);
+            formData.set('project_code', projectCode); // Ensure uppercase
+
+            try {
+                const resp = await fetch('/api/simple-import', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await resp.json();
+
+                if (data.success) {
+                    showImportStatus('success', data.message + ' Redirecting...');
+                    setTimeout(() => {
+                        window.location.href = '/project/' + data.project_id;
+                    }, 2000);
+                } else {
+                    showImportStatus('error', data.message);
+                }
+            } catch (e) {
+                showImportStatus('error', 'Error: ' + e.message);
+            }
+        });
+
+        async function loadExistingBackups() {
+            const container = document.getElementById('existingBackupsList');
+            container.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px;">Loading...</div>';
+
+            try {
+                const resp = await fetch('/api/migration-backups');
+                const data = await resp.json();
+
+                if (!data.success) {
+                    container.innerHTML = `<div style="color: var(--accent-red); text-align: center; padding: 20px;">${data.message}</div>`;
+                    return;
+                }
+
+                if (data.backups.length === 0) {
+                    container.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px;">No migration backups found. Export a project first from the Project Detail page.</div>';
+                    return;
+                }
+
+                container.innerHTML = data.backups.map(b => {
+                    const date = new Date(b.created).toLocaleString();
+                    const sizeMB = (b.size / 1024 / 1024).toFixed(2);
+                    return `
+                        <div class="existing-backup-item">
+                            <div class="existing-backup-info">
+                                <div class="existing-backup-name">${b.project_name} (${b.project_code})</div>
+                                <div class="existing-backup-meta">${date} · ${sizeMB} MB · ${b.tickets_count} tickets ${b.has_conversations ? '· with conversations' : ''}</div>
+                            </div>
+                            <div style="display: flex; gap: 8px;">
+                                <button onclick="importFromExisting('${b.filename}')" class="backup-btn backup-btn-primary">Import</button>
+                                <button onclick="downloadMigrationBackup('${b.filename}')" class="backup-btn backup-btn-secondary">Download</button>
+                                <button onclick="deleteMigrationBackup('${b.filename}')" class="backup-btn backup-btn-danger">Delete</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (e) {
+                container.innerHTML = `<div style="color: var(--accent-red); text-align: center; padding: 20px;">Error loading backups</div>`;
+            }
+        }
+
+        async function importFromExisting(filename) {
+            if (!confirm('Import this backup? A new project will be created.')) return;
+
+            showImportStatus('info', 'Importing project... This may take a while.');
+
+            try {
+                const resp = await fetch('/api/import-from-backup', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        backup_path: '/var/backups/codehero/migrations/' + filename
+                    })
+                });
+                const data = await resp.json();
+
+                if (data.success) {
+                    showImportStatus('success', data.message + ' Redirecting...');
+                    setTimeout(() => {
+                        window.location.href = '/project/' + data.project_id;
+                    }, 2000);
+                } else {
+                    showImportStatus('error', data.message);
+                }
+            } catch (e) {
+                showImportStatus('error', 'Error: ' + e.message);
+            }
+        }
+
+        function downloadMigrationBackup(filename) {
+            window.location.href = '/api/migration-backup/' + filename;
+        }
+
+        async function deleteMigrationBackup(filename) {
+            if (!confirm('Delete this migration backup?')) return;
+
+            try {
+                const resp = await fetch('/api/migration-backup/' + filename, {method: 'DELETE'});
+                const data = await resp.json();
+
+                if (data.success) {
+                    loadExistingBackups();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        // Handle import form submission
+        document.getElementById('importForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const file = document.getElementById('importFile').files[0];
+            if (!file) {
+                showImportStatus('error', 'Please select a backup file');
+                return;
+            }
+
+            showImportStatus('info', 'Uploading and importing project... This may take a while for large projects.');
+
+            const formData = new FormData(this);
+
+            try {
+                const resp = await fetch('/api/import-from-backup', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await resp.json();
+
+                if (data.success) {
+                    showImportStatus('success', data.message + ' Redirecting...');
+                    setTimeout(() => {
+                        window.location.href = '/project/' + data.project_id;
+                    }, 2000);
+                } else {
+                    showImportStatus('error', data.message);
+                }
+            } catch (e) {
+                showImportStatus('error', 'Error: ' + e.message);
+            }
+        });
+
+        function showImportStatus(type, message) {
+            const status = document.getElementById('importStatus');
+            status.style.display = 'block';
+            status.style.background = type === 'success' ? 'rgba(16, 185, 129, 0.15)' :
+                                      type === 'error' ? 'rgba(239, 68, 68, 0.15)' :
+                                      'rgba(99, 102, 241, 0.15)';
+            status.style.border = '1px solid ' + (type === 'success' ? 'rgba(16, 185, 129, 0.3)' :
+                                                  type === 'error' ? 'rgba(239, 68, 68, 0.3)' :
+                                                  'rgba(99, 102, 241, 0.3)');
+            status.style.color = type === 'success' ? 'var(--accent-green)' :
+                                 type === 'error' ? 'var(--accent-red)' :
+                                 'var(--accent-primary)';
+            status.textContent = message;
         }
     </script>
 </body>

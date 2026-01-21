@@ -447,12 +447,12 @@ update_webapps_config() {
         auth_include="include $AUTH_SNIPPET;"
     fi
 
-    # Check if ModSecurity is available
+    # Check if ModSecurity is available (use relaxed rules for web projects)
     local modsec_config=""
     if [ "$(check_modsecurity)" = "true" ]; then
-        modsec_config="    # ModSecurity WAF
+        modsec_config="    # ModSecurity WAF (relaxed rules for web projects)
     modsecurity on;
-    modsecurity_rules_file /etc/modsecurity/main.conf;"
+    modsecurity_rules_file /etc/modsecurity/main-webprojects.conf;"
     fi
 
     cat > "$NGINX_SITES/codehero-projects" << EOF

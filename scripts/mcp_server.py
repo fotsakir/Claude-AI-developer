@@ -486,6 +486,51 @@ TOOLS = [
             },
             "required": ["project_id"]
         }
+    },
+    {
+        "name": "codehero_import_from_backup",
+        "description": "Import a project from a migration backup file. Creates a new project with all tickets, conversations, and files. Use this when moving projects between servers.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "backup_path": {
+                    "type": "string",
+                    "description": "Full path to the migration backup ZIP file (required)"
+                },
+                "new_name": {
+                    "type": "string",
+                    "description": "New project name (optional, uses original name if not specified)"
+                },
+                "web_path": {
+                    "type": "string",
+                    "description": "Custom web path for project files (optional)"
+                },
+                "app_path": {
+                    "type": "string",
+                    "description": "Custom app path for project files (optional)"
+                }
+            },
+            "required": ["backup_path"]
+        }
+    },
+    {
+        "name": "codehero_export_for_migration",
+        "description": "Export a project for migration to another server. Creates a complete backup including project metadata, tickets, conversations (optional), and all files.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_id": {
+                    "type": "integer",
+                    "description": "The project ID to export (required)"
+                },
+                "include_conversations": {
+                    "type": "boolean",
+                    "description": "Include conversation history in backup. Default: true",
+                    "default": True
+                }
+            },
+            "required": ["project_id"]
+        }
     }
 ]
 
@@ -2055,6 +2100,112 @@ def handle_analyze_project(args: Dict[str, Any]) -> Dict[str, Any]:
         conn.close()
 
 
+def handle_import_from_backup(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Import a project from a migration backup file."""
+    import subprocess
+    import requests
+
+    backup_path = args.get('backup_path')
+    new_name = args.get('new_name')
+    web_path = args.get('web_path')
+    app_path = args.get('app_path')
+
+    if not backup_path:
+        return {"content": [{"type": "text", "text": "Error: backup_path is required"}]}
+
+    if not os.path.exists(backup_path):
+        return {"content": [{"type": "text", "text": f"Error: Backup file not found: {backup_path}"}]}
+
+    try:
+        # Call the API to import the backup
+        # Note: This requires the web app to be running
+        import urllib.request
+        import urllib.error
+
+        data = json.dumps({
+            'backup_path': backup_path,
+            'new_name': new_name,
+            'web_path': web_path,
+            'app_path': app_path
+        }).encode('utf-8')
+
+        req = urllib.request.Request(
+            'http://127.0.0.1:5000/api/import-from-backup',
+            data=data,
+            headers={'Content-Type': 'application/json'},
+            method='POST'
+        )
+
+        try:
+            with urllib.request.urlopen(req, timeout=300) as resp:
+                result = json.loads(resp.read().decode('utf-8'))
+
+            if result.get('success'):
+                return {"content": [{"type": "text", "text": json.dumps({
+                    "success": True,
+                    "project_id": result.get('project_id'),
+                    "message": result.get('message')
+                }, indent=2)}]}
+            else:
+                return {"content": [{"type": "text", "text": f"Error: {result.get('message', 'Unknown error')}"}]}
+
+        except urllib.error.HTTPError as e:
+            return {"content": [{"type": "text", "text": f"Error: HTTP {e.code} - {e.reason}"}]}
+        except urllib.error.URLError as e:
+            return {"content": [{"type": "text", "text": f"Error: Could not connect to web app. Is codehero-web running? {str(e)}"}]}
+
+    except Exception as e:
+        return {"content": [{"type": "text", "text": f"Error importing from backup: {str(e)}"}]}
+
+
+def handle_export_for_migration(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Export a project for migration to another server."""
+    import urllib.request
+    import urllib.error
+
+    project_id = args.get('project_id')
+    include_conversations = args.get('include_conversations', True)
+
+    if not project_id:
+        return {"content": [{"type": "text", "text": "Error: project_id is required"}]}
+
+    try:
+        data = json.dumps({
+            'include_conversations': include_conversations
+        }).encode('utf-8')
+
+        req = urllib.request.Request(
+            f'http://127.0.0.1:5000/api/project/{project_id}/export-migration',
+            data=data,
+            headers={'Content-Type': 'application/json'},
+            method='POST'
+        )
+
+        try:
+            with urllib.request.urlopen(req, timeout=600) as resp:
+                result = json.loads(resp.read().decode('utf-8'))
+
+            if result.get('success'):
+                return {"content": [{"type": "text", "text": json.dumps({
+                    "success": True,
+                    "message": result.get('message'),
+                    "filename": result.get('filename'),
+                    "size_bytes": result.get('size'),
+                    "download_url": result.get('download_url'),
+                    "backup_path": f"/var/backups/codehero/migrations/{result.get('filename')}"
+                }, indent=2)}]}
+            else:
+                return {"content": [{"type": "text", "text": f"Error: {result.get('message', 'Unknown error')}"}]}
+
+        except urllib.error.HTTPError as e:
+            return {"content": [{"type": "text", "text": f"Error: HTTP {e.code} - {e.reason}"}]}
+        except urllib.error.URLError as e:
+            return {"content": [{"type": "text", "text": f"Error: Could not connect to web app. Is codehero-web running? {str(e)}"}]}
+
+    except Exception as e:
+        return {"content": [{"type": "text", "text": f"Error exporting project: {str(e)}"}]}
+
+
 # Tool handlers mapping
 TOOL_HANDLERS = {
     "codehero_list_projects": handle_list_projects,
@@ -2075,6 +2226,8 @@ TOOL_HANDLERS = {
     "codehero_reload": handle_reload,
     "codehero_import_project": handle_import_project,
     "codehero_analyze_project": handle_analyze_project,
+    "codehero_import_from_backup": handle_import_from_backup,
+    "codehero_export_for_migration": handle_export_for_migration,
 }
 
 def handle_request(request: Dict[str, Any]) -> Dict[str, Any]:

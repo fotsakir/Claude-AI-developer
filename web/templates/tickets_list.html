@@ -336,6 +336,109 @@
         .empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.5; }
         .empty p { font-size: 15px; }
 
+        /* Bulk selection */
+        .ticket-checkbox {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: var(--accent-primary);
+            flex-shrink: 0;
+        }
+        .ticket-row-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .ticket-row-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        /* Select all row */
+        .select-all-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+        .select-all-row label {
+            color: var(--text-secondary);
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .selected-count {
+            margin-left: auto;
+            color: var(--accent-cyan);
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        /* Bulk actions bar */
+        .bulk-actions-bar {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: rgba(13, 13, 22, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-glow);
+            border-radius: 16px;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), var(--glow-primary);
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s ease;
+        }
+        .bulk-actions-bar.visible {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .bulk-actions-bar .count {
+            color: var(--accent-cyan);
+            font-weight: 600;
+            font-size: 14px;
+            padding-right: 12px;
+            border-right: 1px solid var(--border-subtle);
+        }
+        .bulk-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .bulk-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .bulk-btn.close { background: var(--accent-green); color: white; }
+        .bulk-btn.close:hover:not(:disabled) { background: #059669; }
+        .bulk-btn.reopen { background: var(--accent-orange); color: white; }
+        .bulk-btn.reopen:hover:not(:disabled) { background: #d97706; }
+        .bulk-btn.retry { background: var(--accent-cyan); color: #0d0d16; }
+        .bulk-btn.retry:hover:not(:disabled) { background: #06b6d4; }
+        .bulk-btn.delete { background: var(--accent-red); color: white; }
+        .bulk-btn.delete:hover:not(:disabled) { background: #dc2626; }
+        .bulk-btn.cancel { background: var(--bg-card); color: var(--text-secondary); border: 1px solid var(--border-subtle); }
+        .bulk-btn.cancel:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+
         .priority-dot {
             width: 8px;
             height: 8px;
@@ -458,53 +561,66 @@
             </div>
         </div>
 
+        {% if tickets %}
+        <div class="select-all-row">
+            <label>
+                <input type="checkbox" id="selectAll" class="ticket-checkbox" onchange="toggleSelectAll()">
+                Select All
+            </label>
+            <span class="selected-count" id="selectedCount"></span>
+        </div>
+        {% endif %}
+
         <div class="ticket-list">
             {% if tickets %}
                 {% for t in tickets %}
-                <a href="/ticket/{{ t.id }}" class="ticket-row {{ t.status }}">
-                    <div class="ticket-info">
-                        <div class="ticket-header">
-                            <span class="ticket-number">{{ t.ticket_number }}</span>
-                            {% if t.ticket_type %}
-                            <span class="type-badge {{ t.ticket_type }}">{{ t.ticket_type }}</span>
-                            {% endif %}
-                            {% if t.is_forced %}
-                            <span class="forced-badge">⚡ FORCED</span>
-                            {% endif %}
-                            {% if t.sequence_order %}
-                            <span class="sequence-badge">#{{ t.sequence_order }}</span>
-                            {% endif %}
-                            {% if t.retry_count and t.retry_count > 0 %}
-                            <span class="retry-badge">↻ {{ t.retry_count }}/{{ t.max_retries or 3 }}</span>
-                            {% endif %}
-                            <span class="project-badge">{{ t.project_code }} - {{ t.project_name }}</span>
+                <div class="ticket-row-wrapper">
+                    <input type="checkbox" class="ticket-checkbox" data-ticket-id="{{ t.id }}" data-status="{{ t.status }}" onchange="updateSelection()">
+                    <a href="/ticket/{{ t.id }}" class="ticket-row {{ t.status }}" style="flex:1">
+                        <div class="ticket-info">
+                            <div class="ticket-header">
+                                <span class="ticket-number">{{ t.ticket_number }}</span>
+                                {% if t.ticket_type %}
+                                <span class="type-badge {{ t.ticket_type }}">{{ t.ticket_type }}</span>
+                                {% endif %}
+                                {% if t.is_forced %}
+                                <span class="forced-badge">⚡ FORCED</span>
+                                {% endif %}
+                                {% if t.sequence_order %}
+                                <span class="sequence-badge">#{{ t.sequence_order }}</span>
+                                {% endif %}
+                                {% if t.retry_count and t.retry_count > 0 %}
+                                <span class="retry-badge">↻ {{ t.retry_count }}/{{ t.max_retries or 3 }}</span>
+                                {% endif %}
+                                <span class="project-badge">{{ t.project_code }} - {{ t.project_name }}</span>
+                            </div>
+                            <div class="ticket-title">{{ t.title }}</div>
+                            <div class="ticket-meta">
+                                <span class="meta-item">
+                                    <span class="priority-dot {{ t.priority or 'medium' }}"></span>
+                                    <span>{{ (t.priority or 'medium')|title }}</span>
+                                </span>
+                                <span class="meta-item">
+                                    <span class="label">Created:</span>
+                                    {{ t.created_at.strftime('%d/%m/%Y %H:%M') if t.created_at else 'N/A' }}
+                                </span>
+                                <span class="meta-item">
+                                    <span class="label">Updated:</span>
+                                    {{ t.updated_at.strftime('%d/%m/%Y %H:%M') if t.updated_at else 'N/A' }}
+                                </span>
+                                {% if t.total_tokens %}
+                                <span class="meta-item">
+                                    <span class="label">Tokens:</span>
+                                    {{ "{:,}".format(t.total_tokens) }}
+                                </span>
+                                {% endif %}
+                            </div>
                         </div>
-                        <div class="ticket-title">{{ t.title }}</div>
-                        <div class="ticket-meta">
-                            <span class="meta-item">
-                                <span class="priority-dot {{ t.priority or 'medium' }}"></span>
-                                <span>{{ (t.priority or 'medium')|title }}</span>
-                            </span>
-                            <span class="meta-item">
-                                <span class="label">Created:</span>
-                                {{ t.created_at.strftime('%d/%m/%Y %H:%M') if t.created_at else 'N/A' }}
-                            </span>
-                            <span class="meta-item">
-                                <span class="label">Updated:</span>
-                                {{ t.updated_at.strftime('%d/%m/%Y %H:%M') if t.updated_at else 'N/A' }}
-                            </span>
-                            {% if t.total_tokens %}
-                            <span class="meta-item">
-                                <span class="label">Tokens:</span>
-                                {{ "{:,}".format(t.total_tokens) }}
-                            </span>
-                            {% endif %}
+                        <div class="ticket-status">
+                            <span class="status-badge {{ t.status }}">{{ t.status.replace('_', ' ') }}</span>
                         </div>
-                    </div>
-                    <div class="ticket-status">
-                        <span class="status-badge {{ t.status }}">{{ t.status.replace('_', ' ') }}</span>
-                    </div>
-                </a>
+                    </a>
+                </div>
                 {% endfor %}
             {% else %}
                 <div class="empty">
@@ -513,6 +629,16 @@
                 </div>
             {% endif %}
         </div>
+    </div>
+
+    <!-- Bulk Actions Bar -->
+    <div class="bulk-actions-bar" id="bulkActionsBar">
+        <span class="count"><span id="bulkCount">0</span> selected</span>
+        <button class="bulk-btn close" onclick="bulkAction('close')">✓ Close</button>
+        <button class="bulk-btn reopen" onclick="bulkAction('reopen')">↺ Reopen</button>
+        <button class="bulk-btn retry" onclick="bulkAction('retry')">⟳ Retry</button>
+        <button class="bulk-btn delete" onclick="bulkAction('delete')">🗑 Delete</button>
+        <button class="bulk-btn cancel" onclick="clearSelection()">✕ Cancel</button>
     </div>
 
     <script>
@@ -535,7 +661,97 @@
                 e.preventDefault();
                 document.getElementById('searchInput').focus();
             }
+            // Escape to clear selection
+            if (e.key === 'Escape') {
+                clearSelection();
+            }
         });
+
+        // Bulk selection functions
+        function getSelectedTickets() {
+            const checkboxes = document.querySelectorAll('.ticket-checkbox[data-ticket-id]:checked');
+            return Array.from(checkboxes).map(cb => ({
+                id: parseInt(cb.dataset.ticketId),
+                status: cb.dataset.status
+            }));
+        }
+
+        function updateSelection() {
+            const selected = getSelectedTickets();
+            const count = selected.length;
+            const total = document.querySelectorAll('.ticket-checkbox[data-ticket-id]').length;
+
+            // Update count display
+            const countEl = document.getElementById('selectedCount');
+            const bulkCountEl = document.getElementById('bulkCount');
+            if (countEl) countEl.textContent = count > 0 ? `${count} of ${total} selected` : '';
+            if (bulkCountEl) bulkCountEl.textContent = count;
+
+            // Update select all checkbox
+            const selectAll = document.getElementById('selectAll');
+            if (selectAll) {
+                selectAll.checked = count === total && total > 0;
+                selectAll.indeterminate = count > 0 && count < total;
+            }
+
+            // Show/hide bulk actions bar
+            const bar = document.getElementById('bulkActionsBar');
+            if (bar) {
+                bar.classList.toggle('visible', count > 0);
+            }
+        }
+
+        function toggleSelectAll() {
+            const selectAll = document.getElementById('selectAll');
+            const checkboxes = document.querySelectorAll('.ticket-checkbox[data-ticket-id]');
+            checkboxes.forEach(cb => cb.checked = selectAll.checked);
+            updateSelection();
+        }
+
+        function clearSelection() {
+            const checkboxes = document.querySelectorAll('.ticket-checkbox');
+            checkboxes.forEach(cb => cb.checked = false);
+            updateSelection();
+        }
+
+        async function bulkAction(action) {
+            const selected = getSelectedTickets();
+            if (selected.length === 0) return;
+
+            // Confirmation for delete
+            if (action === 'delete') {
+                if (!confirm(`Are you sure you want to delete ${selected.length} ticket(s)? This cannot be undone.`)) {
+                    return;
+                }
+            }
+
+            // Confirmation for other actions
+            const actionNames = { close: 'close', reopen: 'reopen', retry: 'retry' };
+            if (actionNames[action] && !confirm(`${actionNames[action].charAt(0).toUpperCase() + actionNames[action].slice(1)} ${selected.length} ticket(s)?`)) {
+                return;
+            }
+
+            try {
+                const resp = await fetch('/api/tickets/bulk', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: action,
+                        ticket_ids: selected.map(t => t.id)
+                    })
+                });
+
+                const data = await resp.json();
+                if (data.success) {
+                    // Reload page to show changes
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + (data.message || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
     </script>
 </body>
 </html>

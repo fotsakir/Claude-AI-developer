@@ -927,6 +927,94 @@
         .ticket-row.open, .ticket-row.new { border-left-color: var(--accent-orange); }
         .ticket-row.done { border-left-color: var(--accent-green); }
 
+        /* Bulk selection for tickets */
+        .ticket-checkbox {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+            accent-color: var(--accent-primary);
+            flex-shrink: 0;
+        }
+        .ticket-row-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .select-all-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+        .select-all-row label {
+            color: var(--text-secondary);
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .selected-count {
+            margin-left: auto;
+            color: var(--accent-cyan);
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .bulk-actions-bar {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: rgba(13, 13, 22, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-glow);
+            border-radius: 14px;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), var(--glow-primary);
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s ease;
+        }
+        .bulk-actions-bar.visible {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .bulk-actions-bar .count {
+            color: var(--accent-cyan);
+            font-weight: 600;
+            font-size: 13px;
+            padding-right: 10px;
+            border-right: 1px solid var(--border-subtle);
+        }
+        .bulk-btn {
+            padding: 7px 14px;
+            border: none;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .bulk-btn.close { background: var(--accent-green); color: white; }
+        .bulk-btn.close:hover { background: #059669; }
+        .bulk-btn.reopen { background: var(--accent-orange); color: white; }
+        .bulk-btn.reopen:hover { background: #d97706; }
+        .bulk-btn.retry { background: var(--accent-cyan); color: #0d0d16; }
+        .bulk-btn.retry:hover { background: #06b6d4; }
+        .bulk-btn.delete { background: var(--accent-red); color: white; }
+        .bulk-btn.delete:hover { background: #dc2626; }
+        .bulk-btn.cancel { background: var(--bg-card); color: var(--text-secondary); border: 1px solid var(--border-subtle); }
+        .bulk-btn.cancel:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+
         .ticket-info { flex: 1; }
         .ticket-info .number { color: var(--accent-cyan); font-weight: 600; font-family: 'JetBrains Mono', monospace; margin-right: 10px; }
         .ticket-info .title { color: var(--text-primary); }
@@ -1179,8 +1267,7 @@
         <div class="panel">
             <h3>Upload Files</h3>
 
-            <!-- Path Tabs -->
-            {% if project.web_path and project.app_path %}
+            <!-- Path Tabs - Always show both options -->
             <div class="path-tabs" style="display:flex;gap:8px;margin-bottom:16px;">
                 <button class="path-tab active" data-path="web" onclick="switchPathTab('web')">
                     🌐 Web Path
@@ -1207,7 +1294,6 @@
                     border-color: var(--accent-primary);
                 }
             </style>
-            {% endif %}
 
             <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
                 <input type="file" id="fileInput" multiple onchange="handleFiles(this.files)">
@@ -1300,6 +1386,32 @@
             </div>
         </div>
 
+        <!-- Migration Export Section -->
+        <div class="panel">
+            <h3>📦 Export for Migration</h3>
+            <p style="color: var(--text-muted); margin-bottom: 16px; font-size: 13px;">
+                Create a complete backup including tickets, conversations, and all project data for migration to another server.
+            </p>
+            <div class="backup-actions">
+                <button onclick="exportMigration(true)" class="btn btn-primary">Export Full (with conversations)</button>
+                <button onclick="exportMigration(false)" class="btn btn-secondary">Export Light (without conversations)</button>
+            </div>
+            <div id="migrationStatus" style="margin-top: 12px; display: none;">
+                <div style="padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+                    <span id="migrationStatusText">Exporting...</span>
+                </div>
+            </div>
+            <div style="margin-top: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="color: var(--text-muted); font-size: 13px;">Existing Migration Backups</span>
+                    <button onclick="loadMigrationBackups()" class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;">Refresh</button>
+                </div>
+                <div class="backup-list" id="migrationBackupList">
+                    <div class="backup-empty">Loading...</div>
+                </div>
+            </div>
+        </div>
+
         <!-- Danger Zone -->
         <div class="danger-zone">
             <h3>⚠️ Danger Zone</h3>
@@ -1339,29 +1451,52 @@
             </div>
         </div>
 
+        {% if tickets %}
+        <div class="select-all-row">
+            <label>
+                <input type="checkbox" id="selectAllTickets" class="ticket-checkbox" onchange="toggleSelectAllTickets()">
+                Select All
+            </label>
+            <span class="selected-count" id="ticketSelectedCount"></span>
+        </div>
+        {% endif %}
+
         <div class="tickets-list">
             {% if tickets %}
                 {% for t in tickets %}
-                <a href="/ticket/{{ t.id }}" class="ticket-row {{ t.status }}">
-                    <div class="ticket-info">
-                        <span class="number">{{ t.ticket_number }}</span>
-                        <span class="type-badge type-{{ t.ticket_type or 'task' }}">{{ (t.ticket_type or 'task')|upper }}</span>
-                        <span class="title">{{ t.title }}</span>
-                        <span class="priority {{ t.priority }}">{{ t.priority|upper }}</span>
-                        {% if t.sequence_order %}<span class="seq-badge">#{{ t.sequence_order }}</span>{% endif %}
-                        {% if t.is_forced %}<span class="forced-badge">FORCED</span>{% endif %}
-                        <div class="meta">Created {{ t.created_at.strftime('%Y-%m-%d %H:%M') if t.created_at else 'N/A' }}</div>
-                    </div>
-                    <div class="ticket-status">
-                        <span class="status-badge {{ t.status }}">{{ t.status }}</span>
-                    </div>
-                </a>
+                <div class="ticket-row-wrapper">
+                    <input type="checkbox" class="ticket-checkbox" data-ticket-id="{{ t.id }}" data-status="{{ t.status }}" onchange="updateTicketSelection()">
+                    <a href="/ticket/{{ t.id }}" class="ticket-row {{ t.status }}" style="flex:1">
+                        <div class="ticket-info">
+                            <span class="number">{{ t.ticket_number }}</span>
+                            <span class="type-badge type-{{ t.ticket_type or 'task' }}">{{ (t.ticket_type or 'task')|upper }}</span>
+                            <span class="title">{{ t.title }}</span>
+                            <span class="priority {{ t.priority }}">{{ t.priority|upper }}</span>
+                            {% if t.sequence_order %}<span class="seq-badge">#{{ t.sequence_order }}</span>{% endif %}
+                            {% if t.is_forced %}<span class="forced-badge">FORCED</span>{% endif %}
+                            <div class="meta">Created {{ t.created_at.strftime('%Y-%m-%d %H:%M') if t.created_at else 'N/A' }}</div>
+                        </div>
+                        <div class="ticket-status">
+                            <span class="status-badge {{ t.status }}">{{ t.status }}</span>
+                        </div>
+                    </a>
+                </div>
                 {% endfor %}
             {% else %}
                 <div class="empty">
                     <p>No tickets yet. Create your first ticket!</p>
                 </div>
             {% endif %}
+        </div>
+
+        <!-- Bulk Actions Bar for Tickets -->
+        <div class="bulk-actions-bar" id="ticketBulkActionsBar">
+            <span class="count"><span id="ticketBulkCount">0</span> selected</span>
+            <button class="bulk-btn close" onclick="ticketBulkAction('close')">✓ Close</button>
+            <button class="bulk-btn reopen" onclick="ticketBulkAction('reopen')">↺ Reopen</button>
+            <button class="bulk-btn retry" onclick="ticketBulkAction('retry')">⟳ Retry</button>
+            <button class="bulk-btn delete" onclick="ticketBulkAction('delete')">🗑 Delete</button>
+            <button class="bulk-btn cancel" onclick="clearTicketSelection()">✕ Cancel</button>
         </div>
         {% else %}
         <div class="empty">
@@ -2208,7 +2343,122 @@
             }
         }
 
+        // === MIGRATION EXPORT ===
+        async function exportMigration(includeConversations) {
+            const statusDiv = document.getElementById('migrationStatus');
+            const statusText = document.getElementById('migrationStatusText');
+
+            statusDiv.style.display = 'block';
+            statusText.innerHTML = '⏳ Creating migration backup... This may take a while for large projects.';
+            statusText.style.color = 'var(--text-primary)';
+
+            try {
+                const resp = await fetch(`/api/project/${projectId}/export-migration`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({include_conversations: includeConversations})
+                });
+                const result = await resp.json();
+
+                if (result.success) {
+                    const sizeMB = (result.size / 1024 / 1024).toFixed(2);
+                    statusText.innerHTML = `
+                        ✅ Migration backup created successfully!<br>
+                        <span style="font-size: 12px; color: var(--text-muted);">
+                            File: ${result.filename} (${sizeMB} MB)
+                        </span><br><br>
+                        <a href="${result.download_url}" class="btn btn-primary" style="margin-right: 8px;">Download Backup</a>
+                        <span style="font-size: 11px; color: var(--text-muted);">
+                            Copy this file to the new server and use "Import from Backup" to restore.
+                        </span>
+                    `;
+                    statusText.style.color = 'var(--accent-green)';
+                    // Refresh migration backups list
+                    loadMigrationBackups();
+                } else {
+                    statusText.innerHTML = `❌ Error: ${result.message}`;
+                    statusText.style.color = 'var(--accent-red)';
+                }
+            } catch (err) {
+                statusText.innerHTML = `❌ Error: ${err.message}`;
+                statusText.style.color = 'var(--accent-red)';
+            }
+        }
+
+        async function loadMigrationBackups() {
+            const container = document.getElementById('migrationBackupList');
+            container.innerHTML = '<div class="backup-empty">Loading...</div>';
+
+            try {
+                const resp = await fetch('/api/migration-backups');
+                const result = await resp.json();
+
+                if (!result.success) {
+                    container.innerHTML = `<div class="backup-empty" style="color:var(--accent-red)">${result.message}</div>`;
+                    return;
+                }
+
+                // Filter backups for current project
+                const projectCode = "{{ project.code }}";
+                const projectBackups = result.backups.filter(b =>
+                    b.project_code === projectCode || b.filename.toLowerCase().includes(projectCode.toLowerCase())
+                );
+
+                if (projectBackups.length === 0) {
+                    container.innerHTML = '<div class="backup-empty">No migration backups for this project.</div>';
+                    return;
+                }
+
+                container.innerHTML = projectBackups.map(b => {
+                    const date = new Date(b.created).toLocaleString();
+                    const sizeMB = (b.size / 1024 / 1024).toFixed(2);
+                    const convLabel = b.has_conversations ? 'Full' : 'Light';
+
+                    return `
+                        <div class="backup-item">
+                            <span class="trigger ${b.has_conversations ? 'manual' : 'auto'}">${convLabel}</span>
+                            <div class="info">
+                                <div class="filename">${b.filename}</div>
+                                <div class="meta">${date} - ${sizeMB} MB - ${b.tickets_count} tickets</div>
+                            </div>
+                            <div class="actions">
+                                <button onclick="downloadMigrationBackup('${b.filename}')">Download</button>
+                                <button class="delete" onclick="deleteMigrationBackup('${b.filename}')">Delete</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (err) {
+                container.innerHTML = `<div class="backup-empty" style="color:var(--accent-red)">Error loading backups</div>`;
+            }
+        }
+
+        function downloadMigrationBackup(filename) {
+            window.location.href = `/api/migration-backup/${filename}`;
+        }
+
+        async function deleteMigrationBackup(filename) {
+            if (!confirm(`Delete migration backup "${filename}"?`)) return;
+
+            try {
+                const resp = await fetch(`/api/migration-backup/${filename}`, {
+                    method: 'DELETE'
+                });
+                const result = await resp.json();
+
+                if (result.success) {
+                    loadMigrationBackups();
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
         loadBackups();
+        loadMigrationBackups();
 
         // Delete Project Functions
         const projectName = "{{ project.name }}";
@@ -2232,6 +2482,99 @@
                 btn.classList.remove('enabled');
             }
         }
+
+        // Bulk ticket selection functions
+        function getSelectedTickets() {
+            const checkboxes = document.querySelectorAll('.ticket-checkbox[data-ticket-id]:checked');
+            return Array.from(checkboxes).map(cb => ({
+                id: parseInt(cb.dataset.ticketId),
+                status: cb.dataset.status
+            }));
+        }
+
+        function updateTicketSelection() {
+            const selected = getSelectedTickets();
+            const count = selected.length;
+            const total = document.querySelectorAll('.ticket-checkbox[data-ticket-id]').length;
+
+            // Update count display
+            const countEl = document.getElementById('ticketSelectedCount');
+            const bulkCountEl = document.getElementById('ticketBulkCount');
+            if (countEl) countEl.textContent = count > 0 ? `${count} of ${total} selected` : '';
+            if (bulkCountEl) bulkCountEl.textContent = count;
+
+            // Update select all checkbox
+            const selectAll = document.getElementById('selectAllTickets');
+            if (selectAll) {
+                selectAll.checked = count === total && total > 0;
+                selectAll.indeterminate = count > 0 && count < total;
+            }
+
+            // Show/hide bulk actions bar
+            const bar = document.getElementById('ticketBulkActionsBar');
+            if (bar) {
+                bar.classList.toggle('visible', count > 0);
+            }
+        }
+
+        function toggleSelectAllTickets() {
+            const selectAll = document.getElementById('selectAllTickets');
+            const checkboxes = document.querySelectorAll('.ticket-checkbox[data-ticket-id]');
+            checkboxes.forEach(cb => cb.checked = selectAll.checked);
+            updateTicketSelection();
+        }
+
+        function clearTicketSelection() {
+            const checkboxes = document.querySelectorAll('.ticket-checkbox');
+            checkboxes.forEach(cb => cb.checked = false);
+            updateTicketSelection();
+        }
+
+        async function ticketBulkAction(action) {
+            const selected = getSelectedTickets();
+            if (selected.length === 0) return;
+
+            // Confirmation for delete
+            if (action === 'delete') {
+                if (!confirm(`Are you sure you want to delete ${selected.length} ticket(s)? This cannot be undone.`)) {
+                    return;
+                }
+            }
+
+            // Confirmation for other actions
+            const actionNames = { close: 'Close', reopen: 'Reopen', retry: 'Retry' };
+            if (actionNames[action] && !confirm(`${actionNames[action]} ${selected.length} ticket(s)?`)) {
+                return;
+            }
+
+            try {
+                const resp = await fetch('/api/tickets/bulk', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: action,
+                        ticket_ids: selected.map(t => t.id)
+                    })
+                });
+
+                const data = await resp.json();
+                if (data.success) {
+                    // Reload page to show changes
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + (data.message || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        // Escape key to clear selection
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                clearTicketSelection();
+            }
+        });
 
         async function deleteProject() {
             const input = document.getElementById('deleteConfirmInput').value;

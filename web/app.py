@@ -45,7 +45,9 @@ import shutil
 import uuid
 import urllib.request
 import urllib.error
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
+from decimal import Decimal
+import random
 from functools import wraps
 import logging
 
@@ -1598,33 +1600,711 @@ def restore_project_backup(project_id, backup_filename):
                     shutil.rmtree(project['app_path'])
                 shutil.copytree(app_backup, project['app_path'])
 
-            # Restore database
-            db_dir = os.path.join(temp_dir, 'database')
-            if os.path.exists(db_dir) and project.get('db_name'):
-                db_host = project.get('db_host', 'localhost')
-                db_name = project['db_name']
-                db_user = project['db_user']
-                db_pass = project['db_password']
+            # Note: Database is NOT restored - backup keeps DB snapshot for reference only
+            # User can manually restore DB from backup if needed
 
-                # Restore schema first
-                schema_file = os.path.join(db_dir, 'schema.sql')
-                if os.path.exists(schema_file):
-                    cmd = f"mysql -h {db_host} -u {db_user} -p'{db_pass}' {db_name} < {schema_file} 2>/dev/null"
-                    subprocess.run(cmd, shell=True)
-
-                # Restore data
-                data_file = os.path.join(db_dir, 'data.sql')
-                if os.path.exists(data_file):
-                    cmd = f"mysql -h {db_host} -u {db_user} -p'{db_pass}' {db_name} < {data_file} 2>/dev/null"
-                    subprocess.run(cmd, shell=True)
-
-            return True, "Restore completed successfully"
+            return True, "Restore completed successfully (files only, database not modified)"
 
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
     except Exception as e:
         return False, str(e)
+
+
+# =============================================================================
+# FULL PROJECT EXPORT/IMPORT (for cross-server migration)
+# =============================================================================
+
+MIGRATION_BACKUP_DIR = os.path.join(BACKUP_DIR, 'migrations')
+
+
+def export_project_full(project_id, include_conversations=True):
+    """
+    Create a complete project export for cross-server migration.
+    Includes: project metadata, tickets, dependencies, conversations, files, database.
+    Returns (success, message, backup_path)
+    """
+    try:
+        conn = get_db()
+        cursor = conn.cursor(dictionary=True)
+
+        # Get project
+        cursor.execute("SELECT * FROM projects WHERE id = %s", (project_id,))
+        project = cursor.fetchone()
+        if not project:
+            cursor.close()
+            conn.close()
+            return False, "Project not found", None
+
+        project_code = project['code']
+
+        # Get all tickets
+        cursor.execute("""
+            SELECT * FROM tickets WHERE project_id = %s
+            ORDER BY sequence_order, id
+        """, (project_id,))
+        tickets = cursor.fetchall()
+
+        # Get ticket dependencies
+        ticket_ids = [t['id'] for t in tickets]
+        dependencies = []
+        if ticket_ids:
+            placeholders = ','.join(['%s'] * len(ticket_ids))
+            cursor.execute(f"""
+                SELECT td.*, t1.ticket_number as ticket_num, t2.ticket_number as depends_on_num
+                FROM ticket_dependencies td
+                JOIN tickets t1 ON td.ticket_id = t1.id
+                JOIN tickets t2 ON td.depends_on_ticket_id = t2.id
+                WHERE td.ticket_id IN ({placeholders})
+            """, ticket_ids)
+            dependencies = cursor.fetchall()
+
+        # Get conversations if requested
+        conversations = []
+        if include_conversations and ticket_ids:
+            placeholders = ','.join(['%s'] * len(ticket_ids))
+            cursor.execute(f"""
+                SELECT cm.*, t.ticket_number
+                FROM conversation_messages cm
+                JOIN tickets t ON cm.ticket_id = t.id
+                WHERE cm.ticket_id IN ({placeholders})
+                ORDER BY cm.id
+            """, ticket_ids)
+            conversations = cursor.fetchall()
+
+        cursor.close()
+        conn.close()
+
+        # Create migration backup directory
+        os.makedirs(MIGRATION_BACKUP_DIR, exist_ok=True)
+
+        # Create backup filename
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        backup_name = f"{project_code}_migration_{timestamp}.zip"
+        backup_path = os.path.join(MIGRATION_BACKUP_DIR, backup_name)
+
+        # Create temp directory
+        temp_dir = tempfile.mkdtemp()
+        temp_backup = os.path.join(temp_dir, 'backup')
+        os.makedirs(temp_backup)
+
+        try:
+            # Helper to convert datetime/date objects
+            def serialize_row(row):
+                result = {}
+                for key, value in row.items():
+                    if isinstance(value, (datetime, date)):
+                        result[key] = value.isoformat()
+                    elif isinstance(value, timedelta):
+                        result[key] = str(value)
+                    elif isinstance(value, Decimal):
+                        result[key] = float(value)
+                    else:
+                        result[key] = value
+                return result
+
+            # Save project data
+            project_data = serialize_row(project)
+            # Remove server-specific fields that will be regenerated
+            project_data.pop('id', None)
+            with open(os.path.join(temp_backup, 'project_data.json'), 'w') as f:
+                json.dump(project_data, f, indent=2, ensure_ascii=False)
+
+            # Save tickets (remove IDs, keep ticket_numbers for reference)
+            tickets_data = []
+            ticket_id_to_number = {}
+            for t in tickets:
+                ticket_id_to_number[t['id']] = t['ticket_number']
+                t_data = serialize_row(t)
+                t_data.pop('id', None)
+                t_data.pop('project_id', None)
+                # Store parent ticket by number instead of ID
+                if t.get('parent_ticket_id'):
+                    parent_num = ticket_id_to_number.get(t['parent_ticket_id'])
+                    t_data['parent_ticket_number'] = parent_num
+                t_data.pop('parent_ticket_id', None)
+                tickets_data.append(t_data)
+
+            with open(os.path.join(temp_backup, 'tickets.json'), 'w') as f:
+                json.dump(tickets_data, f, indent=2, ensure_ascii=False)
+
+            # Save dependencies (using ticket_numbers)
+            deps_data = []
+            for d in dependencies:
+                deps_data.append({
+                    'ticket_number': d['ticket_num'],
+                    'depends_on_number': d['depends_on_num']
+                })
+            with open(os.path.join(temp_backup, 'dependencies.json'), 'w') as f:
+                json.dump(deps_data, f, indent=2, ensure_ascii=False)
+
+            # Save conversations (using ticket_numbers)
+            if conversations:
+                convs_data = []
+                for c in conversations:
+                    c_data = serialize_row(c)
+                    c_data.pop('id', None)
+                    c_data.pop('ticket_id', None)
+                    convs_data.append(c_data)
+                with open(os.path.join(temp_backup, 'conversations.json'), 'w') as f:
+                    json.dump(convs_data, f, indent=2, ensure_ascii=False)
+
+            # Copy web folder
+            if project.get('web_path') and os.path.exists(project['web_path']):
+                web_dest = os.path.join(temp_backup, 'web')
+                shutil.copytree(project['web_path'], web_dest, dirs_exist_ok=True)
+
+            # Copy app folder
+            if project.get('app_path') and os.path.exists(project['app_path']):
+                app_dest = os.path.join(temp_backup, 'app')
+                shutil.copytree(project['app_path'], app_dest, dirs_exist_ok=True)
+
+            # Export project database if exists
+            if project.get('db_name') and project.get('db_user') and project.get('db_password'):
+                db_dir = os.path.join(temp_backup, 'database')
+                os.makedirs(db_dir, exist_ok=True)
+
+                db_host = project.get('db_host', 'localhost')
+                db_name = project['db_name']
+                db_user = project['db_user']
+                db_pass = project['db_password']
+
+                # Full dump with schema and data
+                dump_file = os.path.join(db_dir, 'full_dump.sql')
+                dump_cmd = f"mysqldump -h {db_host} -u {db_user} -p'{db_pass}' {db_name} 2>/dev/null"
+                result = subprocess.run(dump_cmd, shell=True, capture_output=True, text=True)
+                if result.returncode == 0 and result.stdout.strip():
+                    with open(dump_file, 'w') as f:
+                        f.write(result.stdout)
+
+            # Create backup info
+            backup_info = {
+                'version': '2.0',  # Migration backup format version
+                'type': 'migration',
+                'project_code': project_code,
+                'project_name': project['name'],
+                'created_at': datetime.now().isoformat(),
+                'source_server': os.uname().nodename,
+                'tickets_count': len(tickets),
+                'conversations_included': include_conversations and len(conversations) > 0,
+                'has_web_files': bool(project.get('web_path') and os.path.exists(project['web_path'])),
+                'has_app_files': bool(project.get('app_path') and os.path.exists(project['app_path'])),
+                'has_database': bool(project.get('db_name')),
+                'original_web_path': project.get('web_path'),
+                'original_app_path': project.get('app_path')
+            }
+            with open(os.path.join(temp_backup, 'backup_info.json'), 'w') as f:
+                json.dump(backup_info, f, indent=2)
+
+            # Create zip
+            with zipfile.ZipFile(backup_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for root, dirs, files in os.walk(temp_backup):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        arc_name = os.path.relpath(file_path, temp_backup)
+                        zipf.write(file_path, arc_name)
+
+            return True, f"Migration backup created: {backup_name}", backup_path
+
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    except Exception as e:
+        return False, f"Export failed: {str(e)}", None
+
+
+def import_project_from_backup(backup_path, new_project_name=None, web_path=None, app_path=None):
+    """
+    Import a project from a migration backup file.
+    Creates new project with all tickets and optionally conversations.
+    Returns (success, message, project_id)
+    """
+    try:
+        if not os.path.exists(backup_path):
+            return False, "Backup file not found", None
+
+        # Extract to temp directory
+        temp_dir = tempfile.mkdtemp()
+
+        try:
+            with zipfile.ZipFile(backup_path, 'r') as zipf:
+                zipf.extractall(temp_dir)
+
+            # Read backup info
+            info_file = os.path.join(temp_dir, 'backup_info.json')
+            if not os.path.exists(info_file):
+                return False, "Invalid backup: missing backup_info.json", None
+
+            with open(info_file, 'r') as f:
+                backup_info = json.load(f)
+
+            # Check version
+            if backup_info.get('version') != '2.0' and backup_info.get('type') != 'migration':
+                return False, "This backup is not a migration backup. Use regular restore instead.", None
+
+            # Read project data
+            project_file = os.path.join(temp_dir, 'project_data.json')
+            if not os.path.exists(project_file):
+                return False, "Invalid backup: missing project_data.json", None
+
+            with open(project_file, 'r') as f:
+                project_data = json.load(f)
+
+            # Read tickets
+            tickets_file = os.path.join(temp_dir, 'tickets.json')
+            tickets_data = []
+            if os.path.exists(tickets_file):
+                with open(tickets_file, 'r') as f:
+                    tickets_data = json.load(f)
+
+            # Read dependencies
+            deps_file = os.path.join(temp_dir, 'dependencies.json')
+            deps_data = []
+            if os.path.exists(deps_file):
+                with open(deps_file, 'r') as f:
+                    deps_data = json.load(f)
+
+            # Read conversations
+            convs_file = os.path.join(temp_dir, 'conversations.json')
+            convs_data = []
+            if os.path.exists(convs_file):
+                with open(convs_file, 'r') as f:
+                    convs_data = json.load(f)
+
+            conn = get_db()
+            cursor = conn.cursor(dictionary=True)
+
+            # Generate unique project code if needed
+            original_code = project_data.get('code', 'IMPORT')
+            new_code = original_code
+            counter = 1
+            while True:
+                cursor.execute("SELECT id FROM projects WHERE code = %s", (new_code,))
+                if not cursor.fetchone():
+                    break
+                new_code = f"{original_code[:6]}{counter}"
+                counter += 1
+
+            # Determine paths
+            project_name = new_project_name or project_data.get('name', 'Imported Project')
+            safe_name = ''.join(c if c.isalnum() or c in '-_' else '-' for c in project_name.lower())
+
+            # Use provided paths or generate defaults
+            final_web_path = web_path
+            final_app_path = app_path
+
+            if backup_info.get('has_web_files') and not final_web_path:
+                final_web_path = f"/var/www/projects/{safe_name}"
+
+            if backup_info.get('has_app_files') and not final_app_path:
+                final_app_path = f"/opt/apps/{safe_name}"
+
+            # Create project database if original had one
+            db_name = None
+            db_user = None
+            db_pass = None
+            if backup_info.get('has_database'):
+                db_name = f"proj_{new_code.lower()}"
+                db_user = f"proj_{new_code.lower()}"
+                db_pass = ''.join(random.choices('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', k=16))
+
+                # Create database and user using app connection (claude_user has CREATE USER privileges)
+                try:
+                    db_conn = get_db()
+                    db_cursor = db_conn.cursor()
+
+                    # Create database
+                    db_cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{db_name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+
+                    # Drop user if exists (ignore errors)
+                    try:
+                        db_cursor.execute(f"DROP USER IF EXISTS '{db_user}'@'localhost'")
+                    except:
+                        pass
+
+                    # Create user and grant privileges
+                    db_cursor.execute(f"CREATE USER '{db_user}'@'localhost' IDENTIFIED BY '{db_pass}'")
+                    db_cursor.execute(f"GRANT ALL PRIVILEGES ON `{db_name}`.* TO '{db_user}'@'localhost'")
+                    db_cursor.execute("FLUSH PRIVILEGES")
+                    db_conn.commit()
+
+                    # Import database dump
+                    dump_file = os.path.join(temp_dir, 'database', 'full_dump.sql')
+                    if os.path.exists(dump_file):
+                        import_cmd = f"mysql -u '{db_user}' -p'{db_pass}' {db_name} < '{dump_file}' 2>/dev/null"
+                        subprocess.run(import_cmd, shell=True)
+                except Exception as e:
+                    print(f"Database creation warning: {e}")
+
+            # Create project
+            cursor.execute("""
+                INSERT INTO projects (
+                    name, code, description, project_type, tech_stack,
+                    web_path, app_path, reference_path, context, status,
+                    db_name, db_user, db_password, db_host,
+                    default_test_command, ai_model, git_enabled, default_execution_mode
+                ) VALUES (
+                    %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s,
+                    %s, %s, %s, %s
+                )
+            """, (
+                project_name, new_code,
+                project_data.get('description'),
+                project_data.get('project_type', 'web'),
+                project_data.get('tech_stack'),
+                final_web_path,
+                final_app_path,
+                project_data.get('reference_path'),
+                project_data.get('context'),
+                'active',
+                db_name,
+                db_user,
+                db_pass,
+                project_data.get('db_host', 'localhost'),
+                project_data.get('default_test_command'),
+                project_data.get('ai_model', 'sonnet'),
+                project_data.get('git_enabled', 1),
+                project_data.get('default_execution_mode', 'autonomous')
+            ))
+            new_project_id = cursor.lastrowid
+            conn.commit()
+
+            # Copy files
+            if backup_info.get('has_web_files') and final_web_path:
+                web_src = os.path.join(temp_dir, 'web')
+                if os.path.exists(web_src):
+                    os.makedirs(final_web_path, exist_ok=True)
+                    shutil.copytree(web_src, final_web_path, dirs_exist_ok=True)
+                    # Set permissions
+                    subprocess.run(f"chown -R claude:claude {final_web_path}", shell=True)
+
+            if backup_info.get('has_app_files') and final_app_path:
+                app_src = os.path.join(temp_dir, 'app')
+                if os.path.exists(app_src):
+                    os.makedirs(final_app_path, exist_ok=True)
+                    shutil.copytree(app_src, final_app_path, dirs_exist_ok=True)
+                    subprocess.run(f"chown -R claude:claude {final_app_path}", shell=True)
+
+            # Create tickets and map old numbers to new IDs
+            ticket_number_to_id = {}
+            for t in tickets_data:
+                # Generate new ticket number
+                new_ticket_number = f"{new_code}-{str(len(ticket_number_to_id) + 1).zfill(4)}"
+
+                # Determine status - completed tickets stay completed, others become 'open'
+                original_status = t.get('status', 'open')
+                if original_status in ('done', 'failed', 'stuck', 'skipped', 'timeout'):
+                    new_status = original_status
+                else:
+                    new_status = 'open'  # Reset in-progress/pending tickets
+
+                cursor.execute("""
+                    INSERT INTO tickets (
+                        project_id, ticket_number, title, description, context,
+                        priority, ticket_type, sequence_order, is_forced,
+                        retry_count, max_retries, max_duration_minutes,
+                        test_command, require_tests_pass, start_when_ready,
+                        deps_include_awaiting, execution_mode, status,
+                        result_summary, ai_model
+                    ) VALUES (
+                        %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s,
+                        %s, %s, %s,
+                        %s, %s, %s,
+                        %s, %s, %s,
+                        %s, %s
+                    )
+                """, (
+                    new_project_id, new_ticket_number,
+                    t.get('title'),
+                    t.get('description'),
+                    t.get('context'),
+                    t.get('priority', 'medium'),
+                    t.get('ticket_type', 'task'),
+                    t.get('sequence_order'),
+                    t.get('is_forced', 0),
+                    0,  # Reset retry count
+                    t.get('max_retries', 3),
+                    t.get('max_duration_minutes', 60),
+                    t.get('test_command'),
+                    t.get('require_tests_pass', 0),
+                    t.get('start_when_ready', 1),
+                    t.get('deps_include_awaiting', 0),
+                    t.get('execution_mode'),
+                    new_status,
+                    t.get('result_summary') if new_status == 'done' else None,
+                    t.get('ai_model')
+                ))
+                new_ticket_id = cursor.lastrowid
+                old_ticket_number = t.get('ticket_number')
+                ticket_number_to_id[old_ticket_number] = new_ticket_id
+
+                # Handle parent tickets later
+                if t.get('parent_ticket_number'):
+                    # Will update after all tickets created
+                    pass
+
+            conn.commit()
+
+            # Update parent ticket references
+            for t in tickets_data:
+                if t.get('parent_ticket_number'):
+                    old_number = t.get('ticket_number')
+                    parent_old_number = t.get('parent_ticket_number')
+                    if old_number in ticket_number_to_id and parent_old_number in ticket_number_to_id:
+                        cursor.execute("""
+                            UPDATE tickets SET parent_ticket_id = %s WHERE id = %s
+                        """, (ticket_number_to_id[parent_old_number], ticket_number_to_id[old_number]))
+
+            # Create dependencies
+            for d in deps_data:
+                ticket_num = d.get('ticket_number')
+                depends_on_num = d.get('depends_on_number')
+                if ticket_num in ticket_number_to_id and depends_on_num in ticket_number_to_id:
+                    cursor.execute("""
+                        INSERT IGNORE INTO ticket_dependencies (ticket_id, depends_on_ticket_id)
+                        VALUES (%s, %s)
+                    """, (ticket_number_to_id[ticket_num], ticket_number_to_id[depends_on_num]))
+
+            conn.commit()
+
+            # Import conversations if available
+            if convs_data:
+                for c in convs_data:
+                    ticket_num = c.get('ticket_number')
+                    if ticket_num in ticket_number_to_id:
+                        cursor.execute("""
+                            INSERT INTO conversation_messages (
+                                ticket_id, session_id, role, content,
+                                tool_name, tool_input, tokens_used, token_count, is_summarized
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """, (
+                            ticket_number_to_id[ticket_num],
+                            c.get('session_id'),
+                            c.get('role'),
+                            c.get('content'),
+                            c.get('tool_name'),
+                            json.dumps(c.get('tool_input')) if c.get('tool_input') else None,
+                            c.get('tokens_used', 0),
+                            c.get('token_count', 0),
+                            c.get('is_summarized', 0)
+                        ))
+
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+            return True, f"Project '{project_name}' imported successfully with {len(tickets_data)} tickets", new_project_id
+
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return False, f"Import failed: {str(e)}", None
+
+
+def simple_import_project(backup_path, project_name, project_code, web_path=None, app_path=None, project_type='web', tech_stack=None, description=None):
+    """
+    Simple import: just files and database, no tickets/conversations.
+    For regular backups or external project imports.
+    Returns (success, message, project_id)
+    """
+    try:
+        if not os.path.exists(backup_path):
+            return False, "Backup file not found", None
+
+        if not project_name or not project_code:
+            return False, "Project name and code are required", None
+
+        # Validate code
+        project_code = project_code.upper().strip()
+        if not project_code.isalnum():
+            return False, "Project code must be alphanumeric", None
+
+        temp_dir = tempfile.mkdtemp()
+
+        try:
+            # Extract ZIP
+            with zipfile.ZipFile(backup_path, 'r') as zipf:
+                zipf.extractall(temp_dir)
+
+            conn = get_db()
+            cursor = conn.cursor(dictionary=True)
+
+            # Check if code already exists
+            cursor.execute("SELECT id FROM projects WHERE code = %s", (project_code,))
+            if cursor.fetchone():
+                cursor.close()
+                conn.close()
+                return False, f"Project code '{project_code}' already exists", None
+
+            # Detect backup structure - find project root (where .git might be)
+            project_root = temp_dir
+            root_items = os.listdir(temp_dir)
+            non_special = [item for item in root_items if item not in ['__MACOSX'] and not item.startswith('.')]
+
+            # If single folder in root, that's the project root
+            if len(non_special) == 1 and os.path.isdir(os.path.join(temp_dir, non_special[0])):
+                project_root = os.path.join(temp_dir, non_special[0])
+
+            # Check for web/ and app/ folders in project root
+            web_source = None
+            app_source = None
+
+            # Priority 1: web/ and app/ folders directly in project root
+            if os.path.isdir(os.path.join(project_root, 'web')):
+                web_source = os.path.join(project_root, 'web')
+            if os.path.isdir(os.path.join(project_root, 'app')):
+                app_source = os.path.join(project_root, 'app')
+
+            # Priority 2: files/web and files/app structure
+            if not web_source and os.path.isdir(os.path.join(project_root, 'files', 'web')):
+                web_source = os.path.join(project_root, 'files', 'web')
+            if not app_source and os.path.isdir(os.path.join(project_root, 'files', 'app')):
+                app_source = os.path.join(project_root, 'files', 'app')
+
+            # Priority 3: files/ folder (for web)
+            if not web_source and os.path.isdir(os.path.join(project_root, 'files')):
+                web_source = os.path.join(project_root, 'files')
+
+            # Priority 4: if no web/ or app/, use project root for web (excluding special folders)
+            if not web_source and not app_source:
+                web_source = project_root
+
+            # Check for database dumps
+            has_database_dir = os.path.isdir(os.path.join(project_root, 'database'))
+            root_sql_files = [f for f in os.listdir(project_root) if f.endswith('.sql')]
+            has_sql_dump = has_database_dir or len(root_sql_files) > 0
+
+            # Always create database (like regular project creation)
+            # Create database and user using app connection (like create_project_database)
+            db_name = f"proj_{project_code.lower()}"
+            db_user = f"proj_{project_code.lower()}"
+            db_pass = ''.join(random.choices('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', k=16))
+
+            try:
+                # Use app's database connection (claude_user has CREATE USER privileges)
+                db_conn = get_db()
+                db_cursor = db_conn.cursor()
+
+                # Create database
+                db_cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{db_name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+
+                # Drop user if exists, then create new
+                try:
+                    db_cursor.execute(f"DROP USER '{db_user}'@'localhost'")
+                except:
+                    pass  # User doesn't exist, that's fine
+
+                # Create user with password
+                db_cursor.execute(f"CREATE USER '{db_user}'@'localhost' IDENTIFIED BY '{db_pass}'")
+                db_cursor.execute(f"GRANT ALL PRIVILEGES ON `{db_name}`.* TO '{db_user}'@'localhost'")
+                db_cursor.execute("FLUSH PRIVILEGES")
+
+                db_conn.commit()
+                db_cursor.close()
+                db_conn.close()
+
+                # Import database dump if present
+                if has_sql_dump:
+                    sql_imported = False
+
+                    # Try database/ folder first
+                    if has_database_dir:
+                        db_dir = os.path.join(project_root, 'database')
+
+                        # First try single full dump files
+                        for dump_name in ['full_dump.sql', 'dump.sql', f'{project_code.lower()}.sql']:
+                            dump_file = os.path.join(db_dir, dump_name)
+                            if os.path.exists(dump_file):
+                                subprocess.run(f"mysql -u '{db_user}' -p'{db_pass}' {db_name} < '{dump_file}' 2>/dev/null", shell=True)
+                                sql_imported = True
+                                break
+
+                        if not sql_imported:
+                            # Import ALL .sql files (schema first, then data, then others)
+                            sql_files = [f for f in os.listdir(db_dir) if f.endswith('.sql')]
+                            # Sort: schema.sql first, data.sql second, others alphabetically
+                            def sql_sort_key(name):
+                                if name == 'schema.sql': return (0, name)
+                                if name == 'data.sql': return (1, name)
+                                return (2, name)
+                            sql_files.sort(key=sql_sort_key)
+
+                            for sql_file in sql_files:
+                                subprocess.run(f"mysql -u '{db_user}' -p'{db_pass}' {db_name} < '{os.path.join(db_dir, sql_file)}' 2>/dev/null", shell=True)
+                                sql_imported = True
+
+                    # Try root-level SQL files
+                    if not sql_imported and root_sql_files:
+                        for sql_file in root_sql_files:
+                            subprocess.run(f"mysql -u '{db_user}' -p'{db_pass}' {db_name} < '{os.path.join(project_root, sql_file)}' 2>/dev/null", shell=True)
+            except Exception as e:
+                import traceback
+                print(f"Database creation error: {e}\n{traceback.format_exc()}")
+
+            # Copy files to destinations
+            files_copied = []
+
+            # Copy web files
+            if web_path and web_source:
+                os.makedirs(web_path, exist_ok=True)
+                # If source is project_root, copy selectively (exclude special folders)
+                if web_source == project_root:
+                    for item in os.listdir(project_root):
+                        if item not in ['database', '__MACOSX', 'app', 'web', '.git'] and not item.endswith('.sql'):
+                            src_path = os.path.join(project_root, item)
+                            subprocess.run(f"cp -r '{src_path}' '{web_path}/' 2>/dev/null || true", shell=True)
+                else:
+                    subprocess.run(f"cp -r '{web_source}'/. '{web_path}/' 2>/dev/null || true", shell=True)
+                subprocess.run(f"chown -R www-data:www-data '{web_path}' 2>/dev/null || true", shell=True)
+                if os.listdir(web_path):
+                    files_copied.append(f"web: {web_path}")
+
+            # Copy app files
+            if app_path and app_source:
+                os.makedirs(app_path, exist_ok=True)
+                subprocess.run(f"cp -r '{app_source}'/. '{app_path}/' 2>/dev/null || true", shell=True)
+                subprocess.run(f"chown -R claude:claude '{app_path}' 2>/dev/null || true", shell=True)
+                if os.listdir(app_path):
+                    files_copied.append(f"app: {app_path}")
+
+            # Create project record
+            cursor.execute("""
+                INSERT INTO projects (
+                    name, code, description, project_type, tech_stack,
+                    web_path, app_path, status, db_name, db_user, db_password, db_host
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                project_name, project_code, description, project_type, tech_stack,
+                web_path, app_path, 'active', db_name, db_user, db_pass, 'localhost'
+            ))
+
+            new_project_id = cursor.lastrowid
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+            msg_parts = [f"Project '{project_name}' created"]
+            if files_copied:
+                msg_parts.append(f"files copied to {', '.join(files_copied)}")
+            if db_name:
+                msg_parts.append(f"database: {db_name}")
+
+            return True, '. '.join(msg_parts), new_project_id
+
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return False, f"Simple import failed: {str(e)}", None
 
 
 @app.route('/api/project/<int:project_id>/backup', methods=['POST'])
@@ -1745,6 +2425,246 @@ def api_delete_backup(project_id, filename):
             return jsonify({'success': False, 'message': 'Project not found'})
 
         backup_path = os.path.join(BACKUP_DIR, project['code'], filename)
+
+        if os.path.exists(backup_path):
+            os.remove(backup_path)
+            return jsonify({'success': True, 'message': 'Backup deleted'})
+        else:
+            return jsonify({'success': False, 'message': 'Backup not found'})
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': sanitize_error(e)})
+
+
+# =============================================================================
+# MIGRATION EXPORT/IMPORT API ENDPOINTS
+# =============================================================================
+
+@app.route('/api/project/<int:project_id>/export-migration', methods=['POST'])
+@login_required
+def api_export_migration(project_id):
+    """Export project for migration to another server"""
+    try:
+        data = request.get_json(silent=True) or {}
+        include_conversations = data.get('include_conversations', True)
+
+        success, message, backup_path = export_project_full(project_id, include_conversations)
+
+        if success and backup_path:
+            # Return download info
+            filename = os.path.basename(backup_path)
+            file_size = os.path.getsize(backup_path)
+            return jsonify({
+                'success': True,
+                'message': message,
+                'filename': filename,
+                'size': file_size,
+                'download_url': f'/api/migration-backup/{filename}'
+            })
+        else:
+            return jsonify({'success': False, 'message': message})
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': sanitize_error(e)})
+
+
+@app.route('/api/migration-backup/<filename>', methods=['GET'])
+@login_required
+def api_download_migration_backup(filename):
+    """Download a migration backup file"""
+    try:
+        # Security: only allow downloading from migrations folder
+        if '..' in filename or '/' in filename:
+            return jsonify({'success': False, 'message': 'Invalid filename'}), 400
+
+        backup_path = os.path.join(MIGRATION_BACKUP_DIR, filename)
+
+        if not os.path.exists(backup_path):
+            return jsonify({'success': False, 'message': 'Backup not found'}), 404
+
+        return send_file(backup_path, as_attachment=True, download_name=filename)
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': sanitize_error(e)}), 500
+
+
+@app.route('/api/migration-backups', methods=['GET'])
+@login_required
+def api_list_migration_backups():
+    """List available migration backups"""
+    try:
+        if not os.path.exists(MIGRATION_BACKUP_DIR):
+            return jsonify({'success': True, 'backups': []})
+
+        backups = []
+        for filename in os.listdir(MIGRATION_BACKUP_DIR):
+            if filename.endswith('.zip'):
+                filepath = os.path.join(MIGRATION_BACKUP_DIR, filename)
+                stat = os.stat(filepath)
+
+                # Try to read backup info
+                info = {}
+                try:
+                    with zipfile.ZipFile(filepath, 'r') as zf:
+                        if 'backup_info.json' in zf.namelist():
+                            with zf.open('backup_info.json') as f:
+                                info = json.load(f)
+                except:
+                    pass
+
+                backups.append({
+                    'filename': filename,
+                    'size': stat.st_size,
+                    'created': datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                    'project_name': info.get('project_name', 'Unknown'),
+                    'project_code': info.get('project_code', 'Unknown'),
+                    'tickets_count': info.get('tickets_count', 0),
+                    'has_conversations': info.get('conversations_included', False)
+                })
+
+        # Sort by date descending
+        backups.sort(key=lambda x: x['created'], reverse=True)
+        return jsonify({'success': True, 'backups': backups})
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': sanitize_error(e)})
+
+
+@app.route('/api/import-from-backup', methods=['POST'])
+@login_required
+def api_import_from_backup():
+    """Import a project from an uploaded migration backup"""
+    try:
+        # Check if file was uploaded
+        if 'backup_file' not in request.files:
+            # Maybe it's a path to existing backup
+            data = request.get_json(silent=True) or {}
+            backup_path = data.get('backup_path')
+            new_name = data.get('new_name')
+            web_path = data.get('web_path')
+            app_path = data.get('app_path')
+
+            if backup_path:
+                # Use existing file
+                if not os.path.exists(backup_path):
+                    return jsonify({'success': False, 'message': 'Backup file not found'})
+
+                success, message, project_id = import_project_from_backup(
+                    backup_path, new_name, web_path, app_path
+                )
+                return jsonify({
+                    'success': success,
+                    'message': message,
+                    'project_id': project_id
+                })
+            else:
+                return jsonify({'success': False, 'message': 'No backup file provided'})
+
+        # Handle file upload
+        file = request.files['backup_file']
+        if file.filename == '':
+            return jsonify({'success': False, 'message': 'No file selected'})
+
+        if not file.filename.endswith('.zip'):
+            return jsonify({'success': False, 'message': 'File must be a ZIP archive'})
+
+        # Get optional parameters from form data
+        new_name = request.form.get('new_name')
+        web_path = request.form.get('web_path')
+        app_path = request.form.get('app_path')
+
+        # Save uploaded file temporarily
+        temp_dir = tempfile.mkdtemp()
+        temp_file = os.path.join(temp_dir, file.filename)
+
+        try:
+            file.save(temp_file)
+
+            success, message, project_id = import_project_from_backup(
+                temp_file, new_name, web_path, app_path
+            )
+
+            return jsonify({
+                'success': success,
+                'message': message,
+                'project_id': project_id
+            })
+
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': sanitize_error(e)})
+
+
+@app.route('/api/simple-import', methods=['POST'])
+@login_required
+def api_simple_import():
+    """Simple import: just files and database, create new project"""
+    try:
+        # Check if file was uploaded
+        if 'backup_file' not in request.files:
+            return jsonify({'success': False, 'message': 'No backup file provided'})
+
+        file = request.files['backup_file']
+        if file.filename == '':
+            return jsonify({'success': False, 'message': 'No file selected'})
+
+        if not file.filename.endswith('.zip'):
+            return jsonify({'success': False, 'message': 'File must be a ZIP archive'})
+
+        # Get required parameters
+        project_name = request.form.get('project_name')
+        project_code = request.form.get('project_code')
+
+        if not project_name or not project_code:
+            return jsonify({'success': False, 'message': 'Project name and code are required'})
+
+        # Get optional parameters
+        web_path = request.form.get('web_path')
+        app_path = request.form.get('app_path')
+        project_type = request.form.get('project_type', 'web')
+        tech_stack = request.form.get('tech_stack')
+        description = request.form.get('description')
+
+        # Save uploaded file temporarily
+        temp_dir = tempfile.mkdtemp()
+        temp_file = os.path.join(temp_dir, file.filename)
+
+        try:
+            file.save(temp_file)
+
+            success, message, project_id = simple_import_project(
+                temp_file, project_name, project_code,
+                web_path, app_path, project_type, tech_stack, description
+            )
+
+            return jsonify({
+                'success': success,
+                'message': message,
+                'project_id': project_id
+            })
+
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': sanitize_error(e)})
+
+
+@app.route('/api/migration-backup/<filename>', methods=['DELETE'])
+@login_required
+def api_delete_migration_backup(filename):
+    """Delete a migration backup file"""
+    try:
+        if '..' in filename or '/' in filename:
+            return jsonify({'success': False, 'message': 'Invalid filename'}), 400
+
+        backup_path = os.path.join(MIGRATION_BACKUP_DIR, filename)
 
         if os.path.exists(backup_path):
             os.remove(backup_path)
@@ -2339,14 +3259,14 @@ def upload_file(project_id):
         if not project:
             return jsonify({'success': False, 'message': 'Project not found'}), 404
 
-        # Determine upload directory based on path_type parameter
+        # Determine upload directory based on path_type parameter (no fallback)
         path_type = request.form.get('path_type', 'web')
         if path_type == 'app':
-            upload_dir = project.get('app_path') or project.get('web_path')
+            upload_dir = project.get('app_path')
         else:
-            upload_dir = project.get('web_path') or project.get('app_path')
+            upload_dir = project.get('web_path')
         if not upload_dir:
-            return jsonify({'success': False, 'message': 'No project path configured'})
+            return jsonify({'success': False, 'message': f'No {path_type} path configured for this project'})
 
         # Get optional subdirectory with path traversal protection
         subdir = request.form.get('subdir', '')
@@ -2422,12 +3342,12 @@ def list_files(project_id):
         if not project:
             return jsonify({'success': False, 'message': 'Project not found'}), 404
 
-        # Determine which path to use based on path_type parameter
+        # Determine which path to use based on path_type parameter (no fallback)
         path_type = request.args.get('path_type', 'web')
         if path_type == 'app':
-            base_path = project.get('app_path') or project.get('web_path')
+            base_path = project.get('app_path')
         else:
-            base_path = project.get('web_path') or project.get('app_path')
+            base_path = project.get('web_path')
 
         if not base_path or not os.path.exists(base_path):
             return jsonify({'success': True, 'files': [], 'base_path': base_path, 'path_type': path_type})
@@ -3764,6 +4684,118 @@ def retry_ticket(ticket_id):
         cursor.close()
         conn.close()
         return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'message': sanitize_error(e)})
+
+
+# =====================================================
+# Bulk Ticket Operations
+# =====================================================
+
+@app.route('/api/tickets/bulk', methods=['POST'])
+@login_required
+def bulk_ticket_action():
+    """Perform bulk actions on multiple tickets"""
+    try:
+        data = request.get_json() or {}
+        action = data.get('action')
+        ticket_ids = data.get('ticket_ids', [])
+
+        if not action:
+            return jsonify({'success': False, 'message': 'No action specified'})
+        if not ticket_ids or not isinstance(ticket_ids, list):
+            return jsonify({'success': False, 'message': 'No tickets selected'})
+
+        # Sanitize ticket IDs
+        ticket_ids = [int(tid) for tid in ticket_ids if str(tid).isdigit()]
+        if not ticket_ids:
+            return jsonify({'success': False, 'message': 'Invalid ticket IDs'})
+
+        conn = get_db()
+        cursor = conn.cursor(dictionary=True)
+
+        placeholders = ','.join(['%s'] * len(ticket_ids))
+        affected = 0
+
+        if action == 'close':
+            # Close tickets (set to done)
+            cursor.execute(f"""
+                UPDATE tickets
+                SET status = 'done', updated_at = NOW()
+                WHERE id IN ({placeholders}) AND status NOT IN ('done')
+            """, ticket_ids)
+            affected = cursor.rowcount
+
+        elif action == 'reopen':
+            # Reopen tickets (set to open)
+            cursor.execute(f"""
+                UPDATE tickets
+                SET status = 'open', updated_at = NOW()
+                WHERE id IN ({placeholders}) AND status IN ('done', 'failed', 'timeout', 'stuck', 'skipped')
+            """, ticket_ids)
+            affected = cursor.rowcount
+
+        elif action == 'retry':
+            # Retry failed tickets
+            cursor.execute(f"""
+                UPDATE tickets
+                SET status = 'open', retry_count = 0, updated_at = NOW()
+                WHERE id IN ({placeholders}) AND status IN ('failed', 'timeout', 'stuck')
+            """, ticket_ids)
+            affected = cursor.rowcount
+
+        elif action == 'delete':
+            # Get ticket numbers before deletion for response
+            cursor.execute(f"SELECT id, ticket_number FROM tickets WHERE id IN ({placeholders})", ticket_ids)
+            tickets_to_delete = cursor.fetchall()
+
+            # Delete tickets (cascade handles messages, logs, dependencies)
+            cursor.execute(f"DELETE FROM tickets WHERE id IN ({placeholders})", ticket_ids)
+            affected = cursor.rowcount
+
+        elif action == 'kill':
+            # Kill running tickets (stop Claude process)
+            cursor.execute(f"""
+                SELECT id, ticket_number, pid FROM tickets
+                WHERE id IN ({placeholders}) AND status = 'in_progress' AND pid IS NOT NULL
+            """, ticket_ids)
+            running_tickets = cursor.fetchall()
+
+            killed = 0
+            for ticket in running_tickets:
+                if ticket['pid']:
+                    try:
+                        os.kill(ticket['pid'], signal.SIGTERM)
+                        killed += 1
+                    except (ProcessLookupError, PermissionError):
+                        pass
+
+            # Update status to awaiting_input
+            if running_tickets:
+                running_ids = [t['id'] for t in running_tickets]
+                running_placeholders = ','.join(['%s'] * len(running_ids))
+                cursor.execute(f"""
+                    UPDATE tickets
+                    SET status = 'awaiting_input', pid = NULL, updated_at = NOW()
+                    WHERE id IN ({running_placeholders})
+                """, running_ids)
+            affected = killed
+
+        else:
+            cursor.close()
+            conn.close()
+            return jsonify({'success': False, 'message': f'Unknown action: {action}'})
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'affected': affected,
+            'message': f'{action.title()} {affected} ticket(s)'
+        })
+
     except Exception as e:
         return jsonify({'success': False, 'message': sanitize_error(e)})
 

@@ -158,9 +158,92 @@ SecRule REQUEST_URI "@contains phpmyadmin" \
     "id:1013,phase:1,pass,nolog,ctl:ruleRemoveById=942100"
 SecRule REQUEST_URI "@contains /db/" \
     "id:1014,phase:1,pass,nolog,ctl:ruleRemoveById=942100"
+
+# =====================================================
+# Allow DELETE method for API endpoints
+# =====================================================
+# Backup delete, project delete, migration backup delete, etc.
+SecRule REQUEST_METHOD "@streq DELETE" \
+    "id:1015,phase:1,pass,nolog,ctl:ruleRemoveById=911100"
+
+# Full bypass for DELETE on /api/ paths
+SecRule REQUEST_METHOD "@streq DELETE" \
+    "id:1016,phase:1,pass,nolog,chain"
+    SecRule REQUEST_URI "@beginsWith /api/" "ctl:ruleEngine=Off"
 EOF
 
-log_success "Main configuration created"
+log_success "Admin panel configuration created"
+
+# =====================================================
+# STEP 3b: Create Web Projects config (relaxed rules)
+# =====================================================
+log_info "Creating web projects configuration (relaxed rules)..."
+
+cat > /etc/modsecurity/main-webprojects.conf << 'EOF'
+# =====================================================
+# ModSecurity Configuration for CodeHero Web Projects
+# =====================================================
+# Relaxed rules - blocks critical attacks only
+# Allows normal CMS/application functionality
+
+# Base ModSecurity config
+Include /etc/modsecurity/modsecurity.conf
+
+# Unicode mapping
+SecUnicodeMapFile /etc/modsecurity/unicode.mapping 20127
+
+# OWASP Core Rule Set
+Include /etc/modsecurity/crs/crs-setup.conf
+Include /etc/modsecurity/crs/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf
+Include /usr/share/modsecurity-crs/rules/*.conf
+Include /etc/modsecurity/crs/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf
+
+# =====================================================
+# Web Projects Exclusions (prevent false positives)
+# =====================================================
+
+# Allow common HTTP methods
+SecRule REQUEST_METHOD "@pm GET POST PUT PATCH DELETE HEAD OPTIONS" \
+    "id:2001,phase:1,pass,nolog,ctl:ruleRemoveById=911100"
+
+# Allow file uploads
+SecRule REQUEST_HEADERS:Content-Type "@contains multipart/form-data" \
+    "id:2003,phase:1,pass,nolog,ctl:ruleRemoveById=920420,ctl:ruleRemoveById=920340"
+
+# WordPress admin area
+SecRule REQUEST_URI "@beginsWith /wp-admin" \
+    "id:2010,phase:1,pass,nolog,ctl:ruleRemoveById=942100,ctl:ruleRemoveById=942200,ctl:ruleRemoveById=942260,ctl:ruleRemoveById=942340"
+
+# WordPress AJAX
+SecRule REQUEST_URI "@endsWith /wp-admin/admin-ajax.php" \
+    "id:2011,phase:1,pass,nolog,ctl:ruleRemoveById=942100,ctl:ruleRemoveById=942200"
+
+# WordPress REST API
+SecRule REQUEST_URI "@contains /wp-json/" \
+    "id:2012,phase:1,pass,nolog,ctl:ruleRemoveById=942100,ctl:ruleRemoveById=920170"
+
+# WordPress login
+SecRule REQUEST_URI "@endsWith /wp-login.php" \
+    "id:2013,phase:1,pass,nolog,ctl:ruleRemoveById=942100"
+
+# Allow JSON content
+SecRule REQUEST_HEADERS:Content-Type "@contains application/json" \
+    "id:2021,phase:1,pass,nolog,ctl:ruleRemoveById=920170,ctl:ruleRemoveById=942100"
+
+# Allow form submissions
+SecRule REQUEST_HEADERS:Content-Type "@contains application/x-www-form-urlencoded" \
+    "id:2022,phase:1,pass,nolog,ctl:ruleRemoveById=942100"
+
+# Contact forms
+SecRule REQUEST_URI "@rx (contact|kontakt|feedback|enquiry|message)" \
+    "id:2030,phase:1,pass,nolog,ctl:ruleRemoveById=942100,ctl:ruleRemoveById=942200"
+
+# Static files bypass
+SecRule REQUEST_URI "@rx \.(css|js|jpg|jpeg|png|gif|ico|svg|woff2?|ttf|eot|map)$" \
+    "id:2040,phase:1,pass,nolog,ctl:ruleEngine=Off"
+EOF
+
+log_success "Web projects configuration created"
 
 # =====================================================
 # STEP 4: Add ModSecurity to Nginx configs
@@ -170,6 +253,7 @@ log_info "Enabling ModSecurity in Nginx..."
 # Function to add modsecurity to a config file
 add_modsecurity_to_config() {
     local config_file="$1"
+    local rules_file="${2:-/etc/modsecurity/main.conf}"
     local config_name=$(basename "$config_file")
 
     if [ ! -f "$config_file" ]; then
@@ -184,19 +268,19 @@ add_modsecurity_to_config() {
     fi
 
     # Add modsecurity after the first server_name line
-    sed -i '/server_name _;/a\
-\
-    # ModSecurity WAF\
-    modsecurity on;\
-    modsecurity_rules_file /etc/modsecurity/main.conf;' "$config_file"
+    sed -i "/server_name _;/a\\
+\\
+    # ModSecurity WAF\\
+    modsecurity on;\\
+    modsecurity_rules_file ${rules_file};" "$config_file"
 
-    log_success "Added to $config_name"
+    log_success "Added to $config_name (using $(basename $rules_file))"
 }
 
-# Add to all CodeHero configs
-add_modsecurity_to_config "/etc/nginx/sites-available/codehero-admin"
-add_modsecurity_to_config "/etc/nginx/sites-available/codehero-projects"
-add_modsecurity_to_config "/etc/nginx/sites-available/codehero-phpmyadmin"
+# Add to all CodeHero configs (admin uses strict rules, projects use relaxed)
+add_modsecurity_to_config "/etc/nginx/sites-available/codehero-admin" "/etc/modsecurity/main.conf"
+add_modsecurity_to_config "/etc/nginx/sites-available/codehero-projects" "/etc/modsecurity/main-webprojects.conf"
+add_modsecurity_to_config "/etc/nginx/sites-available/codehero-phpmyadmin" "/etc/modsecurity/main.conf"
 
 # =====================================================
 # STEP 5: Test and restart Nginx

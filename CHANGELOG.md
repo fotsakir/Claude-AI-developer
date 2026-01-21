@@ -5,6 +5,38 @@ All notable changes to CodeHero will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.80.0] - 2026-01-21
+
+### Added
+- **Project Migration** - Move projects between servers with all data intact
+  - Export Full: includes files, database, tickets, and conversations
+  - Export Light: same but without conversation history (smaller file)
+  - Import Migration: restore on any CodeHero server
+  - Simple Import: files + database only (no tickets)
+  - Migration backups list with download/delete in project settings
+- **Migration Documentation** - New `docs/MIGRATION.md` guide
+- **Domain & SSL Documentation** - New `docs/DOMAIN_SETUP.md` guide for Let's Encrypt setup
+- **Auto Backup on Ticket Close** - Backup created when AI reviewer auto-closes tickets
+
+### Added
+- **WAF Relaxed Rules for Web Projects** - Separate ModSecurity config for port 9867
+  - Blocks critical attacks (SQLi, XSS, Command Injection)
+  - Allows WordPress, CMS, forms, file uploads without false positives
+  - Admin panel (9453) keeps strict rules
+
+### Fixed
+- **WAF DELETE Requests** - ModSecurity now allows DELETE method for API endpoints
+  - Backup delete, migration backup delete, project delete all work correctly
+- **Migration Import Database** - Uses `get_db()` (claude_user) instead of mysql.conf
+  - Works on all servers without needing root MySQL password
+
+### Changed
+- **Restore Behavior** - Regular backup restore now only restores files, not database
+  - Database snapshot kept in backup for reference
+  - Prevents accidental data loss from restore operations
+
+---
+
 ## [2.79.11] - 2026-01-21
 
 ### Fixed

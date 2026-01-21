@@ -787,8 +787,8 @@ class ProjectWorker(threading.Thread):
         except Exception as e:
             pass  # Silent fail - not critical
 
-    def create_backup(self, ticket_id):
-        """Create automatic backup before processing ticket"""
+    def create_backup(self, ticket_id, trigger='auto'):
+        """Create automatic backup. Trigger can be: auto, close, reopen"""
         try:
             conn = self.get_db()
             cursor = conn.cursor(dictionary=True)
@@ -810,7 +810,7 @@ class ProjectWorker(threading.Thread):
             os.makedirs(backup_subdir, exist_ok=True)
 
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            backup_name = f"{project_code}_{timestamp}_auto.zip"
+            backup_name = f"{project_code}_{timestamp}_{trigger}.zip"
             backup_path = os.path.join(backup_subdir, backup_name)
 
             temp_dir = tempfile.mkdtemp()
@@ -2279,6 +2279,9 @@ Reply with ONLY one word: COMPLETED, QUESTION, or ERROR"""
                     """, (ticket_id,))
                     conn.commit()
                     self.log(f"Auto-closed {ticket_number} (Haiku: COMPLETED)")
+
+                    # Create backup on ticket close
+                    self.create_backup(ticket_id, 'close')
 
                     # Send notification
                     notify('ticket_completed', 'Ticket Auto-Closed',

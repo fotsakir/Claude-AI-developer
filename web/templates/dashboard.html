@@ -105,7 +105,7 @@
             75% { transform: translate(-50px, -20px) scale(1.02); }
         }
 
-        /* Code Rain Effect */
+        /* Code Rain Effect - Optimized for NVIDIA/Firefox */
         .code-rain {
             position: fixed;
             top: 0;
@@ -117,11 +117,11 @@
             opacity: 0;
             transition: opacity 0.8s ease;
             overflow: hidden;
-            /* GPU acceleration for Firefox - prevents flickering */
+            /* Isolate rendering layer to prevent flickering */
+            contain: strict;
+            isolation: isolate;
             transform: translateZ(0);
             will-change: opacity;
-            backface-visibility: hidden;
-            -webkit-backface-visibility: hidden;
         }
 
         .code-rain.active {
@@ -135,36 +135,34 @@
             font-size: 12px;
             line-height: 1.6;
             color: var(--accent-green);
-            text-shadow: 0 0 8px var(--accent-green);
-            opacity: 0.4;
-            filter: blur(0.5px);
+            /* Simplified text-shadow - no blur radius for better performance */
+            text-shadow: 0 0 4px currentColor;
+            opacity: 0.35;
+            /* REMOVED: filter: blur() - causes flickering on NVIDIA/Firefox */
             writing-mode: vertical-rl;
             text-orientation: mixed;
             animation: rain linear infinite;
             white-space: nowrap;
             letter-spacing: 2px;
-            /* GPU acceleration for Firefox */
+            /* GPU layer */
             will-change: transform;
-            transform: translateZ(0);
-            backface-visibility: hidden;
+            contain: layout style;
         }
 
         .code-column:nth-child(odd) {
             color: var(--accent-cyan);
-            text-shadow: 0 0 8px var(--accent-cyan);
-            opacity: 0.3;
+            opacity: 0.25;
         }
 
         .code-column:nth-child(3n) {
             color: var(--accent-primary);
-            text-shadow: 0 0 8px var(--accent-primary);
-            opacity: 0.25;
-            filter: blur(1px);
+            opacity: 0.2;
+            /* REMOVED: filter: blur(1px) - causes flickering */
         }
 
         @keyframes rain {
-            0% { transform: translateY(0); }
-            100% { transform: translateY(calc(200vh + 100%)); }
+            0% { transform: translateY(0) translateZ(0); }
+            100% { transform: translateY(calc(200vh + 100%)) translateZ(0); }
         }
 
         /* Noise Texture */
@@ -1259,6 +1257,97 @@
         </div>
     </div>
 
+    <!-- Import from Backup Modal -->
+    <div class="modal-overlay" id="importModal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>📦 Import Project from Backup</h2>
+                <button class="modal-close" onclick="closeImportModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 20px;">
+                    Import a project from a migration backup file. This will create a new project with all tickets, conversations, and files.
+                </p>
+
+                <!-- Tab Navigation -->
+                <div style="display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 12px;">
+                    <button class="import-tab active" onclick="showImportTab('upload')" id="tabUpload">Upload File</button>
+                    <button class="import-tab" onclick="showImportTab('existing')" id="tabExisting">Existing Backups</button>
+                </div>
+
+                <!-- Upload Tab -->
+                <div id="importTabUpload">
+                    <form id="importForm" enctype="multipart/form-data">
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label style="color: var(--text-primary); font-size: 13px; margin-bottom: 8px; display: block;">Backup File (ZIP)</label>
+                            <input type="file" name="backup_file" id="importFile" accept=".zip"
+                                   style="width: 100%; padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: 8px; color: var(--text-primary);">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label style="color: var(--text-primary); font-size: 13px; margin-bottom: 8px; display: block;">New Project Name (optional)</label>
+                            <input type="text" name="new_name" id="importNewName" placeholder="Leave empty to use original name"
+                                   style="width: 100%; padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: 8px; color: var(--text-primary);">
+                        </div>
+                        <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                            <div class="form-group" style="flex: 1;">
+                                <label style="color: var(--text-primary); font-size: 13px; margin-bottom: 8px; display: block;">Web Path (optional)</label>
+                                <input type="text" name="web_path" id="importWebPath" placeholder="/var/www/projects/..."
+                                       style="width: 100%; padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: 8px; color: var(--text-primary); font-size: 12px;">
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <label style="color: var(--text-primary); font-size: 13px; margin-bottom: 8px; display: block;">App Path (optional)</label>
+                                <input type="text" name="app_path" id="importAppPath" placeholder="/opt/apps/..."
+                                       style="width: 100%; padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: 8px; color: var(--text-primary); font-size: 12px;">
+                            </div>
+                        </div>
+                        <button type="submit" class="activation-btn activation-btn-primary" style="width: 100%;">
+                            Import Project
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Existing Backups Tab -->
+                <div id="importTabExisting" style="display: none;">
+                    <div id="existingBackupsList" style="max-height: 300px; overflow-y: auto;">
+                        <div style="color: var(--text-muted); text-align: center; padding: 20px;">Loading...</div>
+                    </div>
+                </div>
+
+                <div id="importStatus" style="margin-top: 16px; padding: 12px; border-radius: 8px; display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .import-tab {
+            padding: 8px 16px;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 13px;
+            border-radius: 6px;
+        }
+        .import-tab:hover { color: var(--text-primary); }
+        .import-tab.active {
+            background: var(--bg-secondary);
+            color: var(--accent-primary);
+        }
+        .existing-backup-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        .existing-backup-item:hover { background: var(--bg-card); }
+        .existing-backup-info { flex: 1; }
+        .existing-backup-name { color: var(--text-primary); font-size: 13px; font-weight: 500; }
+        .existing-backup-meta { color: var(--text-muted); font-size: 11px; margin-top: 4px; }
+    </style>
+
     <!-- Update Modal -->
     <div class="modal-overlay" id="updateModal">
         <div class="modal-content" style="max-width: 700px;">
@@ -1704,8 +1793,10 @@
         setInterval(() => {
             const activationModal = document.getElementById('activationModal');
             const settingsModal = document.getElementById('settingsModal');
+            const importModal = document.getElementById('importModal');
             const isModalOpen = (activationModal && activationModal.classList.contains('show')) ||
-                               (settingsModal && settingsModal.classList.contains('show'));
+                               (settingsModal && settingsModal.classList.contains('show')) ||
+                               (importModal && importModal.classList.contains('show'));
             if (!isModalOpen) {
                 location.reload();
             }
@@ -2048,6 +2139,171 @@
         // Close settings modal on overlay click
         document.getElementById('settingsModal').addEventListener('click', function(e) {
             if (e.target === this) closeSettingsModal();
+        });
+
+        // ============ IMPORT FROM BACKUP ============
+        function openImportModal() {
+            document.getElementById('importModal').classList.add('show');
+            showImportTab('upload');
+        }
+
+        function closeImportModal() {
+            document.getElementById('importModal').classList.remove('show');
+        }
+
+        function showImportTab(tab) {
+            document.getElementById('importTabUpload').style.display = tab === 'upload' ? 'block' : 'none';
+            document.getElementById('importTabExisting').style.display = tab === 'existing' ? 'block' : 'none';
+            document.getElementById('tabUpload').classList.toggle('active', tab === 'upload');
+            document.getElementById('tabExisting').classList.toggle('active', tab === 'existing');
+
+            if (tab === 'existing') {
+                loadExistingBackups();
+            }
+        }
+
+        async function loadExistingBackups() {
+            const container = document.getElementById('existingBackupsList');
+            container.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px;">Loading...</div>';
+
+            try {
+                const resp = await fetch('/api/migration-backups');
+                const data = await resp.json();
+
+                if (!data.success) {
+                    container.innerHTML = `<div style="color: var(--accent-red); text-align: center; padding: 20px;">${data.message}</div>`;
+                    return;
+                }
+
+                if (data.backups.length === 0) {
+                    container.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px;">No migration backups found. Export a project first from the Project Detail page.</div>';
+                    return;
+                }
+
+                container.innerHTML = data.backups.map(b => {
+                    const date = new Date(b.created).toLocaleString();
+                    const sizeMB = (b.size / 1024 / 1024).toFixed(2);
+                    return `
+                        <div class="existing-backup-item">
+                            <div class="existing-backup-info">
+                                <div class="existing-backup-name">${b.project_name} (${b.project_code})</div>
+                                <div class="existing-backup-meta">${date} · ${sizeMB} MB · ${b.tickets_count} tickets ${b.has_conversations ? '· with conversations' : ''}</div>
+                            </div>
+                            <div style="display: flex; gap: 8px;">
+                                <button onclick="importFromExisting('${b.filename}')" class="activation-btn activation-btn-primary" style="padding: 6px 12px; font-size: 12px;">Import</button>
+                                <button onclick="downloadMigrationBackup('${b.filename}')" class="activation-btn activation-btn-secondary" style="padding: 6px 12px; font-size: 12px;">Download</button>
+                                <button onclick="deleteMigrationBackup('${b.filename}')" style="padding: 6px 12px; font-size: 12px; background: rgba(239, 68, 68, 0.2); color: var(--accent-red); border: none; border-radius: 6px; cursor: pointer;">Delete</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (e) {
+                container.innerHTML = `<div style="color: var(--accent-red); text-align: center; padding: 20px;">Error loading backups</div>`;
+            }
+        }
+
+        async function importFromExisting(filename) {
+            if (!confirm('Import this backup? A new project will be created.')) return;
+
+            showImportStatus('info', 'Importing project... This may take a while.');
+
+            try {
+                const resp = await fetch('/api/import-from-backup', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        backup_path: '/var/backups/codehero/migrations/' + filename
+                    })
+                });
+                const data = await resp.json();
+
+                if (data.success) {
+                    showImportStatus('success', data.message + ' Redirecting...');
+                    setTimeout(() => {
+                        window.location.href = '/project/' + data.project_id;
+                    }, 2000);
+                } else {
+                    showImportStatus('error', data.message);
+                }
+            } catch (e) {
+                showImportStatus('error', 'Error: ' + e.message);
+            }
+        }
+
+        function downloadMigrationBackup(filename) {
+            window.location.href = '/api/migration-backup/' + filename;
+        }
+
+        async function deleteMigrationBackup(filename) {
+            if (!confirm('Delete this migration backup?')) return;
+
+            try {
+                const resp = await fetch('/api/migration-backup/' + filename, {method: 'DELETE'});
+                const data = await resp.json();
+
+                if (data.success) {
+                    loadExistingBackups();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        // Handle form submission
+        document.getElementById('importForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const file = document.getElementById('importFile').files[0];
+            if (!file) {
+                showImportStatus('error', 'Please select a backup file');
+                return;
+            }
+
+            showImportStatus('info', 'Uploading and importing project... This may take a while for large projects.');
+
+            const formData = new FormData(this);
+
+            try {
+                const resp = await fetch('/api/import-from-backup', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await resp.json();
+
+                if (data.success) {
+                    showImportStatus('success', data.message + ' Redirecting...');
+                    setTimeout(() => {
+                        window.location.href = '/project/' + data.project_id;
+                    }, 2000);
+                } else {
+                    showImportStatus('error', data.message);
+                }
+            } catch (e) {
+                showImportStatus('error', 'Error: ' + e.message);
+            }
+        });
+
+        function showImportStatus(type, message) {
+            const status = document.getElementById('importStatus');
+            status.style.display = 'block';
+            status.style.background = type === 'success' ? 'rgba(16, 185, 129, 0.15)' :
+                                      type === 'error' ? 'rgba(239, 68, 68, 0.15)' :
+                                      'rgba(99, 102, 241, 0.15)';
+            status.style.border = '1px solid ' + (type === 'success' ? 'rgba(16, 185, 129, 0.3)' :
+                                                  type === 'error' ? 'rgba(239, 68, 68, 0.3)' :
+                                                  'rgba(99, 102, 241, 0.3)');
+            status.style.color = type === 'success' ? 'var(--accent-green)' :
+                                 type === 'error' ? 'var(--accent-red)' :
+                                 'var(--accent-primary)';
+            status.textContent = message;
+        }
+
+        // Close import modal on overlay click
+        document.getElementById('importModal').addEventListener('click', function(e) {
+            if (e.target === this) closeImportModal();
         });
 
         // ============ UPDATE SYSTEM ============
