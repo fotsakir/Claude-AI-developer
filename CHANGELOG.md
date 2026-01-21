@@ -5,6 +5,15 @@ All notable changes to CodeHero will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.79.10] - 2026-01-21
+
+### Fixed
+- **ModSecurity Optional in Domain Setup** - Fixed `setup_domain.sh` failing on servers without ModSecurity
+  - Script now detects if ModSecurity is installed before adding it to nginx config
+  - Works on both servers with and without WAF installed
+
+---
+
 ## [2.79.9] - 2026-01-21
 
 ### Fixed

@@ -324,6 +324,15 @@ setup_password() {
     log_success "Password set for user: $username"
 }
 
+# Check if ModSecurity is available
+check_modsecurity() {
+    if nginx -V 2>&1 | grep -q "modsecurity" && [ -f /etc/modsecurity/main.conf ]; then
+        echo "true"
+    else
+        echo "false"
+    fi
+}
+
 # Update admin nginx config
 update_admin_config() {
     local domain="$1"
@@ -337,6 +346,14 @@ update_admin_config() {
         server_name="_ $domain"
     fi
 
+    # Check if ModSecurity is available
+    local modsec_config=""
+    if [ "$(check_modsecurity)" = "true" ]; then
+        modsec_config="    # ModSecurity WAF
+    modsecurity on;
+    modsecurity_rules_file /etc/modsecurity/main.conf;"
+    fi
+
     cat > "$NGINX_SITES/codehero-admin" << EOF
 # CodeHero Admin Panel
 # Port: $port (HTTPS)
@@ -347,9 +364,7 @@ server {
     listen $port ssl http2;
     listen [::]:$port ssl http2;
 
-    # ModSecurity WAF
-    modsecurity on;
-    modsecurity_rules_file /etc/modsecurity/main.conf;
+$modsec_config
     server_name $server_name;
 
     # SSL Configuration
@@ -432,6 +447,14 @@ update_webapps_config() {
         auth_include="include $AUTH_SNIPPET;"
     fi
 
+    # Check if ModSecurity is available
+    local modsec_config=""
+    if [ "$(check_modsecurity)" = "true" ]; then
+        modsec_config="    # ModSecurity WAF
+    modsecurity on;
+    modsecurity_rules_file /etc/modsecurity/main.conf;"
+    fi
+
     cat > "$NGINX_SITES/codehero-projects" << EOF
 # CodeHero Web Projects
 # Port: $port (HTTPS)
@@ -442,9 +465,7 @@ server {
     listen $port ssl http2;
     listen [::]:$port ssl http2;
 
-    # ModSecurity WAF
-    modsecurity on;
-    modsecurity_rules_file /etc/modsecurity/main.conf;
+$modsec_config
     server_name $server_name;
 
     # SSL Configuration
