@@ -2347,6 +2347,87 @@ Reply with ONLY one word: COMPLETED, QUESTION, or ERROR"""
                 f.write(log_line + "\n")
         except: pass
 
+    def create_backup(self, ticket_id, trigger='auto'):
+        """Create automatic backup from ClaudeDaemon (for auto-close scenarios)"""
+        try:
+            conn = self.get_db()
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT p.* FROM projects p
+                JOIN tickets t ON t.project_id = p.id
+                WHERE t.id = %s
+            """, (ticket_id,))
+            project = cursor.fetchone()
+            cursor.close()
+            conn.close()
+
+            if not project:
+                self.log("Could not find project for backup", "WARNING")
+                return
+
+            project_code = project['code']
+            backup_subdir = os.path.join(BACKUP_DIR, project_code)
+            os.makedirs(backup_subdir, exist_ok=True)
+
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            backup_name = f"{project_code}_{timestamp}_{trigger}.zip"
+            backup_path = os.path.join(backup_subdir, backup_name)
+
+            temp_dir = tempfile.mkdtemp()
+            temp_backup = os.path.join(temp_dir, 'backup')
+            os.makedirs(temp_backup)
+
+            try:
+                # Copy web folder
+                if project.get('web_path') and os.path.exists(project['web_path']):
+                    shutil.copytree(project['web_path'], os.path.join(temp_backup, 'web'), dirs_exist_ok=True)
+
+                # Copy app folder
+                if project.get('app_path') and os.path.exists(project['app_path']):
+                    shutil.copytree(project['app_path'], os.path.join(temp_backup, 'app'), dirs_exist_ok=True)
+
+                # Export database
+                if project.get('db_name') and project.get('db_user') and project.get('db_password'):
+                    db_dir = os.path.join(temp_backup, 'database')
+                    os.makedirs(db_dir, exist_ok=True)
+
+                    db_host = project.get('db_host', 'localhost')
+                    db_name = project['db_name']
+                    db_user = project['db_user']
+                    db_pass = project['db_password']
+
+                    # Schema + Data
+                    dump_cmd = f"mysqldump -h {db_host} -u {db_user} -p'{db_pass}' {db_name} 2>/dev/null"
+                    result = subprocess.run(dump_cmd, shell=True, capture_output=True, text=True)
+                    if result.returncode == 0:
+                        with open(os.path.join(db_dir, 'dump.sql'), 'w') as f:
+                            f.write(result.stdout)
+
+                # Create zip
+                with zipfile.ZipFile(backup_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    for root, dirs, files in os.walk(temp_backup):
+                        for file in files:
+                            file_path = os.path.join(root, file)
+                            arc_name = os.path.relpath(file_path, temp_backup)
+                            zipf.write(file_path, arc_name)
+
+                # Cleanup old backups (keep MAX_BACKUPS)
+                backups = sorted(
+                    [f for f in os.listdir(backup_subdir) if f.endswith('.zip')],
+                    key=lambda x: os.path.getmtime(os.path.join(backup_subdir, x)),
+                    reverse=True
+                )
+                for old_backup in backups[MAX_BACKUPS:]:
+                    os.remove(os.path.join(backup_subdir, old_backup))
+
+                self.log(f"Backup created: {backup_name}")
+
+            finally:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+
+        except Exception as e:
+            self.log(f"Backup error: {e}", "WARNING")
+
     def process_telegram_replies(self):
         """Process replies received via Telegram and add them to tickets"""
         try:

@@ -160,16 +160,12 @@ SecRule REQUEST_URI "@contains /db/" \
     "id:1014,phase:1,pass,nolog,ctl:ruleRemoveById=942100"
 
 # =====================================================
-# Allow DELETE method for API endpoints
+# Full API bypass (internal CodeHero API)
 # =====================================================
-# Backup delete, project delete, migration backup delete, etc.
-SecRule REQUEST_METHOD "@streq DELETE" \
-    "id:1015,phase:1,pass,nolog,ctl:ruleRemoveById=911100"
-
-# Full bypass for DELETE on /api/ paths
-SecRule REQUEST_METHOD "@streq DELETE" \
-    "id:1016,phase:1,pass,nolog,chain"
-    SecRule REQUEST_URI "@beginsWith /api/" "ctl:ruleEngine=Off"
+# The /api/ endpoints are internal and don't need WAF scanning
+# This prevents false positives from JSON payloads with code/SQL-like content
+SecRule REQUEST_URI "@beginsWith /api/" \
+    "id:1015,phase:1,pass,nolog,ctl:ruleEngine=Off"
 EOF
 
 log_success "Admin panel configuration created"

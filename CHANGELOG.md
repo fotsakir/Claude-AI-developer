@@ -5,6 +5,17 @@ All notable changes to CodeHero will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.80.1] - 2026-01-21
+
+### Fixed
+- **WAF API Bypass** - Full bypass for `/api/` endpoints to prevent false positives
+  - Fixes "unexpected token <" error when creating projects via GUI
+  - All internal API endpoints now bypass ModSecurity rules
+- **Auto-Backup on AI Close** - Fixed `create_backup` method missing from `ClaudeDaemon` class
+  - Backups now correctly created when AI reviewer auto-closes tickets
+
+---
+
 ## [2.80.0] - 2026-01-21
 
 ### Added
