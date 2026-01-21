@@ -20,6 +20,7 @@ except:
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_file
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from flask_cors import CORS
+from werkzeug.utils import secure_filename
 import re
 import unicodedata
 import mysql.connector
@@ -1574,8 +1575,9 @@ def create_project_backup(project_id, trigger='manual', ticket_id=None):
             shutil.rmtree(temp_dir, ignore_errors=True)
 
     except Exception as e:
-        emit_progress('error', 0, f'Backup failed: {str(e)}')
-        return False, str(e), None
+        logger.error(f"Backup failed: {e}")
+        emit_progress('error', 0, 'Backup failed')
+        return False, "Backup failed", None
 
 
 def cleanup_old_backups(backup_dir):
@@ -1652,7 +1654,8 @@ def restore_project_backup(project_id, backup_filename):
             shutil.rmtree(temp_dir, ignore_errors=True)
 
     except Exception as e:
-        return False, str(e)
+        logger.error(f"Restore backup failed: {e}")
+        return False, "Restore failed"
 
 
 # =============================================================================
@@ -1854,7 +1857,8 @@ def export_project_full(project_id, include_conversations=True):
             shutil.rmtree(temp_dir, ignore_errors=True)
 
     except Exception as e:
-        return False, f"Export failed: {str(e)}", None
+        logger.error(f"Export failed: {e}")
+        return False, "Export failed", None
 
 
 def import_project_from_backup(backup_path, new_project_name=None, web_path=None, app_path=None):
@@ -2166,9 +2170,8 @@ def import_project_from_backup(backup_path, new_project_name=None, web_path=None
             shutil.rmtree(temp_dir, ignore_errors=True)
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return False, f"Import failed: {str(e)}", None
+        logger.error(f"Import failed: {e}")
+        return False, "Import failed", None
 
 
 def simple_import_project(backup_path, project_name, project_code, web_path=None, app_path=None, project_type='web', tech_stack=None, description=None):
@@ -2385,9 +2388,8 @@ def simple_import_project(backup_path, project_name, project_code, web_path=None
             shutil.rmtree(temp_dir, ignore_errors=True)
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return False, f"Simple import failed: {str(e)}", None
+        logger.error(f"Simple import failed: {e}")
+        return False, "Simple import failed", None
 
 
 @app.route('/api/project/<int:project_id>/backup', methods=['POST'])
@@ -2631,9 +2633,11 @@ def api_import_from_backup():
             app_path = data.get('app_path')
 
             if backup_path:
-                # Use existing file
-                if not os.path.exists(backup_path):
-                    return jsonify({'success': False, 'message': 'Backup file not found'})
+                # Validate backup_path before any file operations
+                safe_backup, err = validate_project_path(backup_path, must_exist=True)
+                if err:
+                    return jsonify({'success': False, 'message': 'Invalid or missing backup path'})
+                backup_path = safe_backup
 
                 success, message, project_id = import_project_from_backup(
                     backup_path, new_name, web_path, app_path
@@ -2659,9 +2663,10 @@ def api_import_from_backup():
         web_path = request.form.get('web_path')
         app_path = request.form.get('app_path')
 
-        # Save uploaded file temporarily
+        # Save uploaded file temporarily with sanitized filename
         temp_dir = tempfile.mkdtemp()
-        temp_file = os.path.join(temp_dir, file.filename)
+        safe_filename = secure_filename(file.filename) or 'upload.zip'
+        temp_file = os.path.join(temp_dir, safe_filename)
 
         try:
             file.save(temp_file)
@@ -2680,8 +2685,7 @@ def api_import_from_backup():
             shutil.rmtree(temp_dir, ignore_errors=True)
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Import from backup failed: {e}")
         return jsonify({'success': False, 'message': sanitize_error(e)})
 
 
@@ -2715,9 +2719,10 @@ def api_simple_import():
         tech_stack = request.form.get('tech_stack')
         description = request.form.get('description')
 
-        # Save uploaded file temporarily
+        # Save uploaded file temporarily with sanitized filename
         temp_dir = tempfile.mkdtemp()
-        temp_file = os.path.join(temp_dir, file.filename)
+        safe_filename = secure_filename(file.filename) or 'upload.zip'
+        temp_file = os.path.join(temp_dir, safe_filename)
 
         try:
             file.save(temp_file)
@@ -2737,8 +2742,7 @@ def api_simple_import():
             shutil.rmtree(temp_dir, ignore_errors=True)
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Simple import failed: {e}")
         return jsonify({'success': False, 'message': sanitize_error(e)})
 
 
