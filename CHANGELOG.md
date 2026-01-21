@@ -5,6 +5,20 @@ All notable changes to CodeHero will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.80.4] - 2026-01-21
+
+### Improved
+- **AI Link Handling Guidelines** - New section 5.8 in global-context.md
+  - Explains relative vs absolute paths for project subfolders
+  - Covers HTML links, images, CSS, JS, forms, fetch/AJAX
+  - Includes subfolder navigation with `../`
+  - Provides `<base>` tag and PHP `$base` alternatives
+  - Quick reference table for common scenarios
+  - Playwright link verification script
+  - Mandatory checklist before completing page tasks
+
+---
+
 ## [2.80.3] - 2026-01-21
 
 ### Security

@@ -518,6 +518,170 @@ BACKEND ONLY (Python/PHP)? → No screenshot needed
 6. ONLY when perfect → Mark task complete
 ```
 
+### 5.8 LINK & URL HANDLING
+
+**⚠️ CRITICAL: This is a common source of bugs! Read carefully.**
+
+#### The Problem
+
+Projects are NOT at server root. They're in subfolders:
+```
+Server root:     https://IP:9867/
+Project folder:  https://IP:9867/mysite/
+Project files:   /var/www/projects/mysite/
+```
+
+**If you use `/` at the start, you go to SERVER ROOT, not project folder!**
+
+| You write | Browser goes to | Result |
+|-----------|-----------------|--------|
+| `/index.php` | `https://IP:9867/index.php` | ❌ 404! |
+| `/mysite/index.php` | `https://IP:9867/mysite/index.php` | ✅ Works |
+| `index.php` | (current folder)/index.php | ✅ Works |
+
+#### Rule: ALWAYS Use Relative Paths
+
+**From project root (`/mysite/index.php`):**
+```html
+<!-- ❌ WRONG - Goes to server root -->
+<a href="/about.php">About</a>
+<a href="/pages/contact.php">Contact</a>
+<img src="/images/logo.png">
+<link href="/css/style.css">
+<script src="/js/app.js"></script>
+<form action="/submit.php">
+
+<!-- ✅ CORRECT - Relative paths -->
+<a href="about.php">About</a>
+<a href="pages/contact.php">Contact</a>
+<img src="images/logo.png">
+<link href="css/style.css">
+<script src="js/app.js"></script>
+<form action="submit.php">
+```
+
+**From subfolder (`/mysite/pages/about.php`):**
+```html
+<!-- To go back to root files, use ../ -->
+<a href="../index.php">Home</a>
+<a href="../products.php">Products</a>
+<img src="../images/logo.png">
+<link href="../css/style.css">
+
+<!-- To go to sibling file in same folder -->
+<a href="contact.php">Contact</a>
+
+<!-- To go deeper -->
+<a href="admin/dashboard.php">Dashboard</a>
+```
+
+**JavaScript (fetch/AJAX):**
+```javascript
+// ❌ WRONG
+fetch('/api/users')
+$.get('/data/products.json')
+
+// ✅ CORRECT - Relative
+fetch('api/users')
+$.get('data/products.json')
+
+// ✅ CORRECT - From subfolder
+fetch('../api/users')
+```
+
+**CSS (background images, fonts):**
+```css
+/* ❌ WRONG */
+background: url(/images/bg.png);
+src: url(/fonts/roboto.woff2);
+
+/* ✅ CORRECT - From css/ folder, images are in ../images/ */
+background: url(../images/bg.png);
+src: url(../fonts/roboto.woff2);
+```
+
+#### Alternative: Base Tag (for complex sites)
+
+If you have deep folder structures, use `<base>` tag:
+```html
+<head>
+    <!-- All relative URLs will start from /mysite/ -->
+    <base href="/mysite/">
+</head>
+<body>
+    <!-- Now these work from ANY page, even /mysite/pages/sub/deep.php -->
+    <a href="index.php">Home</a>
+    <img src="images/logo.png">
+</body>
+```
+
+#### Alternative: PHP Base Variable
+
+```php
+<?php
+// At top of every page or in header.php
+$base = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
+// If in subfolder: $base = '/mysite'
+// Use in links:
+?>
+<a href="<?= $base ?>/index.php">Home</a>
+<a href="<?= $base ?>/pages/about.php">About</a>
+```
+
+#### Quick Reference Table
+
+| You're at | You want | Write |
+|-----------|----------|-------|
+| `/mysite/index.php` | `about.php` | `href="about.php"` |
+| `/mysite/index.php` | `pages/contact.php` | `href="pages/contact.php"` |
+| `/mysite/pages/about.php` | `index.php` | `href="../index.php"` |
+| `/mysite/pages/about.php` | `contact.php` | `href="contact.php"` |
+| `/mysite/pages/about.php` | `images/logo.png` | `src="../images/logo.png"` |
+| `/mysite/admin/users/list.php` | `index.php` | `href="../../index.php"` |
+
+#### MANDATORY: Test All Links
+
+**After creating/modifying ANY page, verify links work:**
+
+```python
+# Playwright link test
+from playwright.sync_api import sync_playwright
+
+with sync_playwright() as p:
+    browser = p.chromium.launch()
+    context = browser.new_context(ignore_https_errors=True)
+    page = context.new_page()
+    page.goto("https://127.0.0.1:9867/mysite/")
+
+    # Click each navigation link and verify no 404
+    for link_text in ["Home", "About", "Contact", "Products"]:
+        link = page.get_by_role("link", name=link_text)
+        if link.count() > 0:
+            link.click()
+            page.wait_for_load_state('networkidle')
+            # Check not 404
+            assert '404' not in page.title().lower()
+            assert 'not found' not in page.content().lower()
+            page.go_back()
+
+    browser.close()
+```
+
+#### Checklist Before Completing ANY Page Task
+
+```
+□ All <a href> links - clicked each one, no 404?
+□ All <img src> - images visible, no broken icons?
+□ All <link href> CSS - page styled correctly?
+□ All <script src> JS - no console errors?
+□ All <form action> - forms submit to correct URL?
+□ All fetch()/AJAX - API calls working?
+□ Tested from EVERY page, not just homepage?
+□ Tested navigation: Home→About→Contact→Home works?
+```
+
+**Remember: A page that "works" but has broken links = INCOMPLETE TASK!**
+
 ---
 
 ## 🛠️ PART 6: DEFAULT TECH STACK
