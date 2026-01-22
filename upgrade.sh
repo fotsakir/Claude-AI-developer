@@ -360,6 +360,8 @@ if [ -d "${SOURCE_DIR}/config" ]; then
     cp "${SOURCE_DIR}/config/"*.json "${INSTALL_DIR}/config/" 2>/dev/null || true
     cp "${SOURCE_DIR}/config/"*.conf "${INSTALL_DIR}/config/" 2>/dev/null || true
     cp "${SOURCE_DIR}/config/"*.md "${CONFIG_DIR}/" 2>/dev/null || true
+    cp "${SOURCE_DIR}/config/"*.json "${CONFIG_DIR}/" 2>/dev/null || true
+    cp "${SOURCE_DIR}/config/"*.conf "${CONFIG_DIR}/" 2>/dev/null || true
     echo "  Copied config files"
 fi
 

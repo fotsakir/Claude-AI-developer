@@ -563,6 +563,10 @@ cp -r "${SCRIPT_DIR}/web/static/"* ${INSTALL_DIR}/web/static/ 2>/dev/null || tru
 mkdir -p ${INSTALL_DIR}/config
 cp "${SCRIPT_DIR}/config/"*.md ${CONFIG_DIR}/ 2>/dev/null || true
 cp "${SCRIPT_DIR}/config/"*.md ${INSTALL_DIR}/config/ 2>/dev/null || true
+cp "${SCRIPT_DIR}/config/"*.json ${CONFIG_DIR}/ 2>/dev/null || true
+cp "${SCRIPT_DIR}/config/"*.json ${INSTALL_DIR}/config/ 2>/dev/null || true
+cp "${SCRIPT_DIR}/config/"*.conf ${CONFIG_DIR}/ 2>/dev/null || true
+cp "${SCRIPT_DIR}/config/"*.conf ${INSTALL_DIR}/config/ 2>/dev/null || true
 
 # Copy documentation files
 mkdir -p ${INSTALL_DIR}/docs
