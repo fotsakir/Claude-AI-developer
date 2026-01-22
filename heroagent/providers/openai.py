@@ -2,6 +2,7 @@
 HeroAgent OpenAI Provider
 
 OpenAI GPT models via OpenAI API.
+Supports both Chat Completions API and Responses API (for pro models).
 """
 
 import json
@@ -18,6 +19,12 @@ from .base import BaseProvider, Response, ToolCall
 
 class OpenAIProvider(BaseProvider):
     """OpenAI GPT provider."""
+
+    # Models that require the Responses API instead of Chat Completions
+    RESPONSES_API_MODELS = [
+        'gpt-5-pro', 'gpt-5.1-pro', 'gpt-5.2-pro',
+        'o1-pro', 'o3-pro', 'o4-pro'
+    ]
 
     def __init__(self, api_key: Optional[str] = None, **kwargs):
         """Initialize OpenAI provider.
@@ -37,6 +44,10 @@ class OpenAIProvider(BaseProvider):
         self.client = OpenAI(api_key=api_key) if api_key else OpenAI()
         self.model = kwargs.get('model', 'gpt-4o')
 
+    def _is_responses_api_model(self) -> bool:
+        """Check if current model requires the Responses API."""
+        return any(self.model.startswith(m) for m in self.RESPONSES_API_MODELS)
+
     def chat(
         self,
         messages: List[Dict[str, Any]],
@@ -45,6 +56,19 @@ class OpenAIProvider(BaseProvider):
         **kwargs
     ) -> Response:
         """Send messages and get a response."""
+        if self._is_responses_api_model():
+            return self._chat_responses_api(messages, tools, max_tokens, **kwargs)
+        else:
+            return self._chat_completions_api(messages, tools, max_tokens, **kwargs)
+
+    def _chat_completions_api(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]] = None,
+        max_tokens: int = 4096,
+        **kwargs
+    ) -> Response:
+        """Use Chat Completions API for standard models."""
         # Convert messages to OpenAI format
         openai_messages = self._convert_messages(messages)
 
@@ -58,18 +82,73 @@ class OpenAIProvider(BaseProvider):
         # Prepare request
         request_kwargs = {
             'model': self.model,
-            'max_tokens': max_tokens,
+            'max_completion_tokens': max_tokens,
             'messages': openai_messages,
         }
 
         if tools:
-            request_kwargs['tools'] = self._convert_tools(tools)
+            request_kwargs['tools'] = self._convert_tools_chat(tools)
             request_kwargs['tool_choice'] = 'auto'
 
         # Make request
         response = self.client.chat.completions.create(**request_kwargs)
 
-        return self._parse_response(response)
+        return self._parse_chat_response(response)
+
+    def _chat_responses_api(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]] = None,
+        max_tokens: int = 4096,
+        **kwargs
+    ) -> Response:
+        """Use Responses API for pro models."""
+        # Build input from messages
+        input_text = self._build_responses_input(messages)
+
+        # Prepare request
+        request_kwargs = {
+            'model': self.model,
+            'input': input_text,
+        }
+
+        if max_tokens:
+            request_kwargs['max_output_tokens'] = max_tokens
+
+        if tools:
+            request_kwargs['tools'] = self._convert_tools_responses(tools)
+
+        if self.system_prompt:
+            request_kwargs['instructions'] = self.system_prompt
+
+        # Make request
+        response = self.client.responses.create(**request_kwargs)
+
+        return self._parse_responses_response(response)
+
+    def _build_responses_input(self, messages: List[Dict[str, Any]]) -> str:
+        """Build input string for Responses API from messages."""
+        parts = []
+        for msg in messages:
+            role = msg['role']
+            content = msg['content']
+
+            if isinstance(content, str):
+                if role == 'user':
+                    parts.append(content)
+                elif role == 'assistant':
+                    parts.append(f"Assistant: {content}")
+            elif isinstance(content, list):
+                for item in content:
+                    if isinstance(item, dict) and item.get('type') == 'text':
+                        text = item.get('text', '')
+                        if role == 'user':
+                            parts.append(text)
+                        elif role == 'assistant':
+                            parts.append(f"Assistant: {text}")
+
+        # Return the last user message or full conversation
+        return '\n\n'.join(parts) if parts else ''
 
     def stream(
         self,
@@ -79,6 +158,19 @@ class OpenAIProvider(BaseProvider):
         **kwargs
     ) -> Generator[Dict[str, Any], None, None]:
         """Stream messages and yield events."""
+        if self._is_responses_api_model():
+            yield from self._stream_responses_api(messages, tools, max_tokens, **kwargs)
+        else:
+            yield from self._stream_completions_api(messages, tools, max_tokens, **kwargs)
+
+    def _stream_completions_api(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]] = None,
+        max_tokens: int = 4096,
+        **kwargs
+    ) -> Generator[Dict[str, Any], None, None]:
+        """Stream using Chat Completions API."""
         openai_messages = self._convert_messages(messages)
 
         if self.system_prompt:
@@ -89,13 +181,13 @@ class OpenAIProvider(BaseProvider):
 
         request_kwargs = {
             'model': self.model,
-            'max_tokens': max_tokens,
+            'max_completion_tokens': max_tokens,
             'messages': openai_messages,
             'stream': True,
         }
 
         if tools:
-            request_kwargs['tools'] = self._convert_tools(tools)
+            request_kwargs['tools'] = self._convert_tools_chat(tools)
             request_kwargs['tool_choice'] = 'auto'
 
         stream = self.client.chat.completions.create(**request_kwargs)
@@ -151,14 +243,67 @@ class OpenAIProvider(BaseProvider):
             'usage': {'input_tokens': 0, 'output_tokens': 0}
         }
 
+    def _stream_responses_api(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]] = None,
+        max_tokens: int = 4096,
+        **kwargs
+    ) -> Generator[Dict[str, Any], None, None]:
+        """Stream using Responses API."""
+        input_text = self._build_responses_input(messages)
+
+        request_kwargs = {
+            'model': self.model,
+            'input': input_text,
+            'stream': True,
+        }
+
+        if max_tokens:
+            request_kwargs['max_output_tokens'] = max_tokens
+
+        if tools:
+            request_kwargs['tools'] = self._convert_tools_responses(tools)
+
+        if self.system_prompt:
+            request_kwargs['instructions'] = self.system_prompt
+
+        stream = self.client.responses.stream(**request_kwargs)
+
+        with stream as response_stream:
+            for event in response_stream:
+                if hasattr(event, 'type'):
+                    if event.type == 'response.output_text.delta':
+                        yield {
+                            'type': 'text_delta',
+                            'text': event.delta,
+                        }
+                    elif event.type == 'response.function_call_arguments.done':
+                        try:
+                            args = json.loads(event.arguments) if event.arguments else {}
+                        except json.JSONDecodeError:
+                            args = {}
+                        yield {
+                            'type': 'tool_use',
+                            'id': event.call_id if hasattr(event, 'call_id') else f"call_{id(event)}",
+                            'name': event.name if hasattr(event, 'name') else 'unknown',
+                            'input': args,
+                        }
+
+        yield {
+            'type': 'final',
+            'stop_reason': 'end_turn',
+            'usage': {'input_tokens': 0, 'output_tokens': 0}
+        }
+
     def supports_tools(self) -> bool:
         return True
 
     def supports_streaming(self) -> bool:
         return True
 
-    def _convert_tools(self, tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Convert tools to OpenAI format."""
+    def _convert_tools_chat(self, tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Convert tools to Chat Completions API format."""
         openai_tools = []
         for tool in tools:
             openai_tools.append({
@@ -171,8 +316,20 @@ class OpenAIProvider(BaseProvider):
             })
         return openai_tools
 
+    def _convert_tools_responses(self, tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Convert tools to Responses API format."""
+        responses_tools = []
+        for tool in tools:
+            responses_tools.append({
+                'type': 'function',
+                'name': tool['name'],
+                'description': tool.get('description', ''),
+                'parameters': tool.get('input_schema', {'type': 'object', 'properties': {}})
+            })
+        return responses_tools
+
     def _convert_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Convert messages to OpenAI format."""
+        """Convert messages to OpenAI Chat Completions format."""
         openai_messages = []
 
         for msg in messages:
@@ -226,8 +383,8 @@ class OpenAIProvider(BaseProvider):
 
         return openai_messages
 
-    def _parse_response(self, response) -> Response:
-        """Parse OpenAI response."""
+    def _parse_chat_response(self, response) -> Response:
+        """Parse Chat Completions API response."""
         message = response.choices[0].message
 
         content_text = message.content or ""
@@ -258,6 +415,41 @@ class OpenAIProvider(BaseProvider):
             usage={
                 'input_tokens': response.usage.prompt_tokens if response.usage else 0,
                 'output_tokens': response.usage.completion_tokens if response.usage else 0,
+            }
+        )
+
+    def _parse_responses_response(self, response) -> Response:
+        """Parse Responses API response."""
+        content_text = ""
+        tool_calls = []
+
+        for item in response.output:
+            if item.type == 'message':
+                for content in item.content:
+                    if hasattr(content, 'text'):
+                        content_text += content.text
+            elif item.type == 'function_call':
+                try:
+                    args = json.loads(item.arguments) if item.arguments else {}
+                except json.JSONDecodeError:
+                    args = {}
+                tool_calls.append(ToolCall(
+                    id=item.id if hasattr(item, 'id') else f"call_{len(tool_calls)}",
+                    name=item.name,
+                    input=args,
+                ))
+
+        stop_reason = 'end_turn'
+        if tool_calls:
+            stop_reason = 'tool_use'
+
+        return Response(
+            content=content_text,
+            tool_calls=tool_calls,
+            stop_reason=stop_reason,
+            usage={
+                'input_tokens': response.usage.input_tokens if response.usage else 0,
+                'output_tokens': response.usage.output_tokens if response.usage else 0,
             }
         )
 

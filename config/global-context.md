@@ -115,6 +115,35 @@ db = connect(os.getenv('DATABASE_URL'))
 
 **⚠️ CRITICAL: Write HUMAN-READABLE code. NO obfuscation!**
 
+**PHILOSOPHY: DIRECT EDITING ON PRODUCTION**
+The code must be editable directly on the production server. When there's a bug:
+1. Find the file on the server
+2. Open it, find the line
+3. Fix it on the spot
+4. Done!
+
+**This means:**
+- ✅ **Source code format** - NOT minified, NOT bundled, NOT compressed
+- ✅ **One file = one purpose** - NOT 5000 lines in one file
+- ✅ **Readable names** - Know what it does by reading it
+- ✅ **No build required for hotfixes** - Edit and it works
+- ❌ **NO webpack/vite bundles in production** (unless user requests it)
+- ❌ **NO TypeScript** (requires compilation)
+- ❌ **NO minification** (can't read/debug it)
+- ❌ **NO source maps needed** (code IS the source)
+
+**Performance is NOT a priority.** We prefer:
+- Readable code over fast code
+- Multiple files over one bundled file
+- Clear structure over optimized structure
+- Easy debugging over micro-optimizations
+
+**LANGUAGE DEFAULTS:**
+- **JavaScript by default** - Use `.js` files, NOT TypeScript (`.ts`)
+- Only use TypeScript if the project already has `tsconfig.json` or user explicitly requests it
+- If user requests Vue/React: Use `.js`/`.jsx`, NOT `.ts`/`.tsx`
+- PHP: Plain PHP files, directly editable
+
 **Code MUST be:**
 - ✅ Well-formatted and properly indented
 - ✅ With meaningful comments explaining complex logic
@@ -742,91 +771,102 @@ with sync_playwright() as p:
 
 **⚠️ USER PREFERENCE ALWAYS WINS!** If user specifies a technology, use that instead of defaults.
 
+**⚠️ REMEMBER: NO BUILD STEP!** All code must be directly editable on production server.
+
 ### Default by Project Type:
 
 | Project Type | Default Stack |
 |--------------|---------------|
-| **Complex Dashboard / Admin / ERP** | Vue 3 + PrimeVue + Vite |
-| **Landing Page / Marketing Site** | HTML + Tailwind CSS + Alpine.js |
-| **E-commerce (with SEO)** | Nuxt 3 + PrimeVue |
+| **Dashboard / Admin / ERP** | PHP + Alpine.js + Tailwind CSS |
+| **Landing Page / Marketing** | HTML + Alpine.js + Tailwind CSS |
 | **Simple Website** | HTML + Tailwind CSS |
 | **API / Backend** | Based on project's tech_stack setting |
 
-### Complex Dashboards (Vue 3 + PrimeVue 4):
+### Why NOT Vue/React/Angular with Build Tools:
+```
+❌ Vue + Vite       → Requires `npm run build`, can't hotfix on server
+❌ React + Webpack  → Bundled output, source maps needed to debug
+❌ Angular CLI      → Complex build, not directly editable
+❌ TypeScript       → Requires compilation
+```
+
+### Libraries: Download Locally (No CDN in production!)
+
+**Step 1: Download libraries once (at project setup):**
 ```bash
-npm create vite@latest myapp -- --template vue
-cd myapp
-npm install primevue primeicons primeflex @primeuix/themes
+mkdir -p assets/lib
+curl -o assets/lib/alpine.min.js https://unpkg.com/alpinejs@3/dist/cdn.min.js
+curl -o assets/lib/tailwind.js https://cdn.tailwindcss.com/3.4.1
+curl -o assets/lib/chart.min.js https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.min.js
 ```
 
-```javascript
-// main.js
-import { createApp } from 'vue';
-import App from './App.vue';
-import PrimeVue from 'primevue/config';
-import Aura from '@primeuix/themes/aura';  // Themes: aura, lara, nora
-import 'primeicons/primeicons.css';
-import 'primeflex/primeflex.css';
-
-const app = createApp(App);
-app.use(PrimeVue, {
-  theme: {
-    preset: Aura,
-    options: {
-      darkModeSelector: '.p-dark'  // Add class="p-dark" to <html> for dark mode
-    }
-  }
-});
-app.mount('#app');
-```
-
-**⚠️ IMPORTANT:** Use `@primeuix/themes` (NOT `@primevue/themes` which is deprecated!)
-
-**Dark mode:** Add `class="p-dark"` to `<html>` or `<body>` tag.
-
-**PrimeVue includes:** DataTable (with child rows, filtering, sorting, export), Charts, TreeTable, Drag&Drop, MultiSelect, and 90+ components.
-
-### Landing Pages (Tailwind + Alpine.js):
+**Step 2: Use local files in HTML:**
 ```html
+<!DOCTYPE html>
+<html lang="en">
 <head>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="assets/lib/tailwind.js"></script>
+    <script defer src="assets/lib/alpine.min.js"></script>
 </head>
+<body class="bg-gray-900 text-white">
+    <div x-data="{ open: false }">
+        <button @click="open = !open">Toggle Menu</button>
+        <nav x-show="open">...</nav>
+    </div>
+</body>
+</html>
 ```
 
-**Use for:** Marketing sites, landing pages, simple interactivity.
+**Why local downloads (NOT CDN):**
+- ✅ Works offline
+- ✅ No external dependencies
+- ✅ Faster (no DNS lookup, no external request)
+- ✅ More secure (no third-party CDN)
+- ✅ Reliable (CDN might go down)
+- ✅ Still no build step - just curl once
 
-### If User Specifies Something Else:
+### For Complex Tables/Grids:
+Use server-side rendering with Alpine.js for interactivity:
+```html
+<!-- PHP generates the table, Alpine handles UI -->
+<table x-data="{ selected: [] }">
+    <?php foreach($rows as $row): ?>
+    <tr @click="selected.push(<?= $row['id'] ?>)">
+        <td><?= $row['name'] ?></td>
+    </tr>
+    <?php endforeach; ?>
+</table>
 ```
-User: "Use React instead of Vue"        → Use React
-User: "Use Bootstrap not Tailwind"      → Use Bootstrap
-User: "Use Angular with AG Grid"        → Use Angular + AG Grid
-User: "Plain PHP, no frameworks"        → Use plain PHP
+
+### If User EXPLICITLY Requests Vue/React:
+Only then use build tools, but warn them:
+```
+User: "Use Vue with Vite"  → OK, but inform: "This requires build step,
+                              hotfixes will need rebuild"
+User: "Use React"          → OK, use create-react-app or Vite
 ```
 
-**Always follow user's technology preferences over these defaults.**
-
-### Libraries: Download Locally (No CDN!)
-**Always download libraries locally. Do NOT use CDN links.**
-
+### Common Libraries to Download:
 ```bash
-# ✅ GOOD - Install locally
-npm install primevue chart.js alpinejs
+# Core
+curl -o assets/lib/alpine.min.js https://unpkg.com/alpinejs@3/dist/cdn.min.js
+curl -o assets/lib/tailwind.js https://cdn.tailwindcss.com/3.4.1
 
-# ❌ BAD - CDN links
-<script src="https://cdn.jsdelivr.net/npm/..."></script>
+# Charts
+curl -o assets/lib/chart.min.js https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.min.js
+curl -o assets/lib/apexcharts.min.js https://cdn.jsdelivr.net/npm/apexcharts/dist/apexcharts.min.js
+
+# Icons
+curl -o assets/lib/lucide.min.js https://unpkg.com/lucide@latest/dist/umd/lucide.min.js
+
+# Date/Time
+curl -o assets/lib/dayjs.min.js https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js
 ```
 
-**Why local:**
-- Works offline
-- Faster (no external requests)
-- More secure (no third-party CDN)
-- Reliable (CDN might go down)
-
-**Exceptions (cannot download):**
-- Google Maps API
+**Exceptions (MUST be CDN - cannot download):**
+- Google Maps API (requires API key in URL)
 - Google Fonts (or download fonts manually)
-- Other APIs that require remote loading
+- Payment APIs (Stripe.js, PayPal SDK)
 
 ---
 

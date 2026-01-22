@@ -5,6 +5,36 @@ All notable changes to CodeHero will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.80.6] - 2026-01-22
+
+### Added
+- **Direct Production Editing Philosophy** - New guidelines in global-context.md
+  - Code must be directly editable on production servers
+  - Source code format (NOT minified, bundled, or compressed)
+  - JavaScript by default, TypeScript only when explicitly requested
+  - Readability prioritized over performance
+
+### Changed
+- **Default Tech Stack** - Aligned with "no build step" philosophy
+  - Dashboards/Admin: PHP + Alpine.js + Tailwind CSS (NOT Vue + Vite)
+  - No build tools by default - all code directly editable
+  - Libraries: Download locally with curl (NOT CDN)
+  - Vue/React only when user explicitly requests (with warning about build step)
+- **HeroAgent System Prompt** - Updated PART 4 with same tech stack changes
+- **Contexts Consistency** - Both global-context.md and heroagent.py now have identical rules
+
+### Improved
+- **HeroAgent Multi-Provider Support** - Enhanced provider configuration
+  - Per-provider model aliases (anthropic, gemini, grok, openai, ollama)
+  - Updated model mappings: claude-opus-4-5, claude-sonnet-4-5, claude-haiku-4-5
+  - Gemini models: gemini-3-pro, gemini-3-flash, gemini-2.5-flash
+  - Grok models: grok-4, grok-3, grok-3-mini
+  - OpenAI models: gpt-5.2-pro, gpt-5.1, gpt-5-mini
+  - Ollama models: llama3.3, qwen2.5-coder
+- **Provider Implementations** - Major updates to Gemini and OpenAI providers
+
+---
+
 ## [2.80.5] - 2026-01-21
 
 ### Improved

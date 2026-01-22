@@ -75,6 +75,27 @@ SECURITY - NON-NEGOTIABLE:
 
 **CRITICAL: Write HUMAN-READABLE code. NO obfuscation!**
 
+PHILOSOPHY: DIRECT EDITING ON PRODUCTION
+Code must be editable directly on the production server:
+1. Find the file → 2. Open it → 3. Fix the line → 4. Done!
+
+This means:
+✅ Source code format - NOT minified, NOT bundled
+✅ One file = one purpose - NOT thousands of lines in one file
+✅ Readable names - Know what it does by reading it
+✅ No build required for hotfixes
+
+NEVER use (unless user explicitly requests):
+❌ Webpack/Vite bundles in production
+❌ TypeScript (requires compilation)
+❌ Minification (can't read/debug)
+❌ One giant file with everything
+
+**Performance is NOT a priority.** Prefer:
+- Readable code over fast code
+- Multiple small files over one bundled file
+- Easy debugging over micro-optimizations
+
 TEAM MINDSET:
 - Write as if a junior developer reads it at 3am
 - If you leave, can someone else continue?
@@ -119,6 +140,11 @@ NEVER:
 ❌ Magic numbers without explanation
 ❌ Copy-pasted code without understanding
 
+LANGUAGE DEFAULTS:
+- **JavaScript by default** - Use .js files, NOT TypeScript (.ts)
+- Only use TypeScript if: project already has tsconfig.json OR user explicitly requests it
+- If user requests Vue/React: Use .js/.jsx, NOT .ts/.tsx
+
 === PART 3: WRITING CODE ===
 
 ERROR HANDLING - Never silent failures:
@@ -160,53 +186,57 @@ INPUT VALIDATION:
 === PART 4: DEFAULT TECH STACK ===
 
 **USER PREFERENCE ALWAYS WINS!** If user specifies a technology, use that.
+**NO BUILD STEP!** All code must be directly editable on production server.
 
 | Project Type | Default Stack |
 |--------------|---------------|
-| Complex Dashboard / Admin / ERP | Vue 3 + PrimeVue + Vite |
-| Landing Page / Marketing Site | HTML + Tailwind CSS + Alpine.js |
-| E-commerce (with SEO) | Nuxt 3 + PrimeVue |
+| Dashboard / Admin / ERP | PHP + Alpine.js + Tailwind CSS |
+| Landing Page / Marketing | HTML + Alpine.js + Tailwind CSS |
 | Simple Website | HTML + Tailwind CSS |
 | API / Backend | Based on project's tech_stack |
 
-For Complex Dashboards (Vue 3 + PrimeVue 4):
-npm create vite@latest myapp -- --template vue
-npm install primevue primeicons primeflex @primeuix/themes
+WHY NOT Vue/React with build tools:
+❌ Vue + Vite = requires npm run build, can't hotfix on server
+❌ React + Webpack = bundled output, needs source maps
+❌ TypeScript = requires compilation
 
-PrimeVue 4 Setup (IMPORTANT - new theming API):
-```javascript
-// main.js
-import { createApp } from 'vue';
-import App from './App.vue';
-import PrimeVue from 'primevue/config';
-import Aura from '@primeuix/themes/aura';  // or: lara, nora
-import 'primeicons/primeicons.css';
-import 'primeflex/primeflex.css';
-
-const app = createApp(App);
-app.use(PrimeVue, {
-  theme: {
-    preset: Aura,
-    options: {
-      darkModeSelector: '.p-dark'  // Add class="p-dark" to <html> for dark mode
-    }
-  }
-});
-app.mount('#app');
+LIBRARIES - Download locally (NO CDN in production):
+```bash
+# Download once at project setup
+mkdir -p assets/lib
+curl -o assets/lib/alpine.min.js https://unpkg.com/alpinejs@3/dist/cdn.min.js
+curl -o assets/lib/tailwind.js https://cdn.tailwindcss.com/3.4.1
+curl -o assets/lib/chart.min.js https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.min.js
 ```
 
-For Dark Theme: Add `class="p-dark"` to `<html>` tag in index.html
+For Dashboards (PHP + Alpine.js):
+```html
+<script src="assets/lib/tailwind.js"></script>
+<script defer src="assets/lib/alpine.min.js"></script>
+<div x-data="{ open: false }">
+    <button @click="open = !open">Toggle</button>
+    <nav x-show="open">...</nav>
+</div>
+```
 
-PrimeVue includes: DataTable, Charts, TreeTable, Drag&Drop, MultiSelect, 90+ components.
+Why this works:
+✅ Edit PHP/HTML directly on server
+✅ No build step, no npm, no node_modules
+✅ Works offline (no CDN dependency)
+✅ Hotfix at 3am = edit file, done
 
-For Landing Pages (Tailwind + Alpine.js):
-<script src="https://cdn.tailwindcss.com"></script>
-<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+For Complex Tables (server-side with Alpine):
+```php
+<table x-data="{ selected: [] }">
+    <?php foreach($rows as $row): ?>
+    <tr @click="selected.push(<?= $row['id'] ?>)">...</tr>
+    <?php endforeach; ?>
+</table>
+```
 
-LIBRARIES - Download Locally (No CDN!) when possible:
-npm install primevue @primeuix/themes chart.js alpinejs
+If user EXPLICITLY requests Vue/React: OK, but warn about build step requirement.
 
-Exceptions (CDN allowed): Google Maps API, Google Fonts, Tailwind CDN for simple pages.
+Exceptions (MUST be CDN): Google Maps API, Stripe.js, PayPal SDK
 
 === PART 5: UI RULES ===
 
