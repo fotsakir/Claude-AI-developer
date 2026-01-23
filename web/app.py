@@ -136,6 +136,11 @@ def sanitize_error(error, generic_message="An error occurred"):
     return generic_message
 
 
+def generate_secure_key():
+    """Generate a 32-character secure key for project URL authentication."""
+    return secrets.token_urlsafe(24)[:32]
+
+
 def safe_join_path(base_path, user_path):
     """
     Safely join base_path with user-provided path, preventing directory traversal.
@@ -486,7 +491,7 @@ def generate_ticket_number(project_code, cursor):
 
 @app.route('/')
 def index():
-    return redirect(url_for('dashboard') if 'user' in session else url_for('login'))
+    return redirect(url_for('choose') if 'user' in session else url_for('login'))
 
 @app.route('/health')
 def health():
@@ -529,7 +534,7 @@ def login():
                         session['user'] = username
                         session['user_id'] = user['id']
                         session['role'] = user['role']
-                        return redirect(url_for('dashboard'))
+                        return redirect(url_for('choose'))
                     # Store pending auth in session, redirect to 2FA
                     session['pending_user'] = username
                     session['pending_user_id'] = user['id']
@@ -541,7 +546,7 @@ def login():
                     session['user'] = username
                     session['user_id'] = user['id']
                     session['role'] = user['role']
-                    return redirect(url_for('dashboard'))
+                    return redirect(url_for('choose'))
             else:
                 # Wrong password
                 now_locked, remaining = record_failed_login()
@@ -568,7 +573,7 @@ def verify_2fa():
             session['user'] = session.pop('pending_user')
             session['user_id'] = session.pop('pending_user_id')
             session['role'] = session.pop('pending_role')
-            response = redirect(url_for('dashboard'))
+            response = redirect(url_for('choose'))
             # Set remember cookie if requested
             if remember_me:
                 token, expires = create_remember_token()
@@ -583,6 +588,168 @@ def verify_2fa():
 def logout():
     session.clear()
     return redirect(url_for('login'))
+
+# ============ PROJECT URL AUTHENTICATION ============
+
+# Secret for signing session cookies (generated once at startup)
+PROJECT_AUTH_SECRET = os.environ.get('PROJECT_AUTH_SECRET', secrets.token_hex(32))
+
+# Session expiry time (default 7 days)
+PROJECT_SESSION_MAX_AGE = 86400 * 7
+
+def generate_project_session_token(project_folder, secure_key):
+    """Generate a signed session token for a project folder.
+    Includes secure_key hash so changing the key invalidates all sessions."""
+    import hashlib
+    import hmac
+    timestamp = int(time.time())
+    key_hash = hashlib.sha256(secure_key.encode()).hexdigest()[:8]
+    message = f"{project_folder}:{timestamp}:{key_hash}"
+    signature = hmac.new(PROJECT_AUTH_SECRET.encode(), message.encode(), hashlib.sha256).hexdigest()[:32]
+    return f"{project_folder}:{timestamp}:{key_hash}:{signature}"
+
+def validate_project_session_token(token, project_folder, secure_key, max_age=PROJECT_SESSION_MAX_AGE):
+    """Validate a session token. Returns True if valid, False otherwise.
+    Checks that the key_hash matches current secure_key - changing key invalidates sessions."""
+    import hashlib
+    import hmac
+    try:
+        parts = token.split(':')
+        if len(parts) != 4:
+            return False
+        token_folder, timestamp_str, key_hash, signature = parts
+        # Check folder matches
+        if token_folder != project_folder:
+            return False
+        # Check key_hash matches current key
+        current_key_hash = hashlib.sha256(secure_key.encode()).hexdigest()[:8]
+        if not hmac.compare_digest(key_hash, current_key_hash):
+            return False  # Key was changed - invalidate session
+        # Check timestamp not expired
+        timestamp = int(timestamp_str)
+        if time.time() - timestamp > max_age:
+            return False
+        # Verify signature
+        message = f"{token_folder}:{timestamp_str}:{key_hash}"
+        expected_sig = hmac.new(PROJECT_AUTH_SECRET.encode(), message.encode(), hashlib.sha256).hexdigest()[:32]
+        return hmac.compare_digest(signature, expected_sig)
+    except:
+        return False
+
+@app.route('/auth/validate-project-key')
+def validate_project_key():
+    """
+    Validate secure key for project preview URLs.
+    Used by nginx auth_request for port 9867.
+
+    Flow:
+    1. Localhost bypass for Playwright
+    2. Get project's secure_key from database
+    3. Check for valid session cookie (includes key hash - changing key invalidates sessions)
+    4. If no valid cookie, check for ?key= parameter
+    5. If key valid, return 200 with Set-Cookie header
+    """
+    from urllib.parse import parse_qs
+    from flask import make_response
+
+    # Get request info
+    real_ip = request.headers.get('X-Real-IP', request.remote_addr)
+    original_uri = request.headers.get('X-Original-URI', '')
+
+    # Bypass for localhost (Playwright and local development)
+    if real_ip in ('127.0.0.1', '::1'):
+        return '', 200
+
+    # Extract project folder from URI path
+    uri_path = original_uri.split('?')[0]
+    uri_parts = uri_path.strip('/').split('/')
+    if not uri_parts or not uri_parts[0]:
+        return '', 403
+    project_folder = uri_parts[0]
+
+    # Get project's secure_key from database
+    conn = None
+    project_secure_key = None
+    try:
+        conn = get_db()
+        cursor = conn.cursor(dictionary=True, buffered=True)
+        cursor.execute("""
+            SELECT secure_key FROM projects
+            WHERE (web_path LIKE %s OR web_path LIKE %s) AND status = 'active'
+        """, (f'%/{project_folder}', f'%/{project_folder}/'))
+        projects = cursor.fetchall()
+        cursor.close()
+
+        # Get the first project's key (for session validation)
+        for p in projects:
+            if p.get('secure_key'):
+                project_secure_key = p['secure_key']
+                break
+    except Exception as e:
+        logger.error(f"Project key lookup error: {e}")
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+    if not project_secure_key:
+        return '', 403
+
+    # Check for existing session cookie (includes key hash check)
+    cookie_name = f"codehero_auth_{project_folder}"
+    session_token = request.cookies.get(cookie_name)
+    if session_token and validate_project_session_token(session_token, project_folder, project_secure_key):
+        return '', 200
+
+    # No valid session - check for key in URL
+    key = ''
+    if '?' in original_uri:
+        query_string = original_uri.split('?', 1)[1]
+        parsed_qs = parse_qs(query_string)
+        key = parsed_qs.get('key', [''])[0]
+
+    if not key:
+        return '', 403
+
+    # Validate key against database
+    if not secrets.compare_digest(project_secure_key, key):
+        return '', 403
+
+    # Key is valid - generate session token and set cookie
+    token = generate_project_session_token(project_folder, project_secure_key)
+    response = make_response('', 200)
+    # Set cookie for this project path only (7 days expiry)
+    response.set_cookie(
+        cookie_name,
+        token,
+        max_age=86400*7,
+        path=f'/{project_folder}',
+        httponly=True,
+        secure=True,
+        samesite='Lax'
+    )
+    return response
+
+# ============ INTERFACE SELECTOR ============
+
+@app.route('/choose')
+@login_required
+def choose():
+    """Interface selector - Console or Chat"""
+    return render_template('choose.html', username=session.get('user', 'User'))
+
+# ============ MOBILE CHAT INTERFACE ============
+
+@app.route('/chat')
+@app.route('/chat/project/<int:project_id>')
+@app.route('/chat/ticket/<int:ticket_id>')
+@app.route('/chat/new/<int:project_id>')
+@login_required
+def chat(project_id=None, ticket_id=None):
+    """Mobile chat interface - SPA handles routing"""
+    return render_template('chat.html')
 
 # ============ DASHBOARD ============
 
@@ -763,6 +930,12 @@ def project_detail(project_id):
         cursor.close(); conn.close()
     except Exception as e:
         print(f"Project detail error: {e}")
+
+    # Generate preview_url if not set but web_path exists
+    if project and not project.get('preview_url') and project.get('web_path'):
+        host = request.host.split(':')[0]
+        folder = os.path.basename(project['web_path'].rstrip('/'))
+        project['preview_url'] = f"https://{host}:9867/{folder}"
 
     return render_template('project_detail.html', user=session['user'], role=session.get('role'),
                          project=project, tickets=tickets, next_sequence=next_sequence)
@@ -3629,15 +3802,18 @@ def api_projects():
             if not db_name:
                 db_warning = 'Database creation failed (insufficient privileges). Project created without database.'
 
+        # Generate secure key for project URL authentication
+        secure_key = generate_secure_key()
+
         try:
             cursor.execute("""
                 INSERT INTO projects (name, code, description, project_type, tech_stack,
-                    web_path, app_path, preview_url, context, db_name, db_user, db_password, db_host,
+                    web_path, app_path, preview_url, secure_key, context, db_name, db_user, db_password, db_host,
                     ai_model, default_execution_mode, android_device_type, android_remote_host, android_remote_port, android_screen_size,
                     dotnet_port, status, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'localhost', %s, %s, %s, %s, %s, %s, %s, 'active', NOW(), NOW())
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'localhost', %s, %s, %s, %s, %s, %s, %s, 'active', NOW(), NOW())
             """, (name, code, description, project_type, tech_stack or None,
-                  web_path or None, app_path or None, preview_url or None, context or None,
+                  web_path or None, app_path or None, preview_url or None, secure_key, context or None,
                   db_name, db_user, db_password, ai_model, default_execution_mode,
                   android_device_type, android_remote_host, android_remote_port, android_screen_size,
                   dotnet_port))
@@ -3718,7 +3894,10 @@ def api_project_detail(project_id):
     cursor = conn.cursor(dictionary=True)
 
     if request.method == 'GET':
-        cursor.execute("SELECT * FROM projects WHERE id = %s", (project_id,))
+        cursor.execute("""
+            SELECT p.*, (SELECT COUNT(*) FROM tickets WHERE project_id = p.id) as ticket_count
+            FROM projects p WHERE p.id = %s
+        """, (project_id,))
         project = cursor.fetchone()
         cursor.close(); conn.close()
 
@@ -3822,6 +4001,33 @@ def api_project_detail(project_id):
         return jsonify({'success': False, 'message': sanitize_error(e)})
 
 
+@app.route('/api/project/<int:project_id>/refresh-key', methods=['POST'])
+@login_required
+def refresh_project_key(project_id):
+    """Generate a new secure key for project URL authentication."""
+    try:
+        conn = get_db()
+        cursor = conn.cursor(dictionary=True)
+
+        # Verify project exists
+        cursor.execute("SELECT id, name FROM projects WHERE id = %s", (project_id,))
+        project = cursor.fetchone()
+        if not project:
+            cursor.close(); conn.close()
+            return jsonify({'success': False, 'message': 'Project not found'}), 404
+
+        # Generate new secure key
+        new_key = generate_secure_key()
+
+        cursor.execute("UPDATE projects SET secure_key = %s, updated_at = NOW() WHERE id = %s", (new_key, project_id))
+        conn.commit()
+        cursor.close(); conn.close()
+
+        return jsonify({'success': True, 'secure_key': new_key, 'message': 'Key refreshed'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': sanitize_error(e)})
+
+
 # ============ TICKETS ============
 
 @app.route('/ticket/<int:ticket_id>')
@@ -3841,7 +4047,7 @@ def ticket_detail(ticket_id):
             SELECT t.*, p.name as project_name, p.code as project_code,
                    p.web_path, p.app_path,
                    COALESCE(p.web_path, p.app_path) as project_path,
-                   p.preview_url, p.ai_model as project_ai_model,
+                   p.preview_url, p.secure_key, p.ai_model as project_ai_model,
                    p.default_execution_mode as project_default_execution_mode,
                    p.project_type, p.android_device_type, p.android_screen_size,
                    p.db_name, p.db_user, p.db_host

@@ -514,6 +514,88 @@ SVCEOF
 log_success "Systemd services updated"
 
 # =====================================================
+# STEP 7.5: UPDATE NGINX CONFIG (if needed)
+# =====================================================
+
+# Update nginx config for session-based auth if still using old Basic Auth
+if grep -q "auth_basic" /etc/nginx/sites-available/codehero-projects 2>/dev/null; then
+    log_info "Updating nginx config for session-based auth..."
+    cat > /etc/nginx/sites-available/codehero-projects << 'NGINXPROJECTS'
+# CodeHero Web Projects - Port 9867 (HTTPS)
+# Session-based auth with per-project cookies
+server {
+    listen 9867 ssl http2;
+    listen [::]:9867 ssl http2;
+    server_name _;
+
+    ssl_certificate /etc/codehero/ssl/cert.pem;
+    ssl_certificate_key /etc/codehero/ssl/key.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    root /var/www/projects;
+    index index.html index.php;
+
+    access_log /var/log/nginx/codehero-projects-access.log;
+    error_log /var/log/nginx/codehero-projects-error.log;
+    client_max_body_size 500M;
+
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml;
+
+    # Auth validation endpoint (internal)
+    location = /auth/validate {
+        internal;
+        proxy_pass http://127.0.0.1:5000/auth/validate-project-key;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+        proxy_set_header X-Original-URI $request_uri;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Cookie $http_cookie;
+    }
+
+    location / {
+        auth_request /auth/validate;
+        auth_request_set $auth_cookie $upstream_http_set_cookie;
+        add_header Set-Cookie $auth_cookie;
+
+        error_page 403 = @denied;
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location @denied {
+        default_type text/html;
+        return 403 '<!DOCTYPE html><html><head><title>Access Denied</title><style>body{font-family:system-ui,sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#0a0a0f;color:#fff}div{text-align:center;padding:40px}h1{color:#ef4444;margin-bottom:20px}p{color:#94a3b8}</style></head><body><div><h1>Access Denied</h1><p>Use the secure URL with key from CodeHero dashboard.</p></div></body></html>';
+    }
+
+    location ~ \.php$ {
+        auth_request /auth/validate;
+        auth_request_set $auth_cookie $upstream_http_set_cookie;
+        add_header Set-Cookie $auth_cookie;
+
+        fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        include fastcgi_params;
+        fastcgi_read_timeout 300s;
+    }
+
+    location ~ /\.ht {
+        deny all;
+    }
+
+    location ~* \.(jpg|jpeg|png|gif|ico|css|js|woff|woff2|ttf|svg|eot)$ {
+        auth_request /auth/validate;
+        expires 7d;
+        add_header Cache-Control "public, immutable";
+    }
+}
+NGINXPROJECTS
+    # Remove old htpasswd file if exists
+    rm -f /etc/codehero/projects.htpasswd
+    log_success "Nginx config updated for session-based auth"
+fi
+
+# =====================================================
 # STEP 8: RESTART SERVICES
 # =====================================================
 

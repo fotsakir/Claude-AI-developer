@@ -234,6 +234,7 @@ CREATE TABLE `projects` (
   `tech_stack` varchar(255) DEFAULT NULL,
   `web_path` varchar(500) DEFAULT NULL,
   `preview_url` varchar(500) DEFAULT NULL,
+  `secure_key` varchar(32) DEFAULT NULL COMMENT 'Secure key for project URL authentication',
   `app_path` varchar(500) DEFAULT NULL,
   `reference_path` varchar(500) DEFAULT NULL COMMENT 'Path to imported reference project (for template mode)',
   `context` text,

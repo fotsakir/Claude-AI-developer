@@ -5,6 +5,29 @@ All notable changes to CodeHero will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.82.0] - 2026-01-23
+
+### Added
+- **Secure Project URLs** - Client preview URLs now require authentication
+  - Each project gets a unique secure key for URL access
+  - Session cookies scoped per-project (7-day expiry)
+  - Clients can only access their assigned project, not others
+  - Changing the key immediately invalidates all existing sessions
+  - Localhost (127.0.0.1) bypasses auth for Playwright automation
+
+### Improved
+- **Project Detail UI** - New "Client URL" section
+  - One-click copy of secure URL with key
+  - "New Key" button to regenerate and revoke old access
+  - Clear explanation that each project has isolated access
+
+### Changed
+- Replaced HTTP Basic Auth with session-based authentication
+- Nginx config updated for auth_request validation
+- Migration auto-generates secure keys for existing projects
+
+---
+
 ## [2.81.0] - 2026-01-23
 
 ### Added
