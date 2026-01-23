@@ -656,13 +656,13 @@
             {% if ticket.preview_url %}
             <div class="tab-content" id="tab-preview" style="flex-direction:column">
                 <div class="view-toggle">
-                    <label style="color:var(--text-muted)">{{ ticket.preview_url }}</label>
+                    <label style="color:var(--text-muted)">{{ ticket.preview_url }}?key=***</label>
                     <label style="margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--text-secondary)">
                         <input type="checkbox" id="auto-refresh-toggle" checked style="cursor:pointer">
                         Auto-refresh (15s)
                     </label>
                     <button onclick="refreshPreview()" style="margin-left:12px;padding:6px 16px;background:var(--bg-card);border:1px solid var(--border-subtle);color:var(--text-primary);border-radius:6px;cursor:pointer;font-size:12px">Refresh</button>
-                    <button onclick="window.open('{{ ticket.preview_url }}', '_blank')" style="padding:6px 16px;background:var(--accent-cyan);border:none;color:#000;border-radius:6px;cursor:pointer;margin-left:8px;font-size:12px;font-weight:600">Open</button>
+                    <button onclick="window.open(previewUrl, '_blank')" style="padding:6px 16px;background:var(--accent-cyan);border:none;color:#000;border-radius:6px;cursor:pointer;margin-left:8px;font-size:12px;font-weight:600">Open</button>
                 </div>
                 <iframe id="preview-frame" src="" style="flex:1;border:none;background:#fff;width:100%"></iframe>
             </div>
@@ -1015,7 +1015,9 @@
         const ticketId = {{ ticket.id }};
         const ticketStatus = '{{ ticket.status }}';
         const projectId = {{ ticket.project_id }};
-        const previewUrl = '{{ ticket.preview_url|default("", true) }}';
+        const previewUrlBase = '{{ ticket.preview_url|default("", true) }}';
+        const secureKey = '{{ ticket.secure_key|default("", true) }}';
+        const previewUrl = previewUrlBase ? (previewUrlBase + (previewUrlBase.includes('?') ? '&' : '?') + 'key=' + secureKey) : '';
         const isEmbed = {{ 'true' if embed else 'false' }};
         let oldestMessageId = {% if messages and messages|length > 0 %}{{ messages[0].id }}{% else %}null{% endif %};
         const totalMessages = {{ total_messages|default(0, true) }};
