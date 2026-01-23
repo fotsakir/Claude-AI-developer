@@ -512,25 +512,106 @@ Do NOT ask for:
 <div data-testid="error-message">
 ```
 
-### 5.2 PLAYWRIGHT URL & SCREENSHOTS
+### 5.2 PLAYWRIGHT - COMPLETE VERIFICATION SCRIPT
+
+**Use this ONE script for ALL checks: screenshots + console + links**
+
 ```python
 from playwright.sync_api import sync_playwright
+from urllib.parse import urljoin
 
+def verify_page(url, project_path="/tmp"):
+    """
+    Complete page verification:
+    - Desktop + Mobile screenshots
+    - Console errors capture
+    - Failed requests capture
+    - All links extraction
+    """
+    results = {
+        "console_errors": [],
+        "console_warnings": [],
+        "failed_requests": [],
+        "all_links": [],
+        "screenshots": {}
+    }
+    
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        context = browser.new_context(ignore_https_errors=True)
+        page = context.new_page()
+        
+        # Capture console messages
+        page.on("console", lambda msg: 
+            results["console_errors"].append(msg.text) if msg.type == "error" else 
+            results["console_warnings"].append(msg.text) if msg.type == "warning" else None
+        )
+        
+        # Capture failed requests (404, CORS, etc.)
+        page.on("requestfailed", lambda req: 
+            results["failed_requests"].append(f"{req.url} - {req.failure}")
+        )
+        
+        # Navigate to page
+        page.goto(url)
+        page.wait_for_load_state("networkidle")
+        
+        # Desktop screenshot
+        page.set_viewport_size({"width": 1920, "height": 1080})
+        desktop_path = f"{project_path}/screenshot_desktop.png"
+        page.screenshot(path=desktop_path, full_page=True)
+        results["screenshots"]["desktop"] = desktop_path
+        
+        # Mobile screenshot
+        page.set_viewport_size({"width": 375, "height": 667})
+        mobile_path = f"{project_path}/screenshot_mobile.png"
+        page.screenshot(path=mobile_path, full_page=True)
+        results["screenshots"]["mobile"] = mobile_path
+        
+        # Extract all links
+        for a in page.query_selector_all("a[href]"):
+            href = a.get_attribute("href")
+            if href and not href.startswith("#") and not href.startswith("javascript:"):
+                results["all_links"].append(urljoin(url, href))
+        
+        # Extract all images
+        for img in page.query_selector_all("img[src]"):
+            results["all_links"].append(urljoin(url, img.get_attribute("src")))
+        
+        browser.close()
+    
+    return results
+
+# Usage
 url = "https://127.0.0.1:9867/{folder_name}/"
+results = verify_page(url)
 
-with sync_playwright() as p:
-    browser = p.chromium.launch()
-    context = browser.new_context(ignore_https_errors=True)  # REQUIRED!
-    page = context.new_page()
-    page.goto(url)
+# Print results
+print("=== SCREENSHOTS ===")
+print(f"Desktop: {results['screenshots']['desktop']}")
+print(f"Mobile: {results['screenshots']['mobile']}")
 
-    # Desktop screenshot (full page!)
-    page.set_viewport_size({"width": 1920, "height": 1080})
-    page.screenshot(path='/tmp/desktop_full.png', full_page=True)
+print("\n=== CONSOLE ERRORS ===")
+if results["console_errors"]:
+    for e in results["console_errors"]:
+        print(f"❌ {e}")
+else:
+    print("✅ No errors")
 
-    # Mobile screenshot (full page!)
-    page.set_viewport_size({"width": 375, "height": 667})
-    page.screenshot(path='/tmp/mobile_full.png', full_page=True)
+print("\n=== FAILED REQUESTS ===")
+if results["failed_requests"]:
+    for f in results["failed_requests"]:
+        print(f"❌ {f}")
+else:
+    print("✅ All requests OK")
+
+print(f"\n=== LINKS FOUND: {len(results['all_links'])} ===")
+```
+
+**After running, use Read tool to view screenshots:**
+```
+Read /tmp/screenshot_desktop.png
+Read /tmp/screenshot_mobile.png
 ```
 
 ### 5.3 ⚠️ UI QUALITY ENFORCEMENT
@@ -863,10 +944,56 @@ curl -o assets/lib/lucide.min.js https://unpkg.com/lucide@latest/dist/umd/lucide
 curl -o assets/lib/dayjs.min.js https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js
 ```
 
-**Exceptions (MUST be CDN - cannot download):**
-- Google Maps API (requires API key in URL)
-- Google Fonts (or download fonts manually)
-- Payment APIs (Stripe.js, PayPal SDK)
+**Exceptions (MUST stay as CDN/external):**
+- Google Maps API (requires dynamic API key)
+- Payment SDKs (Stripe.js, PayPal - security requirement)
+- Analytics (Google Analytics, etc.)
+- reCAPTCHA
+
+### ⚠️ Download ALL External Assets Locally
+
+**CRITICAL: Download EVERYTHING that can be downloaded. No external dependencies!**
+
+**What MUST be downloaded locally:**
+| Asset Type | Download To | Example |
+|------------|-------------|----------|
+| JS Libraries | `assets/lib/` | alpine.js, chart.js |
+| CSS Frameworks | `assets/lib/` | bootstrap.css, tailwind.js |
+| Fonts | `assets/fonts/` | roboto.woff2, icons.woff2 |
+| Images/Photos | `assets/images/` | logo.png, hero.jpg |
+| Icons | `assets/icons/` | favicon.ico, sprite.svg |
+| Placeholder images | `assets/images/` | Use ui-avatars.com or download |
+
+**For placeholder/avatar images:**
+```bash
+# ❌ NEVER use external placeholder services in production
+# via.placeholder.com, placekitten.com, etc. are SLOW and unreliable
+
+# ✅ Option 1: ui-avatars.com (acceptable - fast, generates on-the-fly)
+<img src="https://ui-avatars.com/api/?name=John+Doe&size=300&background=667eea&color=fff">
+
+# ✅ Option 2: Download placeholder once at setup
+curl -o assets/images/default-avatar.png "https://ui-avatars.com/api/?name=User&size=300"
+
+# ✅ Option 3: Create local colored placeholder with ImageMagick
+convert -size 300x300 xc:#667eea assets/images/default-avatar.png
+```
+
+**Bootstrap example (download ALL parts):**
+```bash
+mkdir -p assets/lib assets/fonts
+
+# CSS
+curl -o assets/lib/bootstrap.min.css https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css
+
+# JS
+curl -o assets/lib/bootstrap.bundle.min.js https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js
+
+# Icons (if using Bootstrap Icons)
+curl -o assets/lib/bootstrap-icons.css https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css
+mkdir -p assets/fonts
+curl -o assets/fonts/bootstrap-icons.woff2 https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/fonts/bootstrap-icons.woff2
+```
 
 ---
 
@@ -929,6 +1056,195 @@ POST /api/login → AuthController::login
 **Before installing:** `which tool` - probably already installed!
 
 ---
+---
+
+## 🧪 PART 9: MANDATORY TESTING
+
+### 9.1 TEST FILE FOR EVERY CODE FILE
+
+**CRITICAL: Every code file MUST have a corresponding test file!**
+
+| Code File | Test File | Run With |
+|-----------|-----------|----------|
+| `user.php` | `user_test.php` | `php user_test.php` |
+| `api.php` | `api_test.php` | `php api_test.php` |
+| `service.py` | `service_test.py` | `python service_test.py` |
+| `utils.js` | `utils_test.js` | `node utils_test.js` |
+
+### 9.2 PHP TEST TEMPLATE
+
+```php
+<?php
+/**
+ * @file: user_test.php
+ * @description: Tests for user.php
+ * @usage: php user_test.php
+ */
+require_once __DIR__ . '/user.php';
+
+$tests_passed = 0;
+$tests_failed = 0;
+
+function test($name, $condition) {
+    global $tests_passed, $tests_failed;
+    if ($condition) {
+        echo "✅ PASS: $name\n";
+        $tests_passed++;
+    } else {
+        echo "❌ FAIL: $name\n";
+        $tests_failed++;
+    }
+}
+
+// Tests
+test('function exists', function_exists('myFunction'));
+test('returns expected', myFunction('input') === 'expected');
+
+// Summary
+echo "\n=============================\n";
+echo "Passed: $tests_passed | Failed: $tests_failed\n";
+exit($tests_failed > 0 ? 1 : 0);
+```
+
+### 9.2b CHECK SERVER LOGS (MANDATORY!)
+
+**⚠️ After ANY code change, check the relevant server logs for errors!**
+
+**Log locations by tool:**
+| Tool | Log File | Check Command |
+|------|----------|---------------|
+| PHP | `/var/log/nginx/*-error.log` | `sudo tail -20 /var/log/nginx/codehero-projects-error.log` |
+| PHP-FPM | `/var/log/php8.3-fpm.log` | `sudo tail -20 /var/log/php8.3-fpm.log` |
+| MySQL | `/var/log/mysql/error.log` | `sudo tail -20 /var/log/mysql/error.log` |
+| Node.js | stdout or pm2 logs | `pm2 logs` or check process output |
+| Python | stdout or app logs | Check process output or app log file |
+| Nginx | `/var/log/nginx/error.log` | `sudo tail -20 /var/log/nginx/error.log` |
+
+**After running/testing code, ALWAYS check logs:**
+```bash
+# PHP project - check for PHP errors
+sudo tail -30 /var/log/nginx/codehero-projects-error.log | grep -i "error\|warning\|fatal"
+
+# MySQL - check for query errors
+sudo tail -20 /var/log/mysql/error.log
+
+# Check all recent errors across logs
+sudo journalctl -p err -n 20 --no-pager
+```
+
+**Common log errors to fix:**
+| Error in Log | Meaning | Fix |
+|--------------|---------|-----|
+| `PHP Fatal error` | Code crash | Fix PHP syntax/logic |
+| `PHP Warning` | Non-fatal issue | Fix but code runs |
+| `MySQL Connection refused` | DB not running | `systemctl start mysql` |
+| `Permission denied` | File permissions | `chmod`/`chown` fix |
+| `File not found` | Missing file | Check path, create file |
+| `Memory exhausted` | Out of RAM | Optimize code or increase limit |
+
+**Workflow:**
+```
+1. Make code change
+2. Test the feature (browser or CLI)
+3. Check server logs for errors ← MANDATORY!
+4. Fix any errors found
+5. Repeat until logs are clean
+```
+
+
+### 9.3 BROWSER CONSOLE CHECK (MANDATORY!)
+
+**⚠️ Use the unified script from Section 5.2!**
+
+The script in **Section 5.2** does everything:
+- ✅ Desktop + Mobile screenshots
+- ✅ Console errors capture
+- ✅ Failed requests (404, CORS, etc.)
+- ✅ All links extraction
+
+**Quick reference - what to check in results:**
+| Result | Must Be | Action if Not |
+|--------|---------|---------------|
+| `console_errors` | Empty `[]` | Fix JavaScript errors |
+| `failed_requests` | Empty `[]` | Fix missing files/paths |
+| Screenshots | Visually correct | Fix CSS/layout issues |
+
+**Common console errors:**
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `Uncaught ReferenceError` | Missing variable/function | Check typos, script order |
+| `404 (Not Found)` | Missing file | Download locally or fix path |
+| `CORS error` | Cross-origin blocked | Download resource locally |
+| `TypeError: null` | Element not found | Add null checks |
+
+### 9.4 LINK VERIFICATION (ALL LINKS!)
+
+**Generate list of ALL links and test each one:**
+
+```python
+from playwright.sync_api import sync_playwright
+import requests
+
+# Get all links
+with sync_playwright() as p:
+    browser = p.chromium.launch()
+    page = browser.new_context(ignore_https_errors=True).new_page()
+    page.goto("https://127.0.0.1:9867/myproject/")
+    
+    links = [a.get_attribute('href') for a in page.query_selector_all('a[href]')]
+    images = [img.get_attribute('src') for img in page.query_selector_all('img[src]')]
+    browser.close()
+
+# Test each link
+for url in set(links + images):
+    if url and not url.startswith('#'):
+        try:
+            r = requests.head(url, timeout=10, verify=False)
+            status = "✅" if r.status_code < 400 else "❌"
+            print(f"{status} {r.status_code} {url}")
+        except Exception as e:
+            print(f"❌ ERROR {url}: {e}")
+```
+
+### 9.5 TEXT CONTRAST RULES
+
+**⚠️ Text must be readable! No dark-on-dark or light-on-light!**
+
+| Background | Text Color | Result |
+|------------|------------|--------|
+| Dark (#1a1a2e, black) | White/Light (#f0f0f0) | ✅ Good |
+| Light (#f5f5f5, white) | Black/Dark (#333) | ✅ Good |
+| Dark | Dark | ❌ BAD - Unreadable! |
+| Light | Light | ❌ BAD - Unreadable! |
+
+**Minimum contrast ratio: 4.5:1 for normal text**
+
+```css
+/* ❌ BAD */
+.dark-bg { background: #1a1a2e; color: #333; }
+
+/* ✅ GOOD */
+.dark-bg { background: #1a1a2e; color: #f0f0f0; }
+```
+
+### 9.6 COMPLETE VERIFICATION WORKFLOW
+
+**Before marking ANY task complete:**
+
+```
+1. □ Run syntax check (php -l, python -m py_compile, etc.)
+2. □ Run test file (*_test.php, *_test.py)
+3. □ Check SERVER LOGS for errors (PHP, MySQL, Nginx)
+4. □ Take screenshots (desktop + mobile)
+5. □ Read screenshots with Read tool
+6. □ Run BROWSER console error check (Playwright)
+7. □ Run link verification (all links + images)
+8. □ Check text contrast (no dark-on-dark)
+9. □ Fix any issues found
+10. □ Repeat from step 3 until ALL checks pass (zero errors!)
+```
+
+
 
 ## ✔️ FINAL CHECKLIST
 
@@ -954,14 +1270,25 @@ POST /api/login → AuthController::login
 - [ ] Junior can understand?
 - [ ] File headers with @tags
 - [ ] API docs (.md) exists
-- [ ] Test script exists & passes
+- [ ] Test file exists for each code file (*_test.php, *_test.py)
+- [ ] All tests pass
 - [ ] TECHNOLOGIES.md updated
+
+**Assets:**
+- [ ] All JS/CSS libraries downloaded locally (not CDN)
+- [ ] All images/photos downloaded locally (not placeholder.com)
+- [ ] Fonts downloaded locally (if used)
 
 **UI:**
 - [ ] data-testid on elements
 - [ ] Screenshots taken (desktop + mobile, full page)
 - [ ] Screenshots reviewed (actually looked at them!)
 - [ ] No giant padding/margins/icons
+- [ ] Text contrast OK (no dark-on-dark, light-on-light)
+- [ ] Browser console errors checked (Playwright) - ZERO errors!
+- [ ] Server logs checked (PHP, MySQL, etc.) - ZERO errors!
+- [ ] All links verified (curl + Playwright)
+- [ ] All images loading (no broken icons)
 - [ ] Visual quality checklist passed (5.6)
 
 ---

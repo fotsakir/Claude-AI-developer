@@ -5,6 +5,22 @@ All notable changes to CodeHero will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.80.11] - 2026-01-23
+
+### Improved
+- **Assistant Context Files** - Enhanced all 3 assistant context files
+  - Added "What is a Ticket?" section explaining the ticket lifecycle
+  - Added parallel-first design principles (mandatory, not optional)
+  - Tickets now clearly explained: each ticket = one Claude session
+  - Parallel execution guidance: same sequence_order = parallel (max 5)
+  - Never ask "do you want parallel?" - just design for maximum parallelism
+
+### Documentation
+- Updated assistant-general.md, assistant-planner.md, assistant-progress.md
+- Added ticket lifecycle diagram and key fields explanation
+
+---
+
 ## [2.80.10] - 2026-01-22
 
 ### Improved

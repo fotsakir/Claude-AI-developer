@@ -242,6 +242,116 @@ project-root/
 
 ---
 
+## 12. Ticket Execution Design
+
+### Execution Order & Parallelism
+
+CodeHero can run tickets in **parallel** within a project:
+- **Max 10 projects** run simultaneously
+- **Max 5 tickets per project** run in parallel (with same `sequence_order`)
+
+### Key Concepts
+
+| Concept | Purpose | Blocks Execution? |
+|---------|---------|-------------------|
+| `sequence_order` | Order + parallel grouping | **NO** - same seq runs parallel |
+| `parent_ticket_id` | Context inheritance + implicit dependency | **YES** - parent must be done |
+| `depends_on` | Explicit dependency | **YES** - must be done/skipped |
+
+### Sequence Order (Parallel Groups)
+
+Tickets with the **same `sequence_order`** run in parallel (max 5):
+
+```
+sequence_order=1: [Setup DB, Setup Config, Setup Dirs]  → run in parallel
+sequence_order=2: [Create Models]                       → waits for seq 1
+sequence_order=3: [API Users, API Products, API Orders] → run in parallel
+sequence_order=4: [Frontend, Integration Tests]         → run in parallel
+```
+
+### Parent Tickets (Sub-tickets)
+
+When a ticket has a `parent_ticket_id`:
+- **Waits for parent** to be `done` or `skipped` (implicit dependency)
+- **Gets parent context**: Summary of what parent accomplished
+- **Recursive context**: Also gets grandparent, great-grandparent summaries
+
+Use sub-tickets when:
+- Breaking a feature into phases
+- Follow-up tasks that need parent's results
+- Maintaining context chain across related work
+
+### Explicit Dependencies
+
+Use `depends_on` for tickets that need another ticket's work but are NOT sub-tickets:
+
+```
+Ticket 3 (Homepage) depends_on Ticket 1 (Setup)
+Ticket 3 (Homepage) depends_on Ticket 2 (Auth)
+→ Homepage waits for BOTH Setup AND Auth to complete
+```
+
+### Best Practices for Parallel Work
+
+**Rule: Parallel tickets should work on DIFFERENT files/folders**
+
+| ✅ Good for Parallel | ❌ Bad for Parallel |
+|---------------------|---------------------|
+| Different pages (`/users`, `/products`) | Same component file |
+| Different API endpoints | Same model file |
+| Different modules/folders | Same config file |
+| Independent features | Features that share state |
+
+**Example - E-commerce Project:**
+
+```
+| Seq | Tickets (Parallel) | Files/Folders |
+|-----|--------------------|---------------|
+| 1 | Setup project structure | /config, /database |
+| 1 | Create database schema | /migrations |
+| 2 | Products API | /api/products/, /models/product.py |
+| 2 | Users API | /api/users/, /models/user.py |
+| 2 | Orders API | /api/orders/, /models/order.py |
+| 3 | Product listing page | /pages/products/ |
+| 3 | User profile page | /pages/users/ |
+| 3 | Cart page | /pages/cart/ |
+| 4 | Checkout flow | /pages/checkout/ (depends on cart) |
+| 5 | Integration tests | /tests/ |
+```
+
+### Ticket Preview Table Format
+
+When showing tickets to user, include:
+
+```
+| # | Ticket | Complexity | Model | Seq | Parallel | Files | Deps |
+|---|--------|------------|-------|-----|----------|-------|------|
+| 1 | Setup database | Simple | haiku | 1 | Yes | /database/ | - |
+| 2 | Setup config | Simple | haiku | 1 | Yes | /config/ | - |
+| 3 | Products API | Moderate | sonnet | 2 | Yes | /api/products/ | 1,2 |
+| 4 | Users API | Moderate | sonnet | 2 | Yes | /api/users/ | 1,2 |
+| 5 | Payment integration | Critical | opus | 3 | No | /services/payment/ | 3,4 |
+```
+
+**Columns:**
+- **Seq**: sequence_order (same = parallel)
+- **Parallel**: Yes if can run with others in same seq
+- **Files**: Primary files/folders this ticket works on
+- **Deps**: Dependencies by ticket number
+
+### Sub-ticket Example
+
+```
+Parent: PROJ-0001 "Build authentication system" (seq=1)
+  └── Child: PROJ-0002 "Add password reset" (seq=2, parent=PROJ-0001)
+       └── Child: PROJ-0003 "Add email templates" (seq=3, parent=PROJ-0002)
+```
+
+- PROJ-0002 waits for PROJ-0001 and gets its context/summary
+- PROJ-0003 waits for PROJ-0002 and gets context from BOTH PROJ-0001 and PROJ-0002
+
+---
+
 ## Quick Start for Claude
 
 When working on this project:
@@ -250,5 +360,7 @@ When working on this project:
 3. Implement features in milestone order
 4. Follow coding standards
 5. Always consider security
+6. **Design tickets for parallel execution** where possible
+7. **Separate work into different files/folders** for parallel tickets
 
 Priority: [MVP features first / Speed / Code quality / All balanced]

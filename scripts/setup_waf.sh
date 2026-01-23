@@ -171,6 +171,32 @@ EOF
 log_success "Admin panel configuration created"
 
 # =====================================================
+# STEP 3a: Configure CRS Anomaly Thresholds
+# =====================================================
+log_info "Configuring CRS anomaly thresholds..."
+
+# The CodeHero admin panel displays code snippets which trigger false positives
+# in outbound response scanning. Increase threshold from 4 to 10 to allow this.
+CRS_SETUP="/etc/modsecurity/crs/crs-setup.conf"
+
+if [ -f "$CRS_SETUP" ]; then
+    # Check if the rule is still commented
+    if grep -q "^#SecAction" "$CRS_SETUP" && grep -q "id:900110" "$CRS_SETUP"; then
+        # Uncomment the SecAction block (lines with #SecAction or # "id:900110 etc)
+        sed -i '/^#SecAction/,/outbound_anomaly_score_threshold=4"/ s/^#//' "$CRS_SETUP"
+        # Change outbound threshold from 4 to 10
+        sed -i 's/outbound_anomaly_score_threshold=4/outbound_anomaly_score_threshold=10/' "$CRS_SETUP"
+        log_success "Outbound anomaly threshold set to 10"
+    elif grep -q "outbound_anomaly_score_threshold=10" "$CRS_SETUP"; then
+        log_info "Anomaly threshold already configured"
+    else
+        log_warning "Could not configure anomaly threshold - manual setup may be needed"
+    fi
+else
+    log_warning "CRS setup.conf not found - skipping threshold configuration"
+fi
+
+# =====================================================
 # STEP 3b: Create Web Projects config (relaxed rules)
 # =====================================================
 log_info "Creating web projects configuration (relaxed rules)..."
@@ -338,6 +364,9 @@ echo "║  • phpMyAdmin (port 9454)                                 ║"
 echo "╠═══════════════════════════════════════════════════════════╣"
 echo "║  Logs: /var/log/nginx/*-error.log                         ║"
 echo "║  Config: /etc/modsecurity/main.conf                       ║"
+echo "║  Thresholds: /etc/modsecurity/crs/crs-setup.conf        ║"
+echo "╠═══════════════════════════════════════════════════════════╣"
+echo "║  Outbound anomaly threshold: 10 (allows code responses) ║"
 echo "╠═══════════════════════════════════════════════════════════╣"
 echo "║  To disable: Edit Nginx configs, remove modsecurity lines ║"
 echo "║  To tune: Edit /etc/modsecurity/main.conf                 ║"

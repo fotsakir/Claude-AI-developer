@@ -1,11 +1,16 @@
 """
 HeroAgent Screenshot Tool
 
-Take screenshots using Playwright.
+Take screenshots using Playwright with full page verification:
+- Desktop + Mobile screenshots
+- Console errors capture
+- Failed requests capture
+- All links extraction
 """
 
 import os
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
+from urllib.parse import urljoin
 
 from .base import BaseTool, ToolResult
 
@@ -17,10 +22,15 @@ except ImportError:
 
 
 class ScreenshotTool(BaseTool):
-    """Take screenshots of web pages."""
+    """Take screenshots and verify web pages (console errors, failed requests, links)."""
 
     name = "Screenshot"
-    description = "Take screenshots of a web page (desktop and/or mobile). Uses Playwright with full_page=True."
+    description = """Take screenshots of a web page with FULL verification:
+- Desktop + Mobile screenshots (full_page=True)
+- Console errors capture (must be ZERO!)
+- Failed requests capture (404s, CORS errors)
+- All links extraction for verification
+Returns screenshots paths AND any errors found."""
 
     VIEWPORTS = {
         'desktop': {'width': 1920, 'height': 1080},
@@ -41,7 +51,7 @@ class ScreenshotTool(BaseTool):
         full_page: bool = True,
         **kwargs
     ) -> ToolResult:
-        """Take screenshot(s) of a web page.
+        """Take screenshot(s) of a web page with full verification.
 
         Args:
             url: URL to screenshot
@@ -50,7 +60,7 @@ class ScreenshotTool(BaseTool):
             full_page: Capture full page (default True per global context rules)
 
         Returns:
-            ToolResult with screenshot path(s)
+            ToolResult with screenshot path(s), console errors, failed requests, and links
         """
         if not HAS_PLAYWRIGHT:
             return ToolResult(
@@ -75,6 +85,10 @@ class ScreenshotTool(BaseTool):
             output = output[:-4]
 
         screenshots_taken = []
+        console_errors: List[str] = []
+        console_warnings: List[str] = []
+        failed_requests: List[str] = []
+        all_links: List[str] = []
 
         try:
             with sync_playwright() as p:
@@ -82,10 +96,35 @@ class ScreenshotTool(BaseTool):
                 context = browser.new_context(ignore_https_errors=True)
                 page = context.new_page()
 
+                # Capture console messages
+                def handle_console(msg):
+                    if msg.type == "error":
+                        console_errors.append(msg.text)
+                    elif msg.type == "warning":
+                        console_warnings.append(msg.text)
+                page.on("console", handle_console)
+
+                # Capture failed requests (404, CORS, etc.)
+                def handle_request_failed(req):
+                    failed_requests.append(f"{req.url} - {req.failure}")
+                page.on("requestfailed", handle_request_failed)
+
                 # Navigate
                 page.goto(url, timeout=self.timeout)
                 page.wait_for_load_state("networkidle")
                 page.wait_for_timeout(self.wait_time)  # Wait for animations
+
+                # Extract all links
+                for a in page.query_selector_all("a[href]"):
+                    href = a.get_attribute("href")
+                    if href and not href.startswith("#") and not href.startswith("javascript:"):
+                        all_links.append(urljoin(url, href))
+
+                # Extract all images (to check for broken images)
+                for img in page.query_selector_all("img[src]"):
+                    src = img.get_attribute("src")
+                    if src:
+                        all_links.append(urljoin(url, src))
 
                 # Determine viewports to capture
                 if viewport == "both":
@@ -108,16 +147,58 @@ class ScreenshotTool(BaseTool):
 
                 browser.close()
 
-            if len(screenshots_taken) == 1:
-                return ToolResult(
-                    output=f"Screenshot saved: {screenshots_taken[0]}",
-                    metadata={'paths': screenshots_taken}
-                )
+            # Build result output
+            result_lines = []
+
+            # Screenshots
+            result_lines.append("=== SCREENSHOTS ===")
+            for path in screenshots_taken:
+                result_lines.append(f"✅ {path}")
+
+            # Console errors (CRITICAL!)
+            result_lines.append("\n=== CONSOLE ERRORS ===")
+            if console_errors:
+                for err in console_errors:
+                    result_lines.append(f"❌ {err}")
+                result_lines.append(f"\n⚠️ FOUND {len(console_errors)} CONSOLE ERRORS - MUST FIX!")
             else:
-                return ToolResult(
-                    output=f"Screenshots saved:\n- " + "\n- ".join(screenshots_taken),
-                    metadata={'paths': screenshots_taken}
-                )
+                result_lines.append("✅ No console errors")
+
+            # Failed requests (CRITICAL!)
+            result_lines.append("\n=== FAILED REQUESTS ===")
+            if failed_requests:
+                for req in failed_requests:
+                    result_lines.append(f"❌ {req}")
+                result_lines.append(f"\n⚠️ FOUND {len(failed_requests)} FAILED REQUESTS - MUST FIX!")
+            else:
+                result_lines.append("✅ All requests OK")
+
+            # Warnings (informational)
+            if console_warnings:
+                result_lines.append(f"\n=== WARNINGS ({len(console_warnings)}) ===")
+                for warn in console_warnings[:5]:  # Limit to first 5
+                    result_lines.append(f"⚠️ {warn}")
+                if len(console_warnings) > 5:
+                    result_lines.append(f"... and {len(console_warnings) - 5} more")
+
+            # Links found
+            unique_links = list(set(all_links))
+            result_lines.append(f"\n=== LINKS FOUND: {len(unique_links)} ===")
+
+            # Determine if there are critical issues
+            has_errors = len(console_errors) > 0 or len(failed_requests) > 0
+
+            return ToolResult(
+                output="\n".join(result_lines),
+                metadata={
+                    'paths': screenshots_taken,
+                    'console_errors': console_errors,
+                    'console_warnings': console_warnings,
+                    'failed_requests': failed_requests,
+                    'links': unique_links,
+                    'has_errors': has_errors
+                }
+            )
 
         except Exception as e:
             return ToolResult(output=f"Error taking screenshot: {str(e)}", is_error=True)
