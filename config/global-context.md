@@ -17,7 +17,7 @@
 - Protected pages: `require 'auth_check.php';` at the TOP of every protected file
 
 **Database:**
-- Charset: `utf8mb4` — supports emojis and all Unicode
+- Charset: `utf8mb4` with `utf8mb4_0900_ai_ci` collation (MySQL 8.0+ default)
 - Indexes: Add `INDEX` on columns used in WHERE/JOIN
 - Transactions: Use `beginTransaction/commit/rollBack` for related operations
 
@@ -597,8 +597,8 @@ $pdo = new PDO($dsn, $_ENV['DB_USER'], $_ENV['DB_PASS'], [
 ```
 
 ```sql
--- Always use utf8mb4 for full Unicode support
-CREATE DATABASE myapp CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+-- MySQL 8.0+ uses utf8mb4 and utf8mb4_0900_ai_ci by default
+CREATE DATABASE myapp CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 
 -- Table with proper constraints and indexes
 CREATE TABLE users (
@@ -612,7 +612,7 @@ CREATE TABLE users (
 
     UNIQUE INDEX idx_email (email),
     INDEX idx_role (role)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 ```
 
 ### 4.2 TRANSACTIONS
