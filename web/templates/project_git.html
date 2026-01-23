@@ -952,9 +952,11 @@
                     const filesEl = document.getElementById('diffFiles');
                     if (files.length > 0) {
                         filesEl.style.display = 'flex';
-                        filesEl.innerHTML = files.map(f => `
-                            <button class="diff-file-btn" onclick="loadFileDiff('${hash}', '${f}')">${f}</button>
-                        `).join('');
+                        filesEl.innerHTML = files.map(f => {
+                            // Handle both string and object formats
+                            const filename = typeof f === 'string' ? f : (f.path || f.filename || f.name || String(f));
+                            return `<button class="diff-file-btn" onclick="loadFileDiff('${hash}', '${filename}')">${filename}</button>`;
+                        }).join('');
                     } else {
                         filesEl.style.display = 'none';
                     }

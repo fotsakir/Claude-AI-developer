@@ -5,6 +5,27 @@ All notable changes to CodeHero will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.82.2] - 2026-01-23
+
+### Added
+- **Design Standards (PART 12)** - New comprehensive design guidelines in global-context.md
+  - 4px/8px spacing grid system with Tailwind classes
+  - 60-30-10 color rule (primary/secondary/accent)
+  - Typography hierarchy (H1-H4, body, small)
+  - Border radius tokens (rounded-none to rounded-full)
+  - Shadow/elevation levels
+  - Copy-paste ready component patterns (buttons, cards, inputs)
+  - Responsive patterns and dark mode guidelines
+  - Design checklist in Final Checklist section
+
+### Improved
+- **Dynamic Global Context Loading** - Single source of truth architecture
+  - Assistants (web chat) now dynamically load global-context.md via app.py
+  - HeroAgent now dynamically loads global-context.md via get_system_prompt()
+  - Removed duplicate content from assistant-*.md files
+  - Removed hardcoded rules from heroagent.py SYSTEM_PROMPT
+  - All components now share the same coding standards automatically
+
 ## [2.82.1] - 2026-01-23
 
 ### Fixed

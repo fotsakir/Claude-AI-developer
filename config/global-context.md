@@ -1,1247 +1,1281 @@
-# Global Project Context
+# Global Project Context v2.2
 
-> **MISSION:** Build simple, testable code that AI can maintain without human help.
+> **MISSION:** Build production-ready code that works correctly the first time.
 
 ---
 
-## ⛔ PART 1: CRITICAL RULES (Read FIRST!)
+## ⚡ QUICK REFERENCE (Read This First!)
 
-### 1.1 PROTECTED PATHS - FORBIDDEN!
-```
-/opt/codehero/           ← Platform will break
-/etc/codehero/           ← Platform config
-/var/backups/codehero/   ← Backups
-/etc/nginx/              ← Web server
-/etc/systemd/            ← System services
-/home/claude/.claude*    ← Claude CLI
-```
+### ✅ ALWAYS DO:
 
-**YOUR WORKSPACE ONLY:**
-- Web projects: `/var/www/projects/{project}/`
-- App projects: `/opt/apps/{project}/`
-- Reference projects: `/opt/codehero/references/{project}/` **(READ-ONLY!)**
+**Security:**
+- SQL: `$stmt->execute([$id])` — NEVER string concatenation
+- Output: `htmlspecialchars($x, ENT_QUOTES, 'UTF-8')` — escape ALL user input
+- Passwords: `password_hash($p, PASSWORD_BCRYPT)` — NEVER plain text or MD5
+- Forms: Include `<input type="hidden" name="csrf_token">` on every POST form
+- Sessions: `session_regenerate_id(true)` after login
+- Protected pages: `require 'auth_check.php';` at the TOP of every protected file
 
-### 1.3 PROJECT PATHS - How to Use Them
+**Database:**
+- Charset: `utf8mb4` — supports emojis and all Unicode
+- Indexes: Add `INDEX` on columns used in WHERE/JOIN
+- Transactions: Use `beginTransaction/commit/rollBack` for related operations
 
-A project can have multiple paths:
+**UI:**
+- Links: Relative paths `href="about.php"` — NOT `/about.php`
+- Grid: Always include `grid-cols-*` (e.g., `grid grid-cols-1 md:grid-cols-3`)
+- Flex: Always include direction `flex-row` or `flex-col`
+- Dark backgrounds: Use light text `bg-gray-800 text-white`
 
-| Path | Purpose | Access |
-|------|---------|--------|
-| `web_path` | Frontend files (PHP, HTML, CSS, JS) | Read/Write |
-| `app_path` | Backend files (Node, Python, API) | Read/Write |
-| `reference_path` | Imported template project | **READ-ONLY** |
+**Design (Tailwind):**
+- Spacing: Use 4px grid (`gap-2`=8px, `gap-4`=16px, `gap-6`=24px)
+- Colors: 60% neutral (`gray-50`), 30% secondary (`gray-100-200`), 10% accent (`blue-600`)
+- No pure black/white: Use `gray-900` and `gray-50` instead
+- Buttons: `px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md`
+- Cards: `bg-white rounded-lg shadow-sm border border-gray-200 p-6`
+- Inputs: `w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500`
+- Dark mode: Always add `dark:` variants (`dark:bg-gray-800 dark:text-white`)
 
-**IMPORTANT:** If a project has `reference_path`, use it as a guide:
-- Read files from reference to understand patterns
-- Copy code patterns to web_path or app_path
-- **NEVER modify files in reference_path**
+### ❌ NEVER DO:
 
-Example workflow:
-```
-1. Check reference_path for existing patterns
-2. Implement similar code in web_path or app_path
-3. Adapt to project requirements
-```
+| Bad | Why | Good |
+|-----|-----|------|
+| `"WHERE id=$id"` | SQL Injection | `"WHERE id=?"` + bind |
+| `echo $userInput` | XSS Attack | `echo htmlspecialchars($userInput)` |
+| `$password` in code | Credential leak | `$_ENV['DB_PASS']` from .env |
+| `href="/page.php"` | Breaks in subfolders | `href="page.php"` |
+| `grid gap-4` | No columns defined | `grid grid-cols-3 gap-4` |
+| `flex gap-4` | No direction | `flex flex-row gap-4` |
 
-**IF USER ASKS:**
-- "Fix 403 error" → Only inside PROJECT folder
-- "Fix nginx" → REFUSE, tell them to do it manually
-- "Fix the app" → ASK which app, NOT CodeHero
-
-### 1.2 SECURITY - NON-NEGOTIABLE
-```python
-# SQL - ALWAYS prepared statements
-# ❌ NEVER: f"SELECT * FROM users WHERE id = {id}"
-# ✅ ALWAYS: db.query("SELECT * FROM users WHERE id = ?", [id])
-
-# Output - ALWAYS escape
-# ❌ NEVER: echo $userInput
-# ✅ ALWAYS: echo htmlspecialchars($userInput, ENT_QUOTES, 'UTF-8')
-
-# Passwords - ALWAYS hash
-# ❌ NEVER: db.save(password)
-# ✅ ALWAYS: db.save(bcrypt.hash(password))
-```
-
-### 1.3 CREDENTIALS - NEVER HARDCODED
-```python
-# ❌ NEVER
-db = connect("mysql://admin:secret123@localhost/app")
-
-# ✅ ALWAYS .env
-load_dotenv()
-db = connect(os.getenv('DATABASE_URL'))
-```
-
-### 1.4 GIT - DO NOT INITIALIZE WITHOUT PERMISSION
-
-**⚠️ DO NOT create git repositories in project folders!**
+### 🧪 TEST COMMANDS:
 
 ```bash
-# ❌ NEVER do this automatically:
-git init
-git add .
-git commit -m "Initial commit"
+# PHP Tests
+php tests/MyTest.php
+
+# Python Tests
+pytest -v tests/
+
+# UI Verification (screenshots + console errors)
+python /opt/codehero/scripts/verify_ui.py https://127.0.0.1:9867/myproject/
+
+# Check server logs
+sudo tail -20 /var/log/nginx/codehero-projects-error.log
 ```
 
-**Why:**
-- User may have their own version control setup
-- Creates extra files that may not be wanted
-- Takes time away from the actual task
-- `.git` folder can be security risk if exposed
+### 📁 WORKSPACE:
 
-**If user wants git:**
-- They will explicitly ask: "Initialize git" or "Add version control"
-- Only then create the repository
+```
+Web projects:  /var/www/projects/{name}/
+App projects:  /opt/apps/{name}/
 
-**If project already has .git folder:**
-- Do NOT make commits unless user asks
-- Do NOT push to remote
-- Respect existing git configuration
+FORBIDDEN:     /opt/codehero/, /etc/nginx/, /etc/systemd/
+```
 
 ---
 
-### 1.5 AUTHENTICATION - VERIFY EVERY FILE
+## PART 1: SECURITY (NON-NEGOTIABLE)
 
-**⚠️ CRITICAL: When building login/admin systems, EVERY protected file must check authentication!**
-
-#### The Problem
+### 1.1 FORBIDDEN PATHS
 
 ```
-/admin/
-  login.php        ← Public (login form)
-  dashboard.php    ← Has auth check ✅
-  users.php        ← FORGOT auth check! ❌ Anyone can access!
-  settings.php     ← FORGOT auth check! ❌ Anyone can access!
-  api/data.php     ← FORGOT auth check! ❌ Data exposed!
+NEVER TOUCH:
+/opt/codehero/          - Platform code
+/etc/codehero/          - Platform config
+/etc/nginx/             - Web server
+/etc/systemd/           - System services
+
+YOUR WORKSPACE:
+/var/www/projects/{project}/   - Web projects
+/opt/apps/{project}/           - App projects
 ```
 
-#### The Solution
+### 1.2 SQL INJECTION PREVENTION
 
-**Step 1: Create auth check include**
+**NEVER concatenate user input into SQL. ALWAYS use prepared statements.**
+
 ```php
-// /admin/includes/auth_check.php
-<?php
-session_start();
-if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
-    header('Location: login.php');
-    exit;
-}
-?>
+// PHP - PDO
+$stmt = $pdo->prepare("SELECT * FROM users WHERE email = ? AND status = ?");
+$stmt->execute([$email, $status]);
+$user = $stmt->fetch();
+
+// PHP - MySQLi
+$stmt = $mysqli->prepare("SELECT * FROM users WHERE id = ?");
+$stmt->bind_param("i", $id);
+$stmt->execute();
 ```
-
-**Step 2: Include at TOP of EVERY protected file**
-```php
-<?php
-// /admin/dashboard.php - FIRST LINE!
-require_once __DIR__ . '/includes/auth_check.php';
-
-// Rest of the file...
-?>
-```
-
-#### Verification Checklist
-
-**After creating login system, verify EVERY file in protected folder:**
-
-```bash
-# List all PHP files in admin folder
-find /admin -name "*.php" -type f
-
-# For EACH file, check if it has auth:
-grep -l "auth_check\|session.*admin\|isLoggedIn" /admin/*.php
-```
-
-**Manual checklist:**
-```
-□ login.php - NO auth (it's the login page)
-□ logout.php - NO auth (destroys session)
-□ dashboard.php - HAS auth check at top?
-□ users.php - HAS auth check at top?
-□ settings.php - HAS auth check at top?
-□ ALL other .php files - HAS auth check?
-□ API endpoints - HAS auth check?
-□ AJAX handlers - HAS auth check?
-```
-
-#### Common Mistakes
-
-| Mistake | Risk | Fix |
-|---------|------|-----|
-| Auth check after HTML | Page partially loads | Put auth check at VERY TOP, before any output |
-| Only checking on dashboard | Other pages exposed | Check on EVERY file |
-| Checking $_SESSION without session_start() | Always fails | Include session_start() in auth check |
-| API returns data without auth | Data leak | API endpoints need auth too |
-| Forgot AJAX handlers | Actions without auth | All handlers need auth |
-
-#### Testing Authentication
-
-**After implementing login, test EACH protected URL directly:**
 
 ```python
-import requests
-
-# List of ALL protected pages
-protected_urls = [
-    "https://site/admin/dashboard.php",
-    "https://site/admin/users.php",
-    "https://site/admin/settings.php",
-    "https://site/admin/api/data.php",
-]
-
-# Test WITHOUT login (should redirect or 403)
-for url in protected_urls:
-    r = requests.get(url, allow_redirects=False, verify=False)
-    if r.status_code == 200:
-        print(f"❌ VULNERABLE: {url} - accessible without login!")
-    elif r.status_code in [301, 302, 303, 307, 308]:
-        print(f"✅ Protected: {url} - redirects to login")
-    elif r.status_code == 403:
-        print(f"✅ Protected: {url} - returns 403")
+# Python
+cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
+user = cursor.fetchone()
 ```
 
-**CRITICAL: Run this test BEFORE marking login task complete!**
+```java
+// Java - JDBC
+PreparedStatement stmt = conn.prepareStatement("SELECT * FROM users WHERE email = ?");
+stmt.setString(1, email);
+ResultSet rs = stmt.executeQuery();
 
----
-
-## 📋 PART 2: BEFORE WRITING CODE
-
-### 2.1 TEAM MINDSET
-- Write as if a junior developer reads it at 3am
-- If you leave, can someone else continue?
-- Comment the WHY, not the WHAT
-
-### 2.2 PROJECT STRUCTURE
-```
-/src
-  /services
-    UserService.py       ← Code
-    UserService.md       ← API docs (REQUIRED)
-    UserService_test.py  ← Tests (REQUIRED)
-```
-
-### 2.3 FILE HEADER (in EVERY file)
-```python
-"""
-@file: UserService.py
-@description: User registration, login, profile
-@tags: #auth #users #login
-@dependencies: db.py, validators.py
-"""
-```
-
-### 2.4 NAMING CONVENTIONS
-| Type | Convention | Example |
-|------|------------|---------|
-| Python files | snake_case | `user_service.py` |
-| PHP files | PascalCase | `UserService.php` |
-| Classes | PascalCase | `UserService` |
-| Functions | camelCase | `createUser()` |
-| Constants | UPPER_SNAKE | `MAX_RETRIES` |
-| DB tables | snake_case plural | `order_items` |
-
-### 2.5 CODE QUALITY & READABILITY
-
-**⚠️ CRITICAL: Write HUMAN-READABLE code. NO obfuscation!**
-
-**PHILOSOPHY: DIRECT EDITING ON PRODUCTION**
-The code must be editable directly on the production server. When there's a bug:
-1. Find the file on the server
-2. Open it, find the line
-3. Fix it on the spot
-4. Done!
-
-**This means:**
-- ✅ **Source code format** - NOT minified, NOT bundled, NOT compressed
-- ✅ **One file = one purpose** - NOT 5000 lines in one file
-- ✅ **Readable names** - Know what it does by reading it
-- ✅ **No build required for hotfixes** - Edit and it works
-- ❌ **NO webpack/vite bundles in production** (unless user requests it)
-- ❌ **NO TypeScript** (requires compilation)
-- ❌ **NO minification** (can't read/debug it)
-- ❌ **NO source maps needed** (code IS the source)
-
-**Performance is NOT a priority.** We prefer:
-- Readable code over fast code
-- Multiple files over one bundled file
-- Clear structure over optimized structure
-- Easy debugging over micro-optimizations
-
-**LANGUAGE DEFAULTS:**
-- **JavaScript by default** - Use `.js` files, NOT TypeScript (`.ts`)
-- Only use TypeScript if the project already has `tsconfig.json` or user explicitly requests it
-- If user requests Vue/React: Use `.js`/`.jsx`, NOT `.ts`/`.tsx`
-- PHP: Plain PHP files, directly editable
-
-**Code MUST be:**
-- ✅ Well-formatted and properly indented
-- ✅ With meaningful comments explaining complex logic
-- ✅ Using descriptive, human-readable names
-- ✅ Easy to understand and maintain
-- ✅ Properly structured with clear separation of concerns
-
-**NAMING - ALWAYS HUMAN-READABLE:**
-
-| Type | Convention | ✅ Good Example | ❌ BAD Example |
-|------|------------|-----------------|----------------|
-| Variables | descriptive | `userEmail`, `totalPrice` | `x`, `tmp`, `data1` |
-| Functions | verb + noun | `calculateTotal()` | `calc()`, `doIt()` |
-| Classes | noun, clear purpose | `UserService` | `US`, `Handler1` |
-| Files | describe content | `user_authentication.py` | `ua.py`, `file1.py` |
-| Folders | logical grouping | `components/`, `services/` | `c/`, `s/`, `misc/` |
-
-**NEVER:**
-- ❌ Single-letter variable names (except loop counters `i`, `j`, `k`)
-- ❌ Abbreviated names that aren't universally known
-- ❌ Minified or obfuscated code in source files
-- ❌ Magic numbers without explanation
-- ❌ Functions longer than 50 lines without comments
-- ❌ Deeply nested code (max 3-4 levels)
-
-**ALWAYS:**
-```python
-# ✅ GOOD - Clear, readable
-def calculate_order_total(order_items, discount_percentage):
-    """Calculate total price with discount applied."""
-    subtotal = sum(item.price * item.quantity for item in order_items)
-    discount = subtotal * (discount_percentage / 100)
-    return subtotal - discount
-
-# ❌ BAD - Cryptic, unreadable
-def calc(x, d):
-    s = sum(i.p * i.q for i in x)
-    return s - s * d / 100
+// Java - JPA
+@Query("SELECT u FROM User u WHERE u.email = :email")
+Optional<User> findByEmail(@Param("email") String email);
 ```
 
 ```javascript
-// ✅ GOOD - Descriptive names
-const MAX_LOGIN_ATTEMPTS = 5;
-const userAuthenticationStatus = checkUserCredentials(email, password);
-
-// ❌ BAD - Magic numbers, cryptic names
-const x = 5;
-const s = check(e, p);
+// Node.js - MySQL2
+const [rows] = await pool.execute('SELECT * FROM users WHERE email = ?', [email]);
 ```
 
----
+### 1.3 XSS PREVENTION
 
-## 💻 PART 3: WRITING CODE
+**ALWAYS escape output. NEVER trust user input.**
 
-### 3.1 ERROR HANDLING - Never silent failures!
-```python
-# ❌ BAD - Nobody knows what happened
-try:
-    do_something()
-except:
-    pass
+```php
+// PHP - HTML output
+echo htmlspecialchars($userInput, ENT_QUOTES, 'UTF-8');
 
-# ✅ GOOD
-try:
-    do_something()
-except SpecificError as e:
-    logger.error(f"Failed to do X: {e}")
-    raise
+// PHP - In attributes
+<input value="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>">
+
+// PHP - JSON output
+header('Content-Type: application/json');
+echo json_encode($data, JSON_HEX_TAG | JSON_HEX_AMP);
 ```
 
-### 3.2 NULL CHECKS - Always check first!
-```python
-# ❌ Crash if user=None
-return f"Hello {user.name}"
+```javascript
+// JavaScript - DOM
+element.textContent = userInput;  // Safe
+element.innerHTML = userInput;    // DANGEROUS!
 
-# ✅ Safe
-if not user:
-    return "Hello Guest"
-return f"Hello {user.name}"
-
-# ✅ Safe dict access
-name = data.get('name', 'Unknown')
+// With sanitization
+import DOMPurify from 'dompurify';
+element.innerHTML = DOMPurify.sanitize(userInput);
 ```
 
-### 3.3 TIMEOUTS - Never wait forever!
-```python
-# ❌ Hangs forever
-response = requests.get(url)
+### 1.4 PASSWORD SECURITY
 
-# ✅ Timeout required
-response = requests.get(url, timeout=10)
+```php
+// PHP - Hashing
+$hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
+
+// PHP - Verification
+if (password_verify($inputPassword, $storedHash)) {
+    // Password correct
+}
 ```
-
-| Operation | Timeout |
-|-----------|---------|
-| HTTP API | 10-30s |
-| DB query | 5-30s |
-| File upload | 60-120s |
-
-### 3.4 TRANSACTIONS - All or nothing
-```python
-# ❌ Crash after charge = money taken, no order
-charge_card(user, amount)
-create_order(user, amount)  # <-- crash here
-
-# ✅ Transaction
-try:
-    db.begin()
-    order = create_order(user, amount)
-    charge_card(user, amount)
-    db.commit()
-except:
-    db.rollback()
-    raise
-```
-
-### 3.5 IDEMPOTENCY - Safe to run twice
-```python
-# ❌ 2 runs = 2 users!
-db.execute("INSERT INTO users (email) VALUES (?)", [email])
-
-# ✅ Check first
-existing = db.query("SELECT id FROM users WHERE email = ?", [email])
-if existing:
-    return existing['id']
-db.execute("INSERT INTO users (email) VALUES (?)", [email])
-```
-
-```sql
--- ✅ MySQL idempotent
-INSERT INTO users (email, name) VALUES (?, ?)
-ON DUPLICATE KEY UPDATE name = VALUES(name);
-```
-
-### 3.6 RACE CONDITIONS - Atomic operations
-```python
-# ❌ 2 users buy last item = stock -1!
-item = db.query("SELECT stock FROM items WHERE id = ?", [id])
-if item['stock'] > 0:
-    db.execute("UPDATE items SET stock = stock - 1 WHERE id = ?", [id])
-
-# ✅ Atomic
-result = db.execute("""
-    UPDATE items SET stock = stock - 1
-    WHERE id = ? AND stock > 0
-""", [id])
-if result.affected_rows == 0:
-    raise OutOfStockError()
-```
-
-### 3.7 DATABASE CONSTRAINTS
-```sql
-CREATE TABLE users (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    password_hash VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-    INDEX idx_email (email)
-);
-
-CREATE TABLE orders (
-    user_id INT NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
-);
-```
-
-### 3.8 INPUT VALIDATION
-```python
-def validate_email(email):
-    if not email:
-        raise ValidationError("Email required")
-    if len(email) > 254:
-        raise ValidationError("Email too long")
-    if not re.match(r'^[^@]+@[^@]+\.[^@]+$', email):
-        raise ValidationError("Invalid email")
-    return email.strip().lower()
-```
-
-**File uploads:**
-```python
-ALLOWED = {'jpg', 'png', 'pdf'}
-MAX_SIZE = 10 * 1024 * 1024  # 10MB
-
-def validate_file(file):
-    ext = file.filename.rsplit('.', 1)[-1].lower()
-    if ext not in ALLOWED:
-        raise ValidationError(f"Type not allowed: {ext}")
-    if file.size > MAX_SIZE:
-        raise ValidationError("File too large")
-```
-
-### 3.9 ATOMIC FILE WRITES
-```python
-# ❌ Crash = corrupted file
-with open(path, 'w') as f:
-    f.write(data)
-
-# ✅ Write temp, then rename
-import tempfile
-fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path))
-with os.fdopen(fd, 'w') as f:
-    f.write(data)
-os.rename(tmp, path)
-```
-
-### 3.10 RESOURCE CLEANUP
-```python
-# ❌ Connection leak
-conn = db.connect()
-result = conn.query("SELECT * FROM users")
-return result  # Connection never closed!
-
-# ✅ Context manager
-with db.connect() as conn:
-    return conn.query("SELECT * FROM users")
-# Auto-closed!
-```
-
-### 3.11 RETRY LOGIC
-```python
-import time
-
-def retry(func, max_attempts=3):
-    for attempt in range(max_attempts):
-        try:
-            return func()
-        except (ConnectionError, TimeoutError) as e:
-            if attempt == max_attempts - 1:
-                raise
-            time.sleep(2 ** attempt)  # 1s, 2s, 4s
-```
-
-### 3.12 LOGGING
-```python
-import logging
-logger = logging.getLogger('myapp')
-
-# ✅ Log with context
-logger.info(f"Order created: user={user_id}, order={order_id}, total={total}")
-logger.error(f"Payment failed: user={user_id}, error={e}")
-
-# ❌ Never log passwords, credit cards
-```
-
-| Level | Usage |
-|-------|-------|
-| DEBUG | Development only |
-| INFO | Normal operations |
-| WARNING | Recoverable issues |
-| ERROR | Failures |
-| CRITICAL | System broken |
-
-### 3.13 DATE/TIME - Always UTC!
-```python
-from datetime import datetime, timezone
-
-# ❌ Local time = bugs
-now = datetime.now()
-
-# ✅ UTC internally
-now = datetime.now(timezone.utc)
-
-# Convert for display only
-from zoneinfo import ZoneInfo
-local = utc_time.astimezone(ZoneInfo('Europe/Athens'))
-```
-
-**DB:** Store as `TIMESTAMP` (auto UTC)
-**API:** ISO 8601 format `"2024-01-15T14:30:00Z"`
-
-### 3.14 UTF-8 - Everywhere!
-```python
-# Files
-with open('file.txt', 'r', encoding='utf-8') as f:
-
-# PHP
-mb_strlen($text, 'UTF-8');
-```
-
-```sql
--- Database
-CREATE DATABASE myapp CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
-
-### 3.15 PAGINATION - Never unlimited!
-```python
-# ❌ 1M records = crash
-users = db.query("SELECT * FROM users")
-
-# ✅ Always LIMIT
-def get_users(page=1, per_page=50):
-    per_page = min(per_page, 100)  # Max 100!
-    offset = (page - 1) * per_page
-    return db.query("SELECT * FROM users LIMIT ? OFFSET ?", [per_page, offset])
-```
-
-### 3.16 CONFIG DEFAULTS
-```python
-# ❌ Crash if missing
-api_key = os.environ['API_KEY']
-
-# ✅ Default or fail fast
-DEBUG = os.getenv('DEBUG', 'false') == 'true'
-DB_HOST = os.getenv('DB_HOST', 'localhost')
-
-def required_env(key):
-    val = os.getenv(key)
-    if not val:
-        raise EnvironmentError(f"Missing: {key}")
-    return val
-
-API_KEY = required_env('API_KEY')
-```
-
----
-
-## ✅ PART 4: BEFORE FINISHING
-
-### 4.1 VERIFICATION CHECKLIST
-```
-□ Runs without errors?
-□ Main functionality works?
-□ Edge cases (null, empty, large data)?
-□ Test script passes?
-```
-
-**How to verify:**
-```bash
-python -m py_compile script.py  # Syntax check
-python script_test.py           # Run tests
-```
-
-### 4.2 DEBUG WORKFLOW
-```
-1. READ the error message (90% of solutions are there)
-2. Check basics: syntax, imports, file paths, permissions
-3. Add logging at key points
-4. Isolate: comment out until it works
-5. Check inputs: what value is ACTUALLY coming?
-6. STILL STUCK → Ask user
-```
-
-### 4.3 ASK ONLY WHEN NECESSARY
-**Default behavior: PROCEED autonomously. Only ask if truly stuck.**
-
-Ask ONLY if:
-- Requirements are ambiguous AND you cannot make a reasonable assumption
-- Multiple valid approaches AND the choice significantly affects the outcome
-- Action might cause data loss or break existing functionality
-
-Do NOT ask for:
-- Minor implementation details (just pick one)
-- Styling preferences (follow existing patterns)
-- Obvious decisions (use common sense)
-- Confirmation of your plan (just do it)
-
----
-
-## 🎨 PART 5: UI RULES
-
-### 5.1 PLAYWRIGHT TEST IDs
-```html
-<button data-testid="login-btn">Login</button>
-<input data-testid="email-input">
-<div data-testid="error-message">
-```
-
-### 5.2 PLAYWRIGHT - COMPLETE VERIFICATION SCRIPT
-
-**Use this ONE script for ALL checks: screenshots + console + links**
 
 ```python
-from playwright.sync_api import sync_playwright
-from urllib.parse import urljoin
+# Python
+import bcrypt
+hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12))
+if bcrypt.checkpw(input_password.encode(), stored_hash):
+    # Password correct
+```
 
-def verify_page(url, project_path="/tmp"):
-    """
-    Complete page verification:
-    - Desktop + Mobile screenshots
-    - Console errors capture
-    - Failed requests capture
-    - All links extraction
-    """
-    results = {
-        "console_errors": [],
-        "console_warnings": [],
-        "failed_requests": [],
-        "all_links": [],
-        "screenshots": {}
+```java
+// Java
+BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(12);
+String hash = encoder.encode(password);
+if (encoder.matches(inputPassword, storedHash)) {
+    // Password correct
+}
+```
+
+### 1.5 CSRF PROTECTION
+
+```php
+// PHP - Generate token (on session start)
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
+// PHP - In every form
+<form method="POST">
+    <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
+    <!-- form fields -->
+</form>
+
+// PHP - Validate on every POST
+function validateCsrf() {
+    if (!isset($_POST['csrf_token']) ||
+        !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        http_response_code(403);
+        die('CSRF validation failed');
     }
-    
-    with sync_playwright() as p:
-        browser = p.chromium.launch()
-        context = browser.new_context(ignore_https_errors=True)
-        page = context.new_page()
-        
-        # Capture console messages
-        page.on("console", lambda msg: 
-            results["console_errors"].append(msg.text) if msg.type == "error" else 
-            results["console_warnings"].append(msg.text) if msg.type == "warning" else None
-        )
-        
-        # Capture failed requests (404, CORS, etc.)
-        page.on("requestfailed", lambda req: 
-            results["failed_requests"].append(f"{req.url} - {req.failure}")
-        )
-        
-        # Navigate to page
-        page.goto(url)
-        page.wait_for_load_state("networkidle")
-        
-        # Desktop screenshot
-        page.set_viewport_size({"width": 1920, "height": 1080})
-        desktop_path = f"{project_path}/screenshot_desktop.png"
-        page.screenshot(path=desktop_path, full_page=True)
-        results["screenshots"]["desktop"] = desktop_path
-        
-        # Mobile screenshot
-        page.set_viewport_size({"width": 375, "height": 667})
-        mobile_path = f"{project_path}/screenshot_mobile.png"
-        page.screenshot(path=mobile_path, full_page=True)
-        results["screenshots"]["mobile"] = mobile_path
-        
-        # Extract all links
-        for a in page.query_selector_all("a[href]"):
-            href = a.get_attribute("href")
-            if href and not href.startswith("#") and not href.startswith("javascript:"):
-                results["all_links"].append(urljoin(url, href))
-        
-        # Extract all images
-        for img in page.query_selector_all("img[src]"):
-            results["all_links"].append(urljoin(url, img.get_attribute("src")))
-        
-        browser.close()
-    
-    return results
-
-# Usage
-url = "https://127.0.0.1:9867/{folder_name}/"
-results = verify_page(url)
-
-# Print results
-print("=== SCREENSHOTS ===")
-print(f"Desktop: {results['screenshots']['desktop']}")
-print(f"Mobile: {results['screenshots']['mobile']}")
-
-print("\n=== CONSOLE ERRORS ===")
-if results["console_errors"]:
-    for e in results["console_errors"]:
-        print(f"❌ {e}")
-else:
-    print("✅ No errors")
-
-print("\n=== FAILED REQUESTS ===")
-if results["failed_requests"]:
-    for f in results["failed_requests"]:
-        print(f"❌ {f}")
-else:
-    print("✅ All requests OK")
-
-print(f"\n=== LINKS FOUND: {len(results['all_links'])} ===")
+}
 ```
 
-**After running, use Read tool to view screenshots:**
+```java
+// Spring - Auto-configured, just enable
+@Configuration
+public class SecurityConfig {
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http.csrf(csrf -> csrf.csrfTokenRepository(
+            CookieCsrfTokenRepository.withHttpOnlyFalse()
+        ));
+        return http.build();
+    }
+}
 ```
+
+### 1.6 SESSION SECURITY
+
+```php
+// PHP - php.ini or runtime
+ini_set('session.cookie_httponly', 1);    // No JS access
+ini_set('session.cookie_secure', 1);       // HTTPS only
+ini_set('session.cookie_samesite', 'Strict');
+ini_set('session.use_strict_mode', 1);
+
+// Regenerate session ID after login
+session_regenerate_id(true);
+```
+
+```java
+// Spring - application.properties
+server.servlet.session.cookie.http-only=true
+server.servlet.session.cookie.secure=true
+server.servlet.session.cookie.same-site=strict
+server.servlet.session.timeout=30m
+```
+
+### 1.7 RATE LIMITING
+
+```php
+// PHP - Simple implementation with APCu
+function checkRateLimit($key, $maxAttempts, $windowSeconds) {
+    $attempts = apcu_fetch($key) ?: 0;
+    if ($attempts >= $maxAttempts) {
+        http_response_code(429);
+        die(json_encode(['error' => 'Too many attempts. Try again later.']));
+    }
+    apcu_store($key, $attempts + 1, $windowSeconds);
+}
+
+// Usage
+checkRateLimit('login_' . $_SERVER['REMOTE_ADDR'], 5, 900);  // 5 attempts per 15 min
+checkRateLimit('api_' . $userId, 100, 60);                     // 100 requests per minute
+```
+
+### 1.8 FILE UPLOAD SECURITY
+
+```php
+function handleSecureUpload($file, $uploadDir = '/var/www/uploads/') {
+    // Whitelist allowed extensions
+    $allowed = ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx'];
+    $maxSize = 10 * 1024 * 1024; // 10MB
+
+    // Validate
+    if ($file['error'] !== UPLOAD_ERR_OK) {
+        throw new Exception('Upload failed');
+    }
+    if ($file['size'] > $maxSize) {
+        throw new Exception('File too large');
+    }
+
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, $allowed)) {
+        throw new Exception('File type not allowed');
+    }
+
+    // Generate safe filename (NEVER use original filename in path)
+    $newName = bin2hex(random_bytes(16)) . '.' . $ext;
+    $destination = $uploadDir . $newName;
+
+    // Move file
+    if (!move_uploaded_file($file['tmp_name'], $destination)) {
+        throw new Exception('Failed to save file');
+    }
+
+    return $newName;
+}
+```
+
+### 1.9 CREDENTIALS
+
+**NEVER hardcode credentials. ALWAYS use environment variables.**
+
+```
+# .env file (NEVER commit to git)
+DB_HOST=localhost
+DB_NAME=myapp
+DB_USER=myuser
+DB_PASS=secretpassword
+API_KEY=sk_live_xxxxx
+```
+
+```php
+// PHP - Load with vlucas/phpdotenv
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
+$dotenv->load();
+
+$dbHost = $_ENV['DB_HOST'] ?? 'localhost';
+$apiKey = $_ENV['API_KEY'] ?? throw new Exception('API_KEY required');
+```
+
+```python
+# Python
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+db_host = os.getenv('DB_HOST', 'localhost')
+api_key = os.environ['API_KEY']  # Raises if missing
+```
+
+---
+
+## PART 2: AUTHENTICATION (COMPLETE FLOW)
+
+### 2.1 LOGIN SYSTEM
+
+```php
+// auth.php - Complete authentication system
+
+class Auth {
+    private PDO $db;
+
+    public function __construct(PDO $db) {
+        $this->db = $db;
+    }
+
+    public function login(string $email, string $password): ?array {
+        // Validate input
+        $email = filter_var($email, FILTER_VALIDATE_EMAIL);
+        if (!$email) {
+            return null;
+        }
+
+        // Get user
+        $stmt = $this->db->prepare("SELECT id, email, password_hash, role FROM users WHERE email = ?");
+        $stmt->execute([$email]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$user || !password_verify($password, $user['password_hash'])) {
+            // Log failed attempt (for security monitoring)
+            error_log("Failed login attempt for: $email");
+            return null;
+        }
+
+        // Regenerate session ID (prevent session fixation)
+        session_regenerate_id(true);
+
+        // Store user in session
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['user_email'] = $user['email'];
+        $_SESSION['user_role'] = $user['role'];
+        $_SESSION['login_time'] = time();
+
+        return $user;
+    }
+
+    public function logout(): void {
+        $_SESSION = [];
+        session_destroy();
+    }
+
+    public function isLoggedIn(): bool {
+        return isset($_SESSION['user_id']);
+    }
+
+    public function requireAuth(): void {
+        if (!$this->isLoggedIn()) {
+            header('Location: /login.php');
+            exit;
+        }
+    }
+
+    public function requireRole(string $role): void {
+        $this->requireAuth();
+        if ($_SESSION['user_role'] !== $role) {
+            http_response_code(403);
+            die('Access denied');
+        }
+    }
+}
+```
+
+### 2.2 PROTECTED PAGE PATTERN
+
+```php
+<?php
+// dashboard.php - EVERY protected page starts like this
+
+require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/db.php';
+
+session_start();
+
+$auth = new Auth($pdo);
+$auth->requireAuth();  // Redirects if not logged in
+
+// Now safe to show protected content
+$userId = $_SESSION['user_id'];
+?>
+<!DOCTYPE html>
+<html>
+<!-- Protected content here -->
+</html>
+```
+
+### 2.3 API AUTHENTICATION
+
+```php
+// api/middleware.php
+function requireApiAuth(): array {
+    $token = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+    $token = str_replace('Bearer ', '', $token);
+
+    if (empty($token)) {
+        http_response_code(401);
+        die(json_encode(['error' => 'Token required']));
+    }
+
+    // Validate token (JWT or database lookup)
+    $user = validateToken($token);
+    if (!$user) {
+        http_response_code(401);
+        die(json_encode(['error' => 'Invalid token']));
+    }
+
+    return $user;
+}
+
+// api/users.php
+header('Content-Type: application/json');
+$user = requireApiAuth();
+
+// Now handle the API request
+```
+
+---
+
+## PART 3: INPUT VALIDATION
+
+### 3.1 VALIDATION PATTERNS
+
+```php
+class Validator {
+    private array $errors = [];
+
+    public function email(string $value, string $field = 'email'): ?string {
+        $value = trim($value);
+        if (empty($value)) {
+            $this->errors[$field] = 'Email is required';
+            return null;
+        }
+        if (strlen($value) > 254) {
+            $this->errors[$field] = 'Email is too long';
+            return null;
+        }
+        $email = filter_var($value, FILTER_VALIDATE_EMAIL);
+        if (!$email) {
+            $this->errors[$field] = 'Invalid email format';
+            return null;
+        }
+        return strtolower($email);
+    }
+
+    public function password(string $value, string $field = 'password'): ?string {
+        if (strlen($value) < 8) {
+            $this->errors[$field] = 'Password must be at least 8 characters';
+            return null;
+        }
+        if (strlen($value) > 72) {  // bcrypt limit
+            $this->errors[$field] = 'Password is too long';
+            return null;
+        }
+        return $value;
+    }
+
+    public function string(string $value, string $field, int $min = 1, int $max = 255): ?string {
+        $value = trim($value);
+        if (strlen($value) < $min) {
+            $this->errors[$field] = "$field must be at least $min characters";
+            return null;
+        }
+        if (strlen($value) > $max) {
+            $this->errors[$field] = "$field must be at most $max characters";
+            return null;
+        }
+        return $value;
+    }
+
+    public function integer($value, string $field, int $min = null, int $max = null): ?int {
+        if (!is_numeric($value)) {
+            $this->errors[$field] = "$field must be a number";
+            return null;
+        }
+        $int = (int) $value;
+        if ($min !== null && $int < $min) {
+            $this->errors[$field] = "$field must be at least $min";
+            return null;
+        }
+        if ($max !== null && $int > $max) {
+            $this->errors[$field] = "$field must be at most $max";
+            return null;
+        }
+        return $int;
+    }
+
+    public function hasErrors(): bool {
+        return !empty($this->errors);
+    }
+
+    public function getErrors(): array {
+        return $this->errors;
+    }
+}
+
+// Usage
+$v = new Validator();
+$email = $v->email($_POST['email'] ?? '');
+$password = $v->password($_POST['password'] ?? '');
+$name = $v->string($_POST['name'] ?? '', 'name', 2, 100);
+
+if ($v->hasErrors()) {
+    http_response_code(400);
+    echo json_encode(['errors' => $v->getErrors()]);
+    exit;
+}
+```
+
+### 3.2 JAVA VALIDATION
+
+```java
+public class UserDTO {
+    @NotNull(message = "Email is required")
+    @Email(message = "Invalid email format")
+    @Size(max = 254, message = "Email is too long")
+    private String email;
+
+    @NotNull(message = "Password is required")
+    @Size(min = 8, max = 72, message = "Password must be 8-72 characters")
+    private String password;
+
+    @Size(min = 2, max = 100, message = "Name must be 2-100 characters")
+    private String name;
+}
+
+// Controller
+@PostMapping("/users")
+public ResponseEntity<?> createUser(@Valid @RequestBody UserDTO dto, BindingResult result) {
+    if (result.hasErrors()) {
+        Map<String, String> errors = result.getFieldErrors().stream()
+            .collect(Collectors.toMap(
+                FieldError::getField,
+                FieldError::getDefaultMessage
+            ));
+        return ResponseEntity.badRequest().body(Map.of("errors", errors));
+    }
+    // Process valid data
+}
+```
+
+---
+
+## PART 4: DATABASE PATTERNS
+
+### 4.1 CONNECTION & CONFIGURATION
+
+```php
+// db.php
+$dsn = sprintf(
+    'mysql:host=%s;dbname=%s;charset=utf8mb4',
+    $_ENV['DB_HOST'],
+    $_ENV['DB_NAME']
+);
+
+$pdo = new PDO($dsn, $_ENV['DB_USER'], $_ENV['DB_PASS'], [
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    PDO::ATTR_EMULATE_PREPARES => false,
+]);
+```
+
+```sql
+-- Always use utf8mb4 for full Unicode support
+CREATE DATABASE myapp CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- Table with proper constraints and indexes
+CREATE TABLE users (
+    id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    email VARCHAR(254) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    role ENUM('user', 'admin') DEFAULT 'user',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE INDEX idx_email (email),
+    INDEX idx_role (role)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+### 4.2 TRANSACTIONS
+
+```php
+// When multiple related operations must succeed or fail together
+try {
+    $pdo->beginTransaction();
+
+    // Create order
+    $stmt = $pdo->prepare("INSERT INTO orders (user_id, total) VALUES (?, ?)");
+    $stmt->execute([$userId, $total]);
+    $orderId = $pdo->lastInsertId();
+
+    // Create order items
+    $stmt = $pdo->prepare("INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)");
+    foreach ($items as $item) {
+        $stmt->execute([$orderId, $item['product_id'], $item['quantity'], $item['price']]);
+    }
+
+    // Decrease stock
+    $stmt = $pdo->prepare("UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?");
+    foreach ($items as $item) {
+        $stmt->execute([$item['quantity'], $item['product_id'], $item['quantity']]);
+        if ($stmt->rowCount() === 0) {
+            throw new Exception("Insufficient stock for product {$item['product_id']}");
+        }
+    }
+
+    $pdo->commit();
+} catch (Exception $e) {
+    $pdo->rollBack();
+    throw $e;  // Re-throw or handle
+}
+```
+
+### 4.3 PAGINATION
+
+```php
+function paginate(PDO $pdo, string $query, array $params, int $page = 1, int $perPage = 20): array {
+    // Ensure valid values
+    $page = max(1, $page);
+    $perPage = min(100, max(1, $perPage));  // Max 100 per page
+    $offset = ($page - 1) * $perPage;
+
+    // Get total count
+    $countQuery = preg_replace('/SELECT .* FROM/i', 'SELECT COUNT(*) FROM', $query);
+    $countQuery = preg_replace('/ORDER BY .*/i', '', $countQuery);
+    $stmt = $pdo->prepare($countQuery);
+    $stmt->execute($params);
+    $total = (int) $stmt->fetchColumn();
+
+    // Get paginated results
+    $query .= " LIMIT $perPage OFFSET $offset";
+    $stmt = $pdo->prepare($query);
+    $stmt->execute($params);
+    $items = $stmt->fetchAll();
+
+    return [
+        'items' => $items,
+        'pagination' => [
+            'page' => $page,
+            'per_page' => $perPage,
+            'total' => $total,
+            'total_pages' => (int) ceil($total / $perPage),
+        ]
+    ];
+}
+
+// Usage
+$result = paginate($pdo,
+    "SELECT * FROM products WHERE category_id = ? ORDER BY created_at DESC",
+    [$categoryId],
+    $page,
+    20
+);
+```
+
+---
+
+## PART 5: API DESIGN
+
+### 5.1 CONSISTENT RESPONSE FORMAT
+
+```php
+// api/response.php
+function jsonResponse($data, int $status = 200): never {
+    http_response_code($status);
+    header('Content-Type: application/json');
+    echo json_encode([
+        'success' => $status >= 200 && $status < 300,
+        'data' => $data
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+function jsonError(string $message, string $code = 'ERROR', int $status = 400, ?string $field = null): never {
+    http_response_code($status);
+    header('Content-Type: application/json');
+    $error = ['code' => $code, 'message' => $message];
+    if ($field) $error['field'] = $field;
+    echo json_encode(['success' => false, 'error' => $error], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// Usage
+jsonResponse(['user' => $user]);                           // 200 OK
+jsonResponse(['user' => $user], 201);                      // 201 Created
+jsonError('Email is required', 'VALIDATION_ERROR', 400, 'email');
+jsonError('Not found', 'NOT_FOUND', 404);
+jsonError('Server error', 'SERVER_ERROR', 500);
+```
+
+### 5.2 API ENDPOINT EXAMPLE
+
+```php
+// api/products.php
+header('Content-Type: application/json');
+require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/middleware.php';
+require_once __DIR__ . '/response.php';
+
+$method = $_SERVER['REQUEST_METHOD'];
+$path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$segments = explode('/', trim($path, '/'));
+$productId = $segments[2] ?? null;
+
+try {
+    switch ($method) {
+        case 'GET':
+            if ($productId) {
+                // GET /api/products/{id}
+                $stmt = $pdo->prepare("SELECT * FROM products WHERE id = ?");
+                $stmt->execute([$productId]);
+                $product = $stmt->fetch();
+                if (!$product) jsonError('Product not found', 'NOT_FOUND', 404);
+                jsonResponse($product);
+            } else {
+                // GET /api/products?page=1&category=5
+                $page = (int) ($_GET['page'] ?? 1);
+                $category = $_GET['category'] ?? null;
+
+                $query = "SELECT * FROM products";
+                $params = [];
+                if ($category) {
+                    $query .= " WHERE category_id = ?";
+                    $params[] = $category;
+                }
+                $query .= " ORDER BY created_at DESC";
+
+                $result = paginate($pdo, $query, $params, $page);
+                jsonResponse($result);
+            }
+            break;
+
+        case 'POST':
+            requireApiAuth();
+            $data = json_decode(file_get_contents('php://input'), true);
+            // Validate and create...
+            jsonResponse($newProduct, 201);
+            break;
+
+        case 'PUT':
+            requireApiAuth();
+            if (!$productId) jsonError('Product ID required', 'BAD_REQUEST', 400);
+            // Validate and update...
+            jsonResponse($updatedProduct);
+            break;
+
+        case 'DELETE':
+            requireApiAuth();
+            if (!$productId) jsonError('Product ID required', 'BAD_REQUEST', 400);
+            // Delete...
+            jsonResponse(['deleted' => true]);
+            break;
+
+        default:
+            jsonError('Method not allowed', 'METHOD_NOT_ALLOWED', 405);
+    }
+} catch (Exception $e) {
+    error_log($e->getMessage());
+    jsonError('Internal server error', 'SERVER_ERROR', 500);
+}
+```
+
+---
+
+## PART 6: ERROR HANDLING
+
+### 6.1 GLOBAL ERROR HANDLER
+
+```php
+// includes/error_handler.php
+
+set_error_handler(function ($severity, $message, $file, $line) {
+    throw new ErrorException($message, 0, $severity, $file, $line);
+});
+
+set_exception_handler(function (Throwable $e) {
+    error_log(sprintf(
+        "[%s] %s in %s:%d\nStack trace:\n%s",
+        date('Y-m-d H:i:s'),
+        $e->getMessage(),
+        $e->getFile(),
+        $e->getLine(),
+        $e->getTraceAsString()
+    ));
+
+    if (php_sapi_name() === 'cli') {
+        echo "Error: " . $e->getMessage() . "\n";
+        exit(1);
+    }
+
+    http_response_code(500);
+    if (str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json')) {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'error' => ['code' => 'SERVER_ERROR', 'message' => 'An error occurred']]);
+    } else {
+        include __DIR__ . '/../templates/error_500.html';
+    }
+    exit;
+});
+```
+
+### 6.2 TRY-CATCH PATTERNS
+
+```php
+// Specific exceptions for different error types
+class ValidationException extends Exception {}
+class NotFoundException extends Exception {}
+class AuthException extends Exception {}
+
+// Usage
+try {
+    $user = $userService->findById($id);
+    if (!$user) {
+        throw new NotFoundException("User not found");
+    }
+} catch (NotFoundException $e) {
+    jsonError($e->getMessage(), 'NOT_FOUND', 404);
+} catch (ValidationException $e) {
+    jsonError($e->getMessage(), 'VALIDATION_ERROR', 400);
+} catch (Exception $e) {
+    error_log($e->getMessage());
+    jsonError('An error occurred', 'SERVER_ERROR', 500);
+}
+```
+
+---
+
+## PART 7: TESTING
+
+### 7.1 PHP TEST TEMPLATE
+
+```php
+<?php
+// tests/UserTest.php
+require_once __DIR__ . '/../src/User.php';
+
+class TestRunner {
+    private int $passed = 0;
+    private int $failed = 0;
+    private array $failures = [];
+
+    public function test(string $name, callable $fn): void {
+        try {
+            $fn();
+            $this->passed++;
+            echo "✓ $name\n";
+        } catch (Throwable $e) {
+            $this->failed++;
+            $this->failures[] = "$name: " . $e->getMessage();
+            echo "✗ $name\n";
+        }
+    }
+
+    public function assertEquals($expected, $actual, string $message = ''): void {
+        if ($expected !== $actual) {
+            throw new Exception($message ?: "Expected " . var_export($expected, true) . ", got " . var_export($actual, true));
+        }
+    }
+
+    public function assertTrue($value, string $message = ''): void {
+        if ($value !== true) {
+            throw new Exception($message ?: "Expected true, got " . var_export($value, true));
+        }
+    }
+
+    public function assertFalse($value, string $message = ''): void {
+        if ($value !== false) {
+            throw new Exception($message ?: "Expected false, got " . var_export($value, true));
+        }
+    }
+
+    public function summary(): void {
+        echo "\n" . str_repeat('=', 50) . "\n";
+        echo "Passed: {$this->passed} | Failed: {$this->failed}\n";
+        if ($this->failures) {
+            echo "\nFailures:\n";
+            foreach ($this->failures as $f) echo "  - $f\n";
+        }
+        exit($this->failed > 0 ? 1 : 0);
+    }
+}
+
+// Tests
+$t = new TestRunner();
+
+$t->test('validateEmail accepts valid email', function() use ($t) {
+    $v = new Validator();
+    $result = $v->email('test@example.com');
+    $t->assertEquals('test@example.com', $result);
+    $t->assertFalse($v->hasErrors());
+});
+
+$t->test('validateEmail rejects invalid email', function() use ($t) {
+    $v = new Validator();
+    $result = $v->email('invalid');
+    $t->assertEquals(null, $result);
+    $t->assertTrue($v->hasErrors());
+});
+
+$t->test('validateEmail rejects empty', function() use ($t) {
+    $v = new Validator();
+    $result = $v->email('');
+    $t->assertEquals(null, $result);
+    $t->assertTrue($v->hasErrors());
+});
+
+$t->summary();
+```
+
+### 7.2 PYTHON TEST
+
+```python
+import pytest
+from validator import Validator
+
+class TestValidator:
+    def test_valid_email(self):
+        v = Validator()
+        result = v.email('test@example.com')
+        assert result == 'test@example.com'
+        assert not v.has_errors()
+
+    def test_invalid_email(self):
+        v = Validator()
+        result = v.email('invalid')
+        assert result is None
+        assert v.has_errors()
+
+    def test_password_min_length(self):
+        v = Validator()
+        result = v.password('short')
+        assert result is None
+        assert 'password' in v.get_errors()
+
+# Run: pytest -v tests/
+```
+
+### 7.3 UI TESTING
+
+```bash
+# Use the verification script
+python /opt/codehero/scripts/verify_ui.py https://127.0.0.1:9867/myproject/
+
+# Outputs:
+# - screenshot_desktop.png (1920x1080)
+# - screenshot_mobile.png (375x667)
+# - Console errors
+# - Failed requests
+# - All links
+
+# View screenshots
 Read /tmp/screenshot_desktop.png
 Read /tmp/screenshot_mobile.png
 ```
 
-### 5.3 ⚠️ UI QUALITY ENFORCEMENT
+---
 
-**CRITICAL: Before marking ANY UI task as complete:**
-1. Take screenshots (desktop + mobile, full page)
-2. Read them with Read tool - ACTUALLY LOOK AT THEM!
-3. Check for issues below
-4. Fix issues → Screenshot again → Repeat until perfect
+## PART 8: UI RULES
 
-**Working functionality ≠ Good UI. A form that works but looks terrible = INCOMPLETE!**
+### 8.1 TAILWIND ESSENTIALS
 
-### 5.4 COMMON UI KILLERS (Auto-fix without asking)
+```html
+<!-- Grid MUST have columns -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 
-| Problem | Bad Example | Fix To |
-|---------|-------------|--------|
-| Giant padding/margins | `padding: 48px, 64px, 128px` | `padding: 16px` or `24px` max |
-| Oversized icons | `width: 96px, 128px` | `width: 32px-48px` |
-| Excessive spacing | `gap: 48px`, `margin-bottom: 64px` | `gap: 16px`, `margin-bottom: 16px` |
-| Huge text (not H1) | `font-size: 3rem` | `font-size: 1.1rem-1.5rem` |
+<!-- Flex MUST have direction -->
+<div class="flex flex-col md:flex-row gap-4">
 
-### 5.5 GOOD SIZING REFERENCE
+<!-- Dark backgrounds need light text -->
+<div class="bg-gray-800 text-white">
 
-| Element | Good Size |
-|---------|-----------|
-| Header height | 60-80px |
+<!-- Always include responsive breakpoints -->
+<div class="w-full md:w-1/2 lg:w-1/3">
+```
+
+### 8.2 SIZING REFERENCE
+
+| Element | Size |
+|---------|------|
+| Header | 60-80px |
 | Card padding | 16-24px |
-| Card gap | 16-24px |
+| Gaps | 16-24px |
 | Small icons | 24-32px |
-| Medium icons | 40-48px |
-| Profile photos | 80-120px |
-| Section padding | 32-48px |
-| H1 | 2-3rem (32-48px) |
-| H2 | 1.5-2rem (24-32px) |
-| Body text | 1rem (16px) |
+| Large icons | 40-48px |
+| H1 | 2-3rem |
+| Body text | 1rem |
 
-### 5.6 VISUAL QUALITY CHECKLIST
+**Avoid:** padding > 32px, icons > 64px, gaps > 32px
 
-Before marking UI task complete, verify:
-```
-□ No giant empty white spaces?
-□ Icons/images proportional to containers?
-□ Spacing consistent (8px, 12px, 16px, 24px multiples)?
-□ Text readable (min 14px body, 16px ideal)?
-□ Layout balanced (not all on one side)?
-□ Cards similar sizes?
-□ Responsive (no horizontal scroll on mobile)?
-□ Looks professional (like Bootstrap/Tailwind sites)?
-□ Color harmony (see 5.6.1)?
-```
+### 8.3 ACCESSIBILITY
 
-### 5.6.1 COLOR HARMONY & DESIGN CONSISTENCY
-
-**⚠️ CRITICAL: Avoid jarring color combinations!**
-
-#### The Problem: Extreme Contrast
-
-```css
-/* ❌ BAD - Jarring contrast */
-.sidebar { background: #1f2937; }  /* Almost black */
-.main    { background: #ffffff; }  /* Pure white */
-/* Result: Visual "shock" between sections */
-
-/* ✅ GOOD - Smooth transitions */
-.sidebar { background: #1e3a5f; }  /* Deep blue */
-.main    { background: #f0f4f8; }  /* Soft blue-gray */
-/* Result: Harmonious, professional look */
-```
-
-#### Color Palette Rules
-
-1. **Use 3-5 colors maximum** (primary, secondary, accent, neutral, background)
-2. **Keep colors in the same temperature** (all warm OR all cool)
-3. **Use tints/shades of the same hue** for variations
-4. **Avoid pure black (#000) and pure white (#fff)** - use soft alternatives
-
-#### Recommended Color Approach
-
-| Element | Approach | Example |
-|---------|----------|---------|
-| **Background** | Soft, not pure white | `#f8fafc`, `#f1f5f9` |
-| **Dark sections** | Deep but not black | `#1e3a5f`, `#1e293b` |
-| **Text on light** | Dark gray, not black | `#1f2937`, `#334155` |
-| **Text on dark** | Off-white, not pure white | `#e2e8f0`, `#f1f5f9` |
-| **Primary color** | Saturated but not neon | `#2563eb`, `#0066cc` |
-| **Accent** | Complementary to primary | If blue primary → orange/yellow accent |
-
-#### Section Transitions
-
-When sections have different backgrounds, ensure smooth visual flow:
-
-```css
-/* ❌ BAD - Abrupt change */
-.hero    { background: #0f172a; }  /* Very dark */
-.content { background: #ffffff; }  /* Pure white */
-
-/* ✅ GOOD - Gradual transition */
-.hero    { background: #1e3a5f; }  /* Deep blue */
-.bridge  { background: #e2e8f0; }  /* Light blue-gray (optional transition) */
-.content { background: #f8fafc; }  /* Very light blue-gray */
-```
-
-#### Harmony Checklist
-
-```
-□ Maximum 5 colors in palette?
-□ Colors share same temperature (warm/cool)?
-□ No pure black (#000) or pure white (#fff)?
-□ Dark backgrounds use deep colors (not gray)?
-□ Light backgrounds use soft tints (not stark white)?
-□ Sections flow smoothly (no jarring transitions)?
-□ Text has sufficient contrast but isn't harsh?
-□ Accent color complements (not clashes with) primary?
-```
-
-#### Quick Fixes for Common Issues
-
-| Issue | Fix |
-|-------|-----|
-| Sidebar too dark vs content | Use deep blue/green instead of gray |
-| Sections feel disconnected | Add subtle gradient or transition section |
-| Colors feel random | Pick colors from same palette (Tailwind, Material, etc.) |
-| Text too stark | Use `#1f2937` instead of `#000`, `#f1f5f9` instead of `#fff` |
-| Accent color clashes | Use color wheel - pick complementary or analogous |
-
-### 5.7 UI WORKFLOW
-
-**Simple rule:**
-```
-UI CHANGE (HTML/CSS/JS)?  → Screenshot BOTH (desktop + mobile)
-BACKEND ONLY (Python/PHP)? → No screenshot needed
-```
-
-**No gray areas.** If you touched HTML, CSS, or JS → test both viewports.
-
-**Steps:**
-```
-1. Write HTML/CSS/JS
-2. Take screenshots (full page, BOTH viewports!)
-3. Read screenshots with Read tool
-4. Check quality checklist (5.6)
-5. Fix issues → Repeat from step 2
-6. ONLY when perfect → Mark task complete
-```
-
-### 5.8 LINK & URL HANDLING
-
-**⚠️ CRITICAL: This is a common source of bugs! Read carefully.**
-
-#### The Problem
-
-Projects are NOT at server root. They're in subfolders:
-```
-Server root:     https://IP:9867/
-Project folder:  https://IP:9867/mysite/
-Project files:   /var/www/projects/mysite/
-```
-
-**If you use `/` at the start, you go to SERVER ROOT, not project folder!**
-
-| You write | Browser goes to | Result |
-|-----------|-----------------|--------|
-| `/index.php` | `https://IP:9867/index.php` | ❌ 404! |
-| `/mysite/index.php` | `https://IP:9867/mysite/index.php` | ✅ Works |
-| `index.php` | (current folder)/index.php | ✅ Works |
-
-#### Rule: ALWAYS Use Relative Paths
-
-**From project root (`/mysite/index.php`):**
 ```html
-<!-- ❌ WRONG - Goes to server root -->
-<a href="/about.php">About</a>
-<a href="/pages/contact.php">Contact</a>
-<img src="/images/logo.png">
-<link href="/css/style.css">
-<script src="/js/app.js"></script>
-<form action="/submit.php">
+<!-- Images need alt text -->
+<img src="photo.jpg" alt="Description of image">
 
-<!-- ✅ CORRECT - Relative paths -->
-<a href="about.php">About</a>
-<a href="pages/contact.php">Contact</a>
-<img src="images/logo.png">
-<link href="css/style.css">
-<script src="js/app.js"></script>
-<form action="submit.php">
+<!-- Forms need labels -->
+<label for="email">Email</label>
+<input id="email" type="email">
+
+<!-- Buttons need context -->
+<button aria-label="Close dialog">×</button>
+
+<!-- Skip link for keyboard users -->
+<a href="#main" class="sr-only focus:not-sr-only">Skip to content</a>
 ```
 
-**From subfolder (`/mysite/pages/about.php`):**
+### 8.4 LINKS
+
+**Always use relative paths** (projects are in subfolders):
+
 ```html
-<!-- To go back to root files, use ../ -->
-<a href="../index.php">Home</a>
-<a href="../products.php">Products</a>
-<img src="../images/logo.png">
-<link href="../css/style.css">
+<!-- WRONG - Goes to server root -->
+<a href="/about.php">
 
-<!-- To go to sibling file in same folder -->
-<a href="contact.php">Contact</a>
-
-<!-- To go deeper -->
-<a href="admin/dashboard.php">Dashboard</a>
-```
-
-**JavaScript (fetch/AJAX):**
-```javascript
-// ❌ WRONG
-fetch('/api/users')
-$.get('/data/products.json')
-
-// ✅ CORRECT - Relative
-fetch('api/users')
-$.get('data/products.json')
-
-// ✅ CORRECT - From subfolder
-fetch('../api/users')
-```
-
-**CSS (background images, fonts):**
-```css
-/* ❌ WRONG */
-background: url(/images/bg.png);
-src: url(/fonts/roboto.woff2);
-
-/* ✅ CORRECT - From css/ folder, images are in ../images/ */
-background: url(../images/bg.png);
-src: url(../fonts/roboto.woff2);
-```
-
-#### Alternative: Base Tag (for complex sites)
-
-If you have deep folder structures, use `<base>` tag:
-```html
-<head>
-    <!-- All relative URLs will start from /mysite/ -->
-    <base href="/mysite/">
-</head>
-<body>
-    <!-- Now these work from ANY page, even /mysite/pages/sub/deep.php -->
-    <a href="index.php">Home</a>
-    <img src="images/logo.png">
-</body>
-```
-
-#### Alternative: PHP Base Variable
-
-```php
-<?php
-// At top of every page or in header.php
-$base = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
-// If in subfolder: $base = '/mysite'
-// Use in links:
-?>
-<a href="<?= $base ?>/index.php">Home</a>
-<a href="<?= $base ?>/pages/about.php">About</a>
-```
-
-#### Quick Reference Table
-
-| You're at | You want | Write |
-|-----------|----------|-------|
-| `/mysite/index.php` | `about.php` | `href="about.php"` |
-| `/mysite/index.php` | `pages/contact.php` | `href="pages/contact.php"` |
-| `/mysite/pages/about.php` | `index.php` | `href="../index.php"` |
-| `/mysite/pages/about.php` | `contact.php` | `href="contact.php"` |
-| `/mysite/pages/about.php` | `images/logo.png` | `src="../images/logo.png"` |
-| `/mysite/admin/users/list.php` | `index.php` | `href="../../index.php"` |
-
-#### MANDATORY: Test All Links
-
-**After creating/modifying ANY page, verify links work:**
-
-```python
-# Playwright link test
-from playwright.sync_api import sync_playwright
-
-with sync_playwright() as p:
-    browser = p.chromium.launch()
-    context = browser.new_context(ignore_https_errors=True)
-    page = context.new_page()
-    page.goto("https://127.0.0.1:9867/mysite/")
-
-    # Click each navigation link and verify no 404
-    for link_text in ["Home", "About", "Contact", "Products"]:
-        link = page.get_by_role("link", name=link_text)
-        if link.count() > 0:
-            link.click()
-            page.wait_for_load_state('networkidle')
-            # Check not 404
-            assert '404' not in page.title().lower()
-            assert 'not found' not in page.content().lower()
-            page.go_back()
-
-    browser.close()
-```
-
-#### Checklist Before Completing ANY Page Task
-
-```
-□ All <a href> links - clicked each one, no 404?
-□ All <img src> - images visible, no broken icons?
-□ All <link href> CSS - page styled correctly?
-□ All <script src> JS - no console errors?
-□ All <form action> - forms submit to correct URL?
-□ All fetch()/AJAX - API calls working?
-□ Tested from EVERY page, not just homepage?
-□ Tested navigation: Home→About→Contact→Home works?
-```
-
-**Remember: A page that "works" but has broken links = INCOMPLETE TASK!**
-
----
-
-## 🛠️ PART 6: DEFAULT TECH STACK
-
-**⚠️ USER PREFERENCE ALWAYS WINS!** If user specifies a technology, use that instead of defaults.
-
-**⚠️ REMEMBER: NO BUILD STEP!** All code must be directly editable on production server.
-
-### Default by Project Type:
-
-| Project Type | Default Stack |
-|--------------|---------------|
-| **Dashboard / Admin / ERP** | PHP + Alpine.js + Tailwind CSS |
-| **Landing Page / Marketing** | HTML + Alpine.js + Tailwind CSS |
-| **Simple Website** | HTML + Tailwind CSS |
-| **API / Backend** | Based on project's tech_stack setting |
-
-### Why NOT Vue/React/Angular with Build Tools:
-```
-❌ Vue + Vite       → Requires `npm run build`, can't hotfix on server
-❌ React + Webpack  → Bundled output, source maps needed to debug
-❌ Angular CLI      → Complex build, not directly editable
-❌ TypeScript       → Requires compilation
-```
-
-### Libraries: Download Locally (No CDN in production!)
-
-**Step 1: Download libraries once (at project setup):**
-```bash
-mkdir -p assets/lib
-curl -o assets/lib/alpine.min.js https://unpkg.com/alpinejs@3/dist/cdn.min.js
-curl -o assets/lib/tailwind.js https://cdn.tailwindcss.com/3.4.1
-curl -o assets/lib/chart.min.js https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.min.js
-```
-
-**Step 2: Use local files in HTML:**
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <script src="assets/lib/tailwind.js"></script>
-    <script defer src="assets/lib/alpine.min.js"></script>
-</head>
-<body class="bg-gray-900 text-white">
-    <div x-data="{ open: false }">
-        <button @click="open = !open">Toggle Menu</button>
-        <nav x-show="open">...</nav>
-    </div>
-</body>
-</html>
-```
-
-**Why local downloads (NOT CDN):**
-- ✅ Works offline
-- ✅ No external dependencies
-- ✅ Faster (no DNS lookup, no external request)
-- ✅ More secure (no third-party CDN)
-- ✅ Reliable (CDN might go down)
-- ✅ Still no build step - just curl once
-
-### For Complex Tables/Grids:
-Use server-side rendering with Alpine.js for interactivity:
-```html
-<!-- PHP generates the table, Alpine handles UI -->
-<table x-data="{ selected: [] }">
-    <?php foreach($rows as $row): ?>
-    <tr @click="selected.push(<?= $row['id'] ?>)">
-        <td><?= $row['name'] ?></td>
-    </tr>
-    <?php endforeach; ?>
-</table>
-```
-
-### If User EXPLICITLY Requests Vue/React:
-Only then use build tools, but warn them:
-```
-User: "Use Vue with Vite"  → OK, but inform: "This requires build step,
-                              hotfixes will need rebuild"
-User: "Use React"          → OK, use create-react-app or Vite
-```
-
-### Common Libraries to Download:
-```bash
-# Core
-curl -o assets/lib/alpine.min.js https://unpkg.com/alpinejs@3/dist/cdn.min.js
-curl -o assets/lib/tailwind.js https://cdn.tailwindcss.com/3.4.1
-
-# Charts
-curl -o assets/lib/chart.min.js https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.min.js
-curl -o assets/lib/apexcharts.min.js https://cdn.jsdelivr.net/npm/apexcharts/dist/apexcharts.min.js
-
-# Icons
-curl -o assets/lib/lucide.min.js https://unpkg.com/lucide@latest/dist/umd/lucide.min.js
-
-# Date/Time
-curl -o assets/lib/dayjs.min.js https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js
-```
-
-**Exceptions (MUST stay as CDN/external):**
-- Google Maps API (requires dynamic API key)
-- Payment SDKs (Stripe.js, PayPal - security requirement)
-- Analytics (Google Analytics, etc.)
-- reCAPTCHA
-
-### ⚠️ Download ALL External Assets Locally
-
-**CRITICAL: Download EVERYTHING that can be downloaded. No external dependencies!**
-
-**What MUST be downloaded locally:**
-| Asset Type | Download To | Example |
-|------------|-------------|----------|
-| JS Libraries | `assets/lib/` | alpine.js, chart.js |
-| CSS Frameworks | `assets/lib/` | bootstrap.css, tailwind.js |
-| Fonts | `assets/fonts/` | roboto.woff2, icons.woff2 |
-| Images/Photos | `assets/images/` | logo.png, hero.jpg |
-| Icons | `assets/icons/` | favicon.ico, sprite.svg |
-| Placeholder images | `assets/images/` | Use ui-avatars.com or download |
-
-**For placeholder/avatar images:**
-```bash
-# ❌ NEVER use external placeholder services in production
-# via.placeholder.com, placekitten.com, etc. are SLOW and unreliable
-
-# ✅ Option 1: ui-avatars.com (acceptable - fast, generates on-the-fly)
-<img src="https://ui-avatars.com/api/?name=John+Doe&size=300&background=667eea&color=fff">
-
-# ✅ Option 2: Download placeholder once at setup
-curl -o assets/images/default-avatar.png "https://ui-avatars.com/api/?name=User&size=300"
-
-# ✅ Option 3: Create local colored placeholder with ImageMagick
-convert -size 300x300 xc:#667eea assets/images/default-avatar.png
-```
-
-**Bootstrap example (download ALL parts):**
-```bash
-mkdir -p assets/lib assets/fonts
-
-# CSS
-curl -o assets/lib/bootstrap.min.css https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css
-
-# JS
-curl -o assets/lib/bootstrap.bundle.min.js https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js
-
-# Icons (if using Bootstrap Icons)
-curl -o assets/lib/bootstrap-icons.css https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css
-mkdir -p assets/fonts
-curl -o assets/fonts/bootstrap-icons.woff2 https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/fonts/bootstrap-icons.woff2
+<!-- CORRECT - Relative to current page -->
+<a href="about.php">
+<a href="../index.php">
 ```
 
 ---
 
-## 📄 PART 7: DOCUMENTATION
+## PART 9: JAVA/SPRING BOOT
 
-### 7.1 TECHNOLOGIES.md (in every project)
-```markdown
-# Technologies
+### 9.1 PROJECT STRUCTURE
 
-## Stack
-- PHP 8.3 / Laravel 10
-- MySQL 8.0
-- Tailwind CSS
-
-## APIs
-- Stripe (payments)
-- SendGrid (email)
-
-## Environment Variables
-- DB_HOST, DB_NAME, DB_USER, DB_PASS
-- STRIPE_KEY
+```
+src/main/java/com/example/
+├── controller/          # REST endpoints
+├── service/             # Business logic
+├── repository/          # Data access
+├── model/               # JPA entities
+├── dto/                 # Request/Response objects
+├── config/              # Configuration
+├── exception/           # Custom exceptions
+└── MyApplication.java
 ```
 
-### 7.2 PROJECT_MAP.md
-```markdown
-# Project Map
+### 9.2 COMPLETE CRUD EXAMPLE
 
-## Structure
-/src
-  /controllers  → Handle HTTP requests
-  /services     → Business logic
-  /models       → Database entities
+```java
+// Entity
+@Entity
+@Table(name = "users")
+public class User {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-## Key Files
-- index.php → Entry point
-- AuthService.php → Login/logout
+    @Column(nullable = false, unique = true, length = 254)
+    private String email;
 
-## API Endpoints
-POST /api/login → AuthController::login
+    @Column(name = "password_hash", nullable = false)
+    private String passwordHash;
+
+    @Column(nullable = false, length = 100)
+    private String name;
+
+    @Column(name = "created_at")
+    private Instant createdAt = Instant.now();
+}
+
+// Repository
+public interface UserRepository extends JpaRepository<User, Long> {
+    Optional<User> findByEmail(String email);
+    boolean existsByEmail(String email);
+}
+
+// Service
+@Service
+@Transactional
+public class UserService {
+    private final UserRepository repo;
+    private final PasswordEncoder encoder;
+
+    public User create(CreateUserDTO dto) {
+        if (repo.existsByEmail(dto.getEmail())) {
+            throw new ValidationException("Email already exists");
+        }
+        User user = new User();
+        user.setEmail(dto.getEmail().toLowerCase().trim());
+        user.setPasswordHash(encoder.encode(dto.getPassword()));
+        user.setName(dto.getName().trim());
+        return repo.save(user);
+    }
+
+    public User getById(Long id) {
+        return repo.findById(id)
+            .orElseThrow(() -> new NotFoundException("User not found"));
+    }
+}
+
+// Controller
+@RestController
+@RequestMapping("/api/users")
+public class UserController {
+    private final UserService service;
+
+    @PostMapping
+    public ResponseEntity<User> create(@Valid @RequestBody CreateUserDTO dto) {
+        User user = service.create(dto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(user);
+    }
+
+    @GetMapping("/{id}")
+    public User getById(@PathVariable Long id) {
+        return service.getById(id);
+    }
+}
+
+// Exception Handler
+@ControllerAdvice
+public class GlobalExceptionHandler {
+    @ExceptionHandler(ValidationException.class)
+    public ResponseEntity<Map<String, Object>> handleValidation(ValidationException e) {
+        return ResponseEntity.badRequest().body(Map.of(
+            "success", false,
+            "error", Map.of("code", "VALIDATION_ERROR", "message", e.getMessage())
+        ));
+    }
+
+    @ExceptionHandler(NotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNotFound(NotFoundException e) {
+        return ResponseEntity.status(404).body(Map.of(
+            "success", false,
+            "error", Map.of("code", "NOT_FOUND", "message", e.getMessage())
+        ));
+    }
+}
 ```
 
 ---
 
-## 🖥️ PART 8: SERVER INFO
+## PART 10: MOBILE DEVELOPMENT
+
+### 10.1 ANDROID (KOTLIN)
+
+```kotlin
+// Security - Encrypted storage
+val masterKey = MasterKey.Builder(context)
+    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+    .build()
+
+val securePrefs = EncryptedSharedPreferences.create(
+    context, "secure_prefs", masterKey,
+    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+)
+
+// Save/retrieve tokens
+securePrefs.edit().putString("auth_token", token).apply()
+val token = securePrefs.getString("auth_token", null)
+
+// ViewModel pattern
+class UserViewModel(private val repo: UserRepository) : ViewModel() {
+    private val _user = MutableLiveData<Result<User>>()
+    val user: LiveData<Result<User>> = _user
+
+    fun load(id: String) = viewModelScope.launch {
+        _user.value = repo.getUser(id)
+    }
+}
+
+// Fragment observation
+viewModel.user.observe(viewLifecycleOwner) { result ->
+    when (result) {
+        is Result.Success -> showUser(result.data)
+        is Result.Error -> showError(result.message)
+    }
+}
+```
+
+### 10.2 REACT NATIVE
+
+```typescript
+// Secure storage
+import * as SecureStore from 'expo-secure-store';
+
+export const storage = {
+    async setToken(token: string) {
+        await SecureStore.setItemAsync('auth_token', token);
+    },
+    async getToken(): Promise<string | null> {
+        return SecureStore.getItemAsync('auth_token');
+    },
+    async clearToken() {
+        await SecureStore.deleteItemAsync('auth_token');
+    }
+};
+
+// API client with auth
+const api = {
+    async request(endpoint: string, options: RequestInit = {}) {
+        const token = await storage.getToken();
+        const response = await fetch(`${API_URL}${endpoint}`, {
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token && { Authorization: `Bearer ${token}` }),
+                ...options.headers,
+            },
+        });
+        if (!response.ok) throw new Error(`API Error: ${response.status}`);
+        return response.json();
+    },
+    getUser: (id: string) => api.request(`/users/${id}`),
+    updateUser: (id: string, data: object) =>
+        api.request(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+};
+```
+
+### 10.3 CAPACITOR
+
+```typescript
+// capacitor.config.ts
+const config: CapacitorConfig = {
+    appId: 'com.example.app',
+    appName: 'My App',
+    webDir: 'dist',
+    server: { androidScheme: 'https' }
+};
+
+// Commands
+// npm run build && npx cap sync
+// npx cap run android -l  (live reload)
+// npx cap open android    (open in Android Studio)
+
+// Plugins
+import { Camera, CameraResultType } from '@capacitor/camera';
+import { Preferences } from '@capacitor/preferences';
+
+const photo = await Camera.getPhoto({ resultType: CameraResultType.Uri });
+await Preferences.set({ key: 'user', value: JSON.stringify(user) });
+const { value } = await Preferences.get({ key: 'user' });
+```
+
+---
+
+## PART 11: SERVER & PROJECT SETUP
+
+### 11.1 SERVER INFO
 
 | Tool | Version |
 |------|---------|
@@ -1253,248 +1287,266 @@ POST /api/login → AuthController::login
 
 **Ports:** Admin=9453, Projects=9867, MySQL=3306
 
-**Paths:**
-- PHP: `/var/www/projects/{code}/`
-- Apps: `/opt/apps/{code}/`
+### 11.2 PROJECT STRUCTURES
 
-**Before installing:** `which tool` - probably already installed!
+```
+PHP Web Project:
+/var/www/projects/mysite/
+├── index.php
+├── assets/{css,js,images,lib}/
+├── includes/{db.php,auth.php,functions.php}
+├── api/
+├── templates/
+└── tests/
+
+Python API:
+/opt/apps/myapi/
+├── app.py
+├── requirements.txt
+├── .env
+├── src/{routes,services,models}/
+└── tests/
+
+Vue/React App:
+/opt/apps/myapp/
+├── src/{components,views,stores,services}/
+├── package.json
+└── vite.config.js
+```
 
 ---
----
 
-## 🧪 PART 9: MANDATORY TESTING
+## PART 12: DESIGN STANDARDS
 
-### 9.1 TEST FILE FOR EVERY CODE FILE
+### 12.1 SPACING SYSTEM (4px Grid)
 
-**CRITICAL: Every code file MUST have a corresponding test file!**
+Use multiples of 4px for ALL spacing:
 
-| Code File | Test File | Run With |
-|-----------|-----------|----------|
-| `user.php` | `user_test.php` | `php user_test.php` |
-| `api.php` | `api_test.php` | `php api_test.php` |
-| `service.py` | `service_test.py` | `python service_test.py` |
-| `utils.js` | `utils_test.js` | `node utils_test.js` |
-
-### 9.2 PHP TEST TEMPLATE
-
-```php
-<?php
-/**
- * @file: user_test.php
- * @description: Tests for user.php
- * @usage: php user_test.php
- */
-require_once __DIR__ . '/user.php';
-
-$tests_passed = 0;
-$tests_failed = 0;
-
-function test($name, $condition) {
-    global $tests_passed, $tests_failed;
-    if ($condition) {
-        echo "✅ PASS: $name\n";
-        $tests_passed++;
-    } else {
-        echo "❌ FAIL: $name\n";
-        $tests_failed++;
-    }
-}
-
-// Tests
-test('function exists', function_exists('myFunction'));
-test('returns expected', myFunction('input') === 'expected');
-
-// Summary
-echo "\n=============================\n";
-echo "Passed: $tests_passed | Failed: $tests_failed\n";
-exit($tests_failed > 0 ? 1 : 0);
-```
-
-### 9.2b CHECK SERVER LOGS (MANDATORY!)
-
-**⚠️ After ANY code change, check the relevant server logs for errors!**
-
-**Log locations by tool:**
-| Tool | Log File | Check Command |
-|------|----------|---------------|
-| PHP | `/var/log/nginx/*-error.log` | `sudo tail -20 /var/log/nginx/codehero-projects-error.log` |
-| PHP-FPM | `/var/log/php8.3-fpm.log` | `sudo tail -20 /var/log/php8.3-fpm.log` |
-| MySQL | `/var/log/mysql/error.log` | `sudo tail -20 /var/log/mysql/error.log` |
-| Node.js | stdout or pm2 logs | `pm2 logs` or check process output |
-| Python | stdout or app logs | Check process output or app log file |
-| Nginx | `/var/log/nginx/error.log` | `sudo tail -20 /var/log/nginx/error.log` |
-
-**After running/testing code, ALWAYS check logs:**
-```bash
-# PHP project - check for PHP errors
-sudo tail -30 /var/log/nginx/codehero-projects-error.log | grep -i "error\|warning\|fatal"
-
-# MySQL - check for query errors
-sudo tail -20 /var/log/mysql/error.log
-
-# Check all recent errors across logs
-sudo journalctl -p err -n 20 --no-pager
-```
-
-**Common log errors to fix:**
-| Error in Log | Meaning | Fix |
-|--------------|---------|-----|
-| `PHP Fatal error` | Code crash | Fix PHP syntax/logic |
-| `PHP Warning` | Non-fatal issue | Fix but code runs |
-| `MySQL Connection refused` | DB not running | `systemctl start mysql` |
-| `Permission denied` | File permissions | `chmod`/`chown` fix |
-| `File not found` | Missing file | Check path, create file |
-| `Memory exhausted` | Out of RAM | Optimize code or increase limit |
-
-**Workflow:**
-```
-1. Make code change
-2. Test the feature (browser or CLI)
-3. Check server logs for errors ← MANDATORY!
-4. Fix any errors found
-5. Repeat until logs are clean
-```
-
-
-### 9.3 BROWSER CONSOLE CHECK (MANDATORY!)
-
-**⚠️ Use the unified script from Section 5.2!**
-
-The script in **Section 5.2** does everything:
-- ✅ Desktop + Mobile screenshots
-- ✅ Console errors capture
-- ✅ Failed requests (404, CORS, etc.)
-- ✅ All links extraction
-
-**Quick reference - what to check in results:**
-| Result | Must Be | Action if Not |
-|--------|---------|---------------|
-| `console_errors` | Empty `[]` | Fix JavaScript errors |
-| `failed_requests` | Empty `[]` | Fix missing files/paths |
-| Screenshots | Visually correct | Fix CSS/layout issues |
-
-**Common console errors:**
-| Error | Cause | Fix |
+| Token | Value | Use |
 |-------|-------|-----|
-| `Uncaught ReferenceError` | Missing variable/function | Check typos, script order |
-| `404 (Not Found)` | Missing file | Download locally or fix path |
-| `CORS error` | Cross-origin blocked | Download resource locally |
-| `TypeError: null` | Element not found | Add null checks |
+| xs | 4px | Tight gaps, icon padding |
+| sm | 8px | Related elements |
+| md | 16px | Section padding, card gaps |
+| lg | 24px | Section separators |
+| xl | 32px | Major sections |
+| 2xl | 48px | Page sections |
 
-### 9.4 LINK VERIFICATION (ALL LINKS!)
+**Tailwind classes:** `gap-1` (4px), `gap-2` (8px), `gap-4` (16px), `gap-6` (24px), `gap-8` (32px)
 
-**Generate list of ALL links and test each one:**
+**Rule:** Internal spacing ≤ External spacing
+- Card content padding (16px) < Gap between cards (24px)
+- Button text padding (8px) < Button margins (16px)
 
-```python
-from playwright.sync_api import sync_playwright
-import requests
+### 12.2 COLOR SYSTEM (60-30-10 Rule)
 
-# Get all links
-with sync_playwright() as p:
-    browser = p.chromium.launch()
-    page = browser.new_context(ignore_https_errors=True).new_page()
-    page.goto("https://127.0.0.1:9867/myproject/")
-    
-    links = [a.get_attribute('href') for a in page.query_selector_all('a[href]')]
-    images = [img.get_attribute('src') for img in page.query_selector_all('img[src]')]
-    browser.close()
+| Role | % | Tailwind | Use |
+|------|---|----------|-----|
+| **Primary** | 60% | `gray-50`, `white` | Backgrounds |
+| **Secondary** | 30% | `gray-100-200`, `slate-800` | Cards, headers |
+| **Accent** | 10% | `blue-600`, `indigo-600` | CTAs, links |
 
-# Test each link
-for url in set(links + images):
-    if url and not url.startswith('#'):
-        try:
-            r = requests.head(url, timeout=10, verify=False)
-            status = "✅" if r.status_code < 400 else "❌"
-            print(f"{status} {r.status_code} {url}")
-        except Exception as e:
-            print(f"❌ ERROR {url}: {e}")
+**Semantic Colors:**
+
+| Purpose | Light Mode | Dark Mode |
+|---------|------------|-----------|
+| Background | `bg-gray-50` | `bg-gray-900` |
+| Surface/Card | `bg-white` | `bg-gray-800` |
+| Text Primary | `text-gray-900` | `text-white` |
+| Text Secondary | `text-gray-600` | `text-gray-400` |
+| Border | `border-gray-200` | `border-gray-700` |
+| Accent/CTA | `bg-blue-600 text-white` | `bg-blue-500 text-white` |
+| Success | `text-green-600` | `text-green-400` |
+| Error | `text-red-600` | `text-red-400` |
+| Warning | `text-amber-600` | `text-amber-400` |
+
+**Avoid:**
+- Pure black (`#000`) → Use `gray-900` or `slate-900`
+- Pure white (`#fff`) for large areas → Use `gray-50`
+- More than 3 accent colors
+
+### 12.3 TYPOGRAPHY
+
+| Element | Class | Size | Line Height |
+|---------|-------|------|-------------|
+| H1 | `text-4xl font-bold` | 36px | tight |
+| H2 | `text-3xl font-semibold` | 30px | tight |
+| H3 | `text-2xl font-semibold` | 24px | snug |
+| H4 | `text-xl font-medium` | 20px | snug |
+| Body | `text-base` | 16px | relaxed |
+| Small | `text-sm` | 14px | normal |
+| Caption | `text-xs` | 12px | normal |
+
+**Rules:**
+- Body text: `leading-relaxed` (1.625) for readability
+- Headings: `leading-tight` (1.25) for compactness
+- Maximum line width: `max-w-prose` (65 characters)
+
+### 12.4 BORDER RADIUS
+
+| Token | Class | Value | Use |
+|-------|-------|-------|-----|
+| None | `rounded-none` | 0 | Tables, full-width |
+| Small | `rounded` | 4px | Inputs, badges |
+| Medium | `rounded-md` | 6px | Buttons |
+| Large | `rounded-lg` | 8px | Cards |
+| XL | `rounded-xl` | 12px | Modals, large cards |
+| Full | `rounded-full` | 9999px | Avatars, pills |
+
+**Nested Rule:** Outer radius = Inner radius + Padding
+- Card with 16px padding and inner 8px radius → outer 24px radius
+
+### 12.5 SHADOWS (Elevation)
+
+| Level | Class | Use |
+|-------|-------|-----|
+| 0 | `shadow-none` | Flat elements |
+| 1 | `shadow-sm` | Subtle lift (cards) |
+| 2 | `shadow` | Standard elevation |
+| 3 | `shadow-md` | Dropdowns, popovers |
+| 4 | `shadow-lg` | Modals, dialogs |
+| 5 | `shadow-xl` | Important overlays |
+
+**Dark Mode:** Use lighter surface colors instead of shadows
+- `dark:bg-gray-700` instead of `dark:shadow-lg`
+
+### 12.6 COMPONENT PATTERNS
+
+#### Buttons
+
+```html
+<!-- Primary -->
+<button class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors">
+  Primary Action
+</button>
+
+<!-- Secondary -->
+<button class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-md transition-colors">
+  Secondary
+</button>
+
+<!-- Ghost -->
+<button class="px-4 py-2 hover:bg-gray-100 text-gray-600 font-medium rounded-md transition-colors">
+  Ghost
+</button>
+
+<!-- Disabled -->
+<button class="px-4 py-2 bg-gray-200 text-gray-400 font-medium rounded-md cursor-not-allowed" disabled>
+  Disabled
+</button>
 ```
 
-### 9.5 TEXT CONTRAST RULES
+**Sizes:**
+- Small: `px-3 py-1.5 text-sm`
+- Medium: `px-4 py-2 text-base` (default)
+- Large: `px-6 py-3 text-lg`
 
-**⚠️ Text must be readable! No dark-on-dark or light-on-light!**
+#### Cards
 
-| Background | Text Color | Result |
-|------------|------------|--------|
-| Dark (#1a1a2e, black) | White/Light (#f0f0f0) | ✅ Good |
-| Light (#f5f5f5, white) | Black/Dark (#333) | ✅ Good |
-| Dark | Dark | ❌ BAD - Unreadable! |
-| Light | Light | ❌ BAD - Unreadable! |
-
-**Minimum contrast ratio: 4.5:1 for normal text**
-
-```css
-/* ❌ BAD */
-.dark-bg { background: #1a1a2e; color: #333; }
-
-/* ✅ GOOD */
-.dark-bg { background: #1a1a2e; color: #f0f0f0; }
+```html
+<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+  <h3 class="text-lg font-semibold text-gray-900 mb-2">Card Title</h3>
+  <p class="text-gray-600 mb-4">Card content goes here.</p>
+  <button class="text-blue-600 hover:text-blue-700 font-medium">Action →</button>
+</div>
 ```
 
-### 9.6 COMPLETE VERIFICATION WORKFLOW
+#### Form Inputs
 
-**Before marking ANY task complete:**
+```html
+<div class="space-y-1">
+  <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+  <input
+    type="email"
+    id="email"
+    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm
+           focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+           placeholder-gray-400"
+    placeholder="you@example.com"
+  >
+  <p class="text-sm text-gray-500">We'll never share your email.</p>
+</div>
 
+<!-- Error state -->
+<input class="... border-red-500 focus:ring-red-500 focus:border-red-500">
+<p class="text-sm text-red-600">Please enter a valid email.</p>
 ```
-1. □ Run syntax check (php -l, python -m py_compile, etc.)
-2. □ Run test file (*_test.php, *_test.py)
-3. □ Check SERVER LOGS for errors (PHP, MySQL, Nginx)
-4. □ Take screenshots (desktop + mobile)
-5. □ Read screenshots with Read tool
-6. □ Run BROWSER console error check (Playwright)
-7. □ Run link verification (all links + images)
-8. □ Check text contrast (no dark-on-dark)
-9. □ Fix any issues found
-10. □ Repeat from step 3 until ALL checks pass (zero errors!)
+
+**Input Sizes:**
+- Height: 40-48px (py-2 to py-3)
+- Consistent across all inputs, selects, buttons in same row
+
+### 12.7 RESPONSIVE PATTERNS
+
+```html
+<!-- Mobile-first grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+<!-- Flexible container -->
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
+<!-- Responsive text -->
+<h1 class="text-2xl md:text-3xl lg:text-4xl font-bold">
 ```
 
+### 12.8 DARK MODE
 
+Always support dark mode with `dark:` variants:
 
-## ✔️ FINAL CHECKLIST
+```html
+<div class="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
+  <p class="text-gray-600 dark:text-gray-400">Secondary text</p>
+  <div class="border border-gray-200 dark:border-gray-700">...</div>
+</div>
+```
+
+---
+
+## FINAL CHECKLIST
+
+### Before Every Commit
 
 **Security:**
-- [ ] SQL prepared statements
-- [ ] Inputs validated, outputs escaped
-- [ ] Passwords hashed (bcrypt)
-- [ ] No hardcoded credentials
+- [ ] All SQL uses prepared statements
+- [ ] All output is escaped (htmlspecialchars/DOMPurify)
+- [ ] Passwords hashed with bcrypt
+- [ ] Credentials in .env (not in code)
+- [ ] CSRF tokens on all forms
+- [ ] Session cookies are secure (httpOnly, secure, sameSite)
+- [ ] Auth check on every protected page/API
+- [ ] Rate limiting on login/sensitive endpoints
+- [ ] File uploads validated and sanitized
 
-**Reliability:**
-- [ ] Timeouts on all external calls
-- [ ] Transactions for related DB ops
-- [ ] Null checks before using values
-- [ ] Idempotent operations (safe to run twice)
-- [ ] Race conditions prevented (atomic ops)
-- [ ] Resources cleaned up (connections, files)
-- [ ] Config has defaults or fails fast
-- [ ] Dates in UTC
-- [ ] UTF-8 everywhere
-- [ ] Queries paginated
+**Data:**
+- [ ] Input validated before processing
+- [ ] Transactions for related DB operations
+- [ ] Null checks before accessing properties
+- [ ] Pagination on list endpoints (max 100)
+- [ ] Dates stored in UTC
 
-**Code Quality:**
-- [ ] Junior can understand?
-- [ ] File headers with @tags
-- [ ] API docs (.md) exists
-- [ ] Test file exists for each code file (*_test.php, *_test.py)
-- [ ] All tests pass
-- [ ] TECHNOLOGIES.md updated
-
-**Assets:**
-- [ ] All JS/CSS libraries downloaded locally (not CDN)
-- [ ] All images/photos downloaded locally (not placeholder.com)
-- [ ] Fonts downloaded locally (if used)
+**Code:**
+- [ ] Error handling with proper logging
+- [ ] Consistent API response format
+- [ ] Tests written and passing
+- [ ] No TODO/FIXME left in code
 
 **UI:**
-- [ ] data-testid on elements
-- [ ] Screenshots taken (desktop + mobile, full page)
-- [ ] Screenshots reviewed (actually looked at them!)
-- [ ] No giant padding/margins/icons
-- [ ] Text contrast OK (no dark-on-dark, light-on-light)
-- [ ] Browser console errors checked (Playwright) - ZERO errors!
-- [ ] Server logs checked (PHP, MySQL, etc.) - ZERO errors!
-- [ ] All links verified (curl + Playwright)
-- [ ] All images loading (no broken icons)
-- [ ] Visual quality checklist passed (5.6)
+- [ ] Screenshots reviewed (desktop + mobile)
+- [ ] Zero console errors
+- [ ] Zero server log errors
+- [ ] All links work
+- [ ] Grids have explicit columns
+- [ ] Responsive breakpoints present
+- [ ] Alt text on images
+
+**Design:**
+- [ ] 4px/8px grid for all spacing
+- [ ] 60-30-10 color distribution (primary/secondary/accent)
+- [ ] No pure black (#000) or pure white (#fff) on large areas
+- [ ] Consistent border radius (see 12.4)
+- [ ] Dark mode variants on all color classes
+- [ ] Typography hierarchy maintained (H1→H4, body, small)
+- [ ] Buttons follow standard patterns (primary/secondary/ghost)
 
 ---
 
-> **Remember:** Simple code → Easy maintenance → AI can fix it → Evolution!
+> **Philosophy:** Write code as if the person maintaining it is a violent psychopath who knows where you live.

@@ -6790,14 +6790,31 @@ ASSISTANT_TEMPLATE_FILES = {
     'progress': '/etc/codehero/assistant-progress.md'
 }
 
+# Global context file - shared by all assistants
+GLOBAL_CONTEXT_FILE = '/etc/codehero/global-context.md'
+
 def get_assistant_template(template_name):
-    """Load assistant template from file"""
+    """Load assistant template from file, combined with global context"""
     file_path = ASSISTANT_TEMPLATE_FILES.get(template_name)
     if not file_path:
         return None
     try:
+        # Load assistant-specific template
         with open(file_path, 'r', encoding='utf-8') as f:
-            return f.read()
+            assistant_content = f.read()
+
+        # Load global context
+        global_content = ""
+        try:
+            with open(GLOBAL_CONTEXT_FILE, 'r', encoding='utf-8') as f:
+                global_content = f.read()
+        except Exception as e:
+            logger.warning(f"Failed to load global context: {e}")
+
+        # Combine: Assistant-specific first, then global context
+        if global_content:
+            return f"{assistant_content}\n\n---\n\n# GLOBAL CONTEXT (Coding Standards)\n\n{global_content}"
+        return assistant_content
     except Exception as e:
         logger.error(f"Failed to load assistant template {template_name}: {e}")
         return None

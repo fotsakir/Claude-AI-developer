@@ -77,6 +77,39 @@ Tickets execute based on:
 2. **dependencies** - Must wait for depends_on tickets to complete
 3. **parent** - Must wait for parent_ticket_id to complete
 
+### ⚠️ Γιατί ένα Ticket Ξεκινάει "Νωρίς"
+
+Αν παρατηρήσεις ότι seq=2 ξεκινάει ενώ seq=1 ακόμα τρέχει:
+
+**Αυτό είναι ΦΥΣΙΟΛΟΓΙΚΟ αν δεν υπάρχει `depends_on`!**
+
+| Κατάσταση | Αποτέλεσμα |
+|-----------|------------|
+| seq=1 in_progress, seq=2 **NO** deps | seq=2 **ΞΕΚΙΝΑ** (race condition) |
+| seq=1 in_progress, seq=2 **HAS** depends_on:[1] | seq=2 **ΠΕΡΙΜΕΝΕΙ** |
+
+**Γιατί συμβαίνει αυτό:**
+```
+Ο daemon ψάχνει: MIN(sequence_order) FROM tickets WHERE status='open'
+Μόλις το seq=1 γίνει 'in_progress', δεν είναι πια 'open'
+Οπότε το επόμενο MIN είναι το seq=2 → ΞΕΚΙΝΑΕΙ!
+```
+
+**Αν ένα ticket αποτύχει γιατί ξεκίνησε νωρίς:**
+1. Το πρόβλημα είναι **missing dependency**
+2. Διόρθωση: Προσθήκη `depends_on` στο ticket
+3. Ή: Επανασχεδιασμός του project plan
+
+**Για debugging:** Δες αν τα tickets έχουν τα σωστά dependencies με:
+`codehero_get_ticket(ticket_id=X)` → έλεγξε το `depends_on` field
+
+### ΚΑΝΟΝΑΣ
+
+> **Αν το Ticket B ΧΡΕΙΑΖΕΤΑΙ κάτι που ΔΗΜΙΟΥΡΓΕΙ το Ticket A:**
+> **→ Ticket B ΠΡΕΠΕΙ να έχει `depends_on: [A]`**
+
+Το `sequence_order` είναι μόνο για **ομαδοποίηση**, ΟΧΙ για εξάρτηση!
+
 ### Status Meanings
 
 | Status | Meaning |
@@ -196,30 +229,32 @@ Phase 3/3 waiting ⏳ (1 ticket)
 
 ---
 
-## 🎨 GLOBAL CONTEXT RULES (Reference)
+**Note:** The full Global Context (coding standards, security rules, design standards) is loaded automatically below.
 
-AI workers follow **Global Context** rules. When troubleshooting ticket issues, know these defaults:
+---
 
-### Default Tech Stack
+## TROUBLESHOOTING
 
-| Project Type | Default Stack |
-|--------------|---------------|
-| **Dashboard / Admin / ERP** | PHP + Alpine.js + Tailwind CSS |
-| **Landing Page / Marketing** | HTML + Alpine.js + Tailwind CSS |
-| **Simple Website** | HTML + Tailwind CSS |
+### 🔍 Common Failed Ticket Causes
 
-### Code Requirements (Always Apply)
+**Common failures and causes:**
 
-- ✅ Prepared statements for SQL
-- ✅ Escape output (htmlspecialchars)
-- ✅ Hash passwords (bcrypt)
-- ✅ No hardcoded credentials (use .env)
-- ✅ Download libraries locally (no CDN)
-- ✅ No TypeScript (use plain JavaScript .js)
+| Error | Likely Cause |
+|-------|--------------|
+| SQL syntax error | Forgot prepared statement |
+| Blank page | Missing `text-white` on dark bg |
+| 404 on links | Used `/absolute` instead of `relative` path |
+| Auth bypass | `auth_check.php` not at TOP of file |
+| Grid not working | Missing `grid-cols-*` class |
 
-**If a ticket fails due to design conflicts:**
-- Check if ticket description contradicts global context
-- Suggest updating ticket description to be explicit about desired approach
+**Check server logs:**
+```bash
+sudo tail -50 /var/log/nginx/codehero-projects-error.log
+```
+
+**If a ticket fails due to rule violation:**
+1. Check if ticket description contradicts global context
+2. Retry with explicit instructions that follow the rules
 
 ---
 

@@ -88,6 +88,29 @@ tickets: [
 ✅ CORRECT: Position 1 = parent, Position 2+ can have parent_sequence: 1
 ```
 
+### ⚠️ Race Condition Warning
+
+**Το sequence_order ΜΟΝΟ ΤΟΥ δεν αρκεί για dependencies!**
+
+| Μηχανισμός | Τι Κάνει | Περιμένει Μέχρι |
+|------------|----------|-----------------|
+| `sequence_order` | Ομαδοποίηση | Προηγούμενο seq να **ΞΕΚΙΝΗΣΕΙ** |
+| `depends_on` | Αναμονή | Dependency να **ΤΕΛΕΙΩΣΕΙ** (done/skipped) |
+
+Αν Ticket B χρειάζεται το αποτέλεσμα του Ticket A:
+```
+✅ ΣΩΣΤΟ: depends_on: [A's position]
+❌ ΛΑΘΟΣ: Μόνο διαφορετικό sequence_order (race condition!)
+```
+
+**Παράδειγμα race condition:**
+```
+seq=1: Create database
+seq=2: Create API (uses database)  ← ΛΑΘΟΣ! Θα ξεκινήσει πριν τελειώσει το DB!
+
+ΣΩΣΤΟ: seq=2, depends_on=[1]       ← Περιμένει το DB να ΤΕΛΕΙΩΣΕΙ
+```
+
 ## EXAMPLES OF USING MCP TOOLS:
 
 User: "Show me my projects"
@@ -106,47 +129,7 @@ User: "Add a ticket to create login page"
 
 ---
 
-## 🎨 GLOBAL CONTEXT RULES (IMPORTANT!)
-
-The AI workers that execute tickets follow **Global Context** rules.
-Ticket descriptions should be **compatible** with these rules.
-
-### Default Tech Stack
-
-| Project Type | Default Stack |
-|--------------|---------------|
-| **Dashboard / Admin / ERP** | PHP + Alpine.js + Tailwind CSS |
-| **Landing Page / Marketing** | HTML + Alpine.js + Tailwind CSS |
-| **Simple Website** | HTML + Tailwind CSS |
-
-**If user wants different styling:**
-- Specify it in ticket description: "Use Bootstrap 5 instead of Tailwind"
-- Or: "Use custom CSS with colors: #0066cc, #003366"
-
-### Code Requirements (Always Apply)
-
-- ✅ Prepared statements for SQL
-- ✅ Escape output (htmlspecialchars)
-- ✅ Hash passwords (bcrypt)
-- ✅ No hardcoded credentials (use .env)
-- ✅ Download libraries locally (no CDN)
-- ✅ No TypeScript (use plain JavaScript .js)
-
-### Design Ticket Best Practices
-
-1. **Be explicit about design choices** - If custom colors needed, specify them
-2. **Define design in FIRST styling ticket** - Set all colors/fonts early
-3. **Reference shared config** - "Use colors from /css/variables.css"
-
-### Color Harmony Rules
-
-- Max 5 colors in palette
-- Avoid pure black (#000) and pure white (#fff)
-- Use soft backgrounds (#f8fafc not #ffffff)
-- Use deep colors for dark sections (#1e3a5f not #1f2937)
-- Ensure smooth transitions between sections
-
----
+**Note:** The full Global Context (coding standards, security rules, design standards) is loaded automatically below.
 
 ## LANGUAGE
 

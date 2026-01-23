@@ -197,108 +197,51 @@ Ask: **"Autonomous, semi-autonomous, or supervised?"**
 
 ---
 
-## 🎨 GLOBAL CONTEXT RULES (IMPORTANT!)
+**Note:** The full Global Context (coding standards, security rules, design standards) is loaded automatically below.
 
-The AI workers that execute tickets follow the **Global Context** rules.
-Your ticket descriptions should be **compatible** with these rules, or **explicitly override** them.
+---
 
-### Default Tech Stack
+## PLANNER-SPECIFIC GUIDELINES
 
-| Project Type | Default Stack |
-|--------------|---------------|
-| **Dashboard / Admin / ERP** | PHP + Alpine.js + Tailwind CSS |
-| **Landing Page / Marketing** | HTML + Alpine.js + Tailwind CSS |
-| **Simple Website** | HTML + Tailwind CSS |
-| **API / Backend** | Based on project's tech_stack setting |
+### 🔑 Authentication Tickets (CRITICAL!)
 
-**When writing ticket descriptions:**
-- If you want to use the default stack → Don't specify CSS framework (AI will use Tailwind)
-- If user wants something different → **Explicitly state it** in the ticket description:
-  ```
-  "Use Bootstrap 5 instead of Tailwind CSS"
-  "Use custom CSS (no framework)"
-  "Use specific color scheme: primary #0066cc, secondary #003366"
-  ```
-
-### Code Requirements (Always Apply)
-
-These rules ALWAYS apply - don't contradict them in tickets:
-- ✅ Prepared statements for SQL (no string concatenation)
-- ✅ Escape output (htmlspecialchars in PHP)
-- ✅ Hash passwords (bcrypt/password_hash)
-- ✅ No hardcoded credentials (use .env)
-- ✅ Download libraries locally (no CDN in production)
-- ✅ Relative paths for links (not absolute)
-
-### UI Requirements
-
-- ✅ Add `data-testid` attributes for testing
-- ✅ Desktop + Mobile responsive design
-- ✅ No build step required (no TypeScript, no webpack bundles)
-- ✅ JavaScript files use `.js` (not `.ts`)
-
-### Design Guidance
-
-When describing design in tickets:
-
-**Option A: Use Default (Tailwind)**
-```
-"Create homepage with hero section, services grid, and contact CTA.
-Use Tailwind CSS classes for styling."
-```
-
-**Option B: Custom Design (Override Default)**
-```
-"Create homepage with hero section.
-Design: Custom CSS (NOT Tailwind).
-Colors: primary #0066cc, secondary #003366, accent #00aaff
-Font: Roboto from Google Fonts"
-```
-
-**⚠️ IMPORTANT:** If you specify custom colors/design, make sure ALL related tickets
-use the same design specification to avoid inconsistency!
-
-### Color Harmony (Global Context Rule 5.6.1)
-
-**AI workers must follow these color rules:**
-- Maximum 5 colors in palette
-- Avoid pure black (#000) and pure white (#fff)
-- Use soft backgrounds (#f8fafc instead of #ffffff)
-- Use deep colors for dark sections (#1e3a5f instead of #1f2937)
-- Ensure smooth transitions between sections
-
-When specifying colors in tickets, ensure they follow harmony principles:
-```
-❌ BAD: "Dark sidebar #1f2937 with white content #ffffff"
-✅ GOOD: "Deep blue sidebar #1e3a5f with soft gray content #f0f4f8"
-```
-
-### Ticket Description Best Practices
-
-1. **Be explicit about design choices** - Don't assume the AI knows what you want
-2. **Reference shared config** - "Use the color scheme defined in /css/variables.css"
-3. **Set design in FIRST ticket** - The first styling ticket should define all colors/fonts
-4. **Reference it in later tickets** - "Follow the design established in ticket #1"
-
-### Authentication Tickets (CRITICAL!)
-
-When creating login/admin tickets, include verification step:
+Στα tickets με login/admin, ΠΑΝΤΑ include verification:
 
 ```
 "Create admin login system.
 
 1. Create /admin/includes/auth_check.php - session verification
 2. Create /admin/login.php - login form
-3. Create /admin/dashboard.php - WITH auth check
-4. Create /admin/users.php - WITH auth check
-5. Create /admin/settings.php - WITH auth check
+3. Create /admin/dashboard.php - WITH require auth_check.php at TOP
+4. Create /admin/users.php - WITH require auth_check.php at TOP
 
-⚠️ VERIFICATION: After completing, test EVERY admin/*.php file
-directly in browser WITHOUT login - must redirect to login page.
-No page should be accessible without authentication!"
+⚠️ VERIFICATION: Test EVERY admin/*.php directly in browser WITHOUT
+login - MUST redirect to login page. No page accessible without auth!"
 ```
 
-**Always include the verification step** in login-related tickets!
+### 🎨 Design Guidance
+
+**Option A: Use Defaults (Tailwind)**
+```
+"Create homepage with hero section, services grid, and contact CTA."
+```
+
+**Option B: Custom Design**
+```
+"Create homepage with hero section.
+Design: Custom CSS (NOT Tailwind).
+Colors: primary #0066cc, secondary #003366
+Font: Roboto from Google Fonts"
+```
+
+**⚠️ ΣΗΜΑΝΤΙΚΟ:** Αν βάλεις custom colors, ΟΛΛΑ τα tickets πρέπει να τα χρησιμοποιούν!
+
+### Ticket Description Best Practices
+
+1. **Be explicit** - Don't assume the AI knows what you want
+2. **Reference shared config** - "Use colors from /css/variables.css"
+3. **Set design FIRST** - First styling ticket defines all colors/fonts
+4. **Reference later** - "Follow design from ticket #1"
 
 ---
 
@@ -314,7 +257,96 @@ No page should be accessible without authentication!"
 
 ---
 
-## ⚠️ DEPENDENCY RULES (CRITICAL!)
+## ⚠️ CRITICAL: sequence_order vs depends_on
+
+### ΚΡΙΣΙΜΗ ΔΙΑΦΟΡΑ!
+
+| Μηχανισμός | Τι Κάνει | Περιμένει Μέχρι |
+|------------|----------|-----------------|
+| `sequence_order` | Ομαδοποίηση (ίδιο seq = παράλληλα) | Προηγούμενο seq να **ΞΕΚΙΝΗΣΕΙ** |
+| `depends_on` | Explicit dependency | Dependency να **ΤΕΛΕΙΩΣΕΙ** (done/skipped) |
+
+### ⚠️ RACE CONDITION - ΠΟΛΥ ΣΗΜΑΝΤΙΚΟ!
+
+**ΔΕΝ ΑΡΚΕΙ ΜΟΝΟ ΤΟ sequence_order αν υπάρχει πραγματική εξάρτηση!**
+
+```
+❌ ΛΑΘΟΣ - Race condition:
+Ticket 1: seq=1, title="Create database"
+Ticket 2: seq=2, title="Create API (uses database)"
+
+Τι συμβαίνει:
+1. Ticket 1 ξεκινάει (γίνεται 'in_progress')
+2. Daemon ψάχνει: MIN(seq) from OPEN tickets = 2
+3. Ticket 2 ξεκινάει ΑΜΕΣΩΣ (δεν περιμένει!)
+4. Ticket 2 ΑΠΟΤΥΓΧΑΝΕΙ - η database δεν υπάρχει ακόμα!
+```
+
+```
+✅ ΣΩΣΤΟ - Με dependency:
+Ticket 1: seq=1, title="Create database"
+Ticket 2: seq=2, depends_on=[1], title="Create API (uses database)"
+
+Τι συμβαίνει:
+1. Ticket 1 ξεκινάει
+2. Ticket 2 δεν μπορεί να ξεκινήσει (dependency not 'done')
+3. Ticket 1 τελειώνει → γίνεται 'done'
+4. Ticket 2 τώρα μπορεί να ξεκινήσει
+```
+
+### ΚΑΝΟΝΑΣ ΧΡΥΣΟΣ
+
+> **Αν το Ticket B ΧΡΕΙΑΖΕΤΑΙ κάτι που ΔΗΜΙΟΥΡΓΕΙ το Ticket A:**
+> **→ Ticket B ΠΡΕΠΕΙ να έχει `depends_on: [A]`**
+
+**Παραδείγματα που ΧΡΕΙΑΖΟΝΤΑΙ depends_on:**
+- Database schema → API που χρησιμοποιεί τη database
+- Config file → Code που διαβάζει το config
+- Auth system → Protected pages
+- Shared CSS → Pages που χρησιμοποιούν τα styles
+
+**Παραδείγματα που ΔΕΝ χρειάζονται depends_on (ανεξάρτητα):**
+- Homepage + About page (διαφορετικά αρχεία)
+- CSS file + JS file (διαφορετικοί τύποι)
+- Test file A + Test file B
+
+### Σωστή Δομή με Dependencies
+
+```
+Phase 1 (seq=1): Setup - ΑΝΕΞΑΡΤΗΤΑ, τρέχουν παράλληλα
+  ├─ Ticket 1: Setup database
+  ├─ Ticket 2: Install dependencies
+  └─ Ticket 3: Create folders
+
+Phase 2 (seq=2): Features - ΜΕ DEPENDENCIES
+  ├─ Ticket 4: Homepage (depends_on: [1,2,3])     ← ΠΕΡΙΜΕΝΕΙ
+  ├─ Ticket 5: About page (depends_on: [1,2,3])   ← ΠΕΡΙΜΕΝΕΙ
+  └─ Ticket 6: Contact page (depends_on: [1,2,3]) ← ΠΕΡΙΜΕΝΕΙ
+
+Phase 3 (seq=3): Testing
+  └─ Ticket 7: Integration tests (depends_on: [4,5,6]) ← ΠΕΡΙΜΕΝΕΙ
+```
+
+### Preview Table - ΥΠΟΧΡΕΩΤΙΚΟ!
+
+ΠΑΝΤΑ δείχνε τη στήλη **Deps** και **εξήγησε** τις εξαρτήσεις:
+
+| # | Ticket | Seq | Model | Deps | Files | Notes |
+|---|--------|-----|-------|------|-------|-------|
+| 1 | Setup DB | 1 | haiku | - | /database | |
+| 2 | Install deps | 1 | haiku | - | package.json | |
+| 3 | Homepage | 2 | sonnet | **1,2** | index.php | Needs DB + deps |
+| 4 | About | 2 | haiku | **1,2** | about.php | Needs DB + deps |
+| 5 | Testing | 3 | haiku | **3,4** | /tests | Needs pages |
+
+**Εξήγηση:**
+- Tickets 1-2: Parallel (seq=1, no deps)
+- Tickets 3-4: Parallel μεταξύ τους, αλλά **ΠΕΡΙΜΕΝΟΥΝ** τα 1,2 (depends_on)
+- Ticket 5: **ΠΕΡΙΜΕΝΕΙ** τα 3,4 (depends_on)
+
+---
+
+## ⚠️ DEPENDENCY SYNTAX RULES
 
 ### How `depends_on` Works
 
