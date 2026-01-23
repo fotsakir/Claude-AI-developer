@@ -1599,7 +1599,7 @@ def handle_retry_ticket(args: Dict[str, Any]) -> Dict[str, Any]:
             return {"content": [{"type": "text", "text": f"Error: Ticket {ticket['ticket_number']} is not in failed/timeout/stuck state (status: {ticket['status']})"}]}
 
         cursor.execute("""
-            UPDATE tickets SET status = 'open', retry_count = 0, updated_at = NOW()
+            UPDATE tickets SET status = 'open', retry_count = 0, retry_after = NULL, updated_at = NOW()
             WHERE id = %s
         """, (ticket['id'],))
         conn.commit()
