@@ -517,8 +517,9 @@ log_success "Systemd services updated"
 # STEP 7.5: UPDATE NGINX CONFIG (if needed)
 # =====================================================
 
-# Update nginx config for session-based auth if still using old Basic Auth
-if grep -q "auth_basic" /etc/nginx/sites-available/codehero-projects 2>/dev/null; then
+# Update nginx config for session-based auth if not already configured
+# Checks for absence of auth_request (handles both old basic auth and no-auth configs)
+if ! grep -q "auth_request" /etc/nginx/sites-available/codehero-projects 2>/dev/null; then
     log_info "Updating nginx config for session-based auth..."
     cat > /etc/nginx/sites-available/codehero-projects << 'NGINXPROJECTS'
 # CodeHero Web Projects - Port 9867 (HTTPS)
