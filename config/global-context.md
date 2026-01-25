@@ -200,6 +200,164 @@ adb install build/app/outputs/flutter-apk/app-debug.apk
 
 ---
 
+## MANDATORY UI TESTING RULES
+
+### 1. Color Contrast Check (CRITICAL!)
+**NEVER create invisible elements!** Always verify:
+- Text is readable against background
+- Buttons/links are visible WITHOUT hover
+- Icons have sufficient contrast
+
+```python
+# Check element visibility BEFORE and AFTER hover
+element = page.locator('[data-testid="menu-toggle"]')
+# Screenshot in normal state
+page.screenshot(path='/tmp/before_hover.png')
+# Screenshot on hover
+element.hover()
+page.screenshot(path='/tmp/after_hover.png')
+# BOTH must show the element clearly!
+```
+
+**BAD (invisible until hover):**
+```css
+.menu-btn { color: #333; background: #333; } /* INVISIBLE! */
+.menu-btn:hover { color: #fff; }
+```
+
+**GOOD (always visible):**
+```css
+.menu-btn { color: #fff; background: #333; } /* Always visible */
+.menu-btn:hover { background: #555; }
+```
+
+### 2. Interactive Elements Testing (MANDATORY!)
+**Open and verify ALL interactive elements:**
+
+```python
+# Test ALL dropdowns/selects
+for select in page.locator('select').all():
+    select.click()
+    page.screenshot(path=f'/tmp/select_{select.get_attribute("name")}.png')
+    # Verify options are visible and readable
+
+# Test ALL expandable menus
+for menu in page.locator('[data-testid*="menu"], .dropdown, .accordion').all():
+    menu.click()
+    page.wait_for_timeout(300)
+    page.screenshot(path=f'/tmp/menu_open.png')
+    # Verify expanded content is visible
+```
+
+### 3. Login & Authenticated Views (MANDATORY!)
+**If the project has login, you MUST test authenticated state:**
+
+```python
+# Login first
+page.goto('https://127.0.0.1:9867/project/login.php')
+page.fill('[data-testid="username"]', 'test_user')
+page.fill('[data-testid="password"]', 'test_pass')
+page.click('[data-testid="login-btn"]')
+page.wait_for_url('**/dashboard**')
+
+# Now test authenticated pages
+page.screenshot(path='/tmp/dashboard.png')
+page.goto('https://127.0.0.1:9867/project/profile.php')
+page.screenshot(path='/tmp/profile.png')
+```
+
+**Create test credentials in your setup:**
+```sql
+-- Add test user for Playwright testing
+INSERT INTO users (username, password, email)
+VALUES ('test_user', '$2y$10$...hashed...', 'test@test.com');
+```
+
+### 4. Test IDs in Code (MANDATORY!)
+**ALWAYS add `data-testid` attributes for testable elements:**
+
+```html
+<!-- MANDATORY for all interactive elements -->
+<button data-testid="submit-btn">Submit</button>
+<input data-testid="email-input" type="email">
+<select data-testid="category-select">...</select>
+<div data-testid="user-menu" class="dropdown">...</div>
+<a data-testid="nav-home" href="/">Home</a>
+
+<!-- For lists/grids -->
+<div data-testid="product-list">
+    <div data-testid="product-item-1">...</div>
+    <div data-testid="product-item-2">...</div>
+</div>
+
+<!-- For modals/dialogs -->
+<div data-testid="confirm-modal" class="modal">
+    <button data-testid="confirm-yes">Yes</button>
+    <button data-testid="confirm-no">No</button>
+</div>
+```
+
+**Naming convention:**
+| Element | data-testid format |
+|---------|-------------------|
+| Buttons | `{action}-btn` (submit-btn, delete-btn) |
+| Inputs | `{field}-input` (email-input, search-input) |
+| Links | `nav-{page}` (nav-home, nav-about) |
+| Lists | `{item}-list`, `{item}-item-{id}` |
+| Modals | `{name}-modal` |
+| Menus | `{name}-menu` |
+
+### 5. Full Playwright Test Template
+```python
+from playwright.sync_api import sync_playwright
+
+def test_project():
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(ignore_https_errors=True)
+        page = context.new_page()
+
+        errors = []
+        page.on("console", lambda msg: errors.append(msg.text) if msg.type == "error" else None)
+
+        # 1. Test public pages
+        page.goto('https://127.0.0.1:9867/project/')
+        page.screenshot(path='/tmp/01_home.png', full_page=True)
+
+        # 2. Test all interactive elements
+        for btn in page.locator('[data-testid*="-btn"]').all():
+            testid = btn.get_attribute('data-testid')
+            # Verify button is visible (not same color as background)
+            assert btn.is_visible(), f"Button {testid} not visible!"
+
+        # 3. Open and test dropdowns
+        for dropdown in page.locator('select, [data-testid*="-select"]').all():
+            dropdown.click()
+            page.screenshot(path='/tmp/dropdown_open.png')
+
+        # 4. Login if needed
+        if page.locator('[data-testid="login-btn"]').count() > 0:
+            page.fill('[data-testid="username-input"]', 'test_user')
+            page.fill('[data-testid="password-input"]', 'test_pass')
+            page.click('[data-testid="login-btn"]')
+            page.wait_for_load_state('networkidle')
+            page.screenshot(path='/tmp/02_logged_in.png', full_page=True)
+
+        # 5. Mobile test
+        page.set_viewport_size({"width": 375, "height": 812})
+        page.screenshot(path='/tmp/03_mobile.png', full_page=True)
+
+        # 6. Report errors
+        if errors:
+            print(f"Console errors: {errors}")
+
+        browser.close()
+
+test_project()
+```
+
+---
+
 ## CODE QUALITY RULES (MANDATORY!)
 
 ### ALWAYS DO:
