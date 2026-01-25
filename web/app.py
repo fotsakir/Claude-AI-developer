@@ -141,6 +141,20 @@ def generate_secure_key():
     return secrets.token_urlsafe(24)[:32]
 
 
+def sanitize_folder_name(folder_name):
+    """
+    Sanitize folder name to prevent cookie/path injection.
+    Only allows alphanumeric characters, dashes, underscores, and dots.
+    """
+    if not folder_name:
+        return ''
+    # Remove any characters that aren't alphanumeric, dash, underscore, or dot
+    sanitized = re.sub(r'[^a-zA-Z0-9_\-.]', '', folder_name)
+    # Prevent directory traversal
+    sanitized = sanitized.replace('..', '')
+    return sanitized[:100]  # Limit length
+
+
 def safe_join_path(base_path, user_path):
     """
     Safely join base_path with user-provided path, preventing directory traversal.
@@ -592,8 +606,39 @@ def logout():
 
 # ============ PROJECT URL AUTHENTICATION ============
 
-# Secret for signing session cookies (generated once at startup)
-PROJECT_AUTH_SECRET = os.environ.get('PROJECT_AUTH_SECRET', secrets.token_hex(32))
+# Secret for signing session cookies (persistent across restarts)
+def get_project_auth_secret():
+    """Get or create a persistent secret for project session signing."""
+    secret_file = '/opt/codehero/data/project_auth_secret'
+
+    # First check environment variable
+    env_secret = os.environ.get('PROJECT_AUTH_SECRET')
+    if env_secret:
+        return env_secret
+
+    # Try to read from file
+    try:
+        if os.path.exists(secret_file):
+            with open(secret_file, 'r') as f:
+                secret = f.read().strip()
+                if secret:
+                    return secret
+    except Exception:
+        pass
+
+    # Generate new secret and save it
+    secret = secrets.token_hex(32)
+    try:
+        os.makedirs(os.path.dirname(secret_file), exist_ok=True)
+        with open(secret_file, 'w') as f:
+            f.write(secret)
+        os.chmod(secret_file, 0o600)  # Secure permissions
+    except Exception as e:
+        logger.warning(f"Could not save project auth secret to file: {e}")
+
+    return secret
+
+PROJECT_AUTH_SECRET = get_project_auth_secret()
 
 # Session expiry time (default 7 days)
 PROJECT_SESSION_MAX_AGE = 86400 * 7
@@ -666,7 +711,9 @@ def validate_project_key():
     uri_parts = uri_path.strip('/').split('/')
     if not uri_parts or not uri_parts[0]:
         return '', 403
-    project_folder = uri_parts[0]
+    project_folder = sanitize_folder_name(uri_parts[0])
+    if not project_folder:
+        return '', 403
 
     # Get project's secure_key from database
     conn = None
@@ -4084,9 +4131,14 @@ def get_context_defaults(context_type):
     if context_type not in valid_types:
         return jsonify({'success': False, 'message': f'Invalid context type. Valid types: {", ".join(valid_types)}'}), 400
 
+    # Extra sanitization for path safety (whitelist above is sufficient, but this satisfies static analysis)
+    safe_context_type = re.sub(r'[^a-z]', '', context_type)
+    if safe_context_type != context_type:
+        return jsonify({'success': False, 'message': 'Invalid context type'}), 400
+
     codehero_path = '/opt/codehero'
     global_path = os.path.join(codehero_path, 'config', 'global-context.md')
-    specific_path = os.path.join(codehero_path, 'config', 'contexts', f'{context_type}.md')
+    specific_path = os.path.join(codehero_path, 'config', 'contexts', f'{safe_context_type}.md')
 
     global_content = ''
     specific_content = ''

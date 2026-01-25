@@ -535,6 +535,39 @@ if [ "$MYSQL_CONNECTED" = true ]; then
         fi
     fi
     echo "  MySQL timeouts configured (wait=300s, interactive=600s)"
+
+    # Create MySQL dev optimization config (prioritizes speed over durability)
+    echo "  Creating MySQL dev optimization config..."
+    MYSQL_DEV_CONF="/etc/mysql/mysql.conf.d/codehero-dev.cnf"
+    if [ ! -f "$MYSQL_DEV_CONF" ]; then
+        cat > "$MYSQL_DEV_CONF" << 'MYSQLDEVEOF'
+[mysqld]
+# === CODEHERO DEV OPTIMIZATION ===
+# Optimized for development - prioritizes speed over durability
+
+# Reduce disk I/O - flush every 1 second instead of every transaction
+innodb_flush_log_at_trx_commit = 2
+sync_binlog = 0
+
+# Disable performance schema (saves ~400MB RAM)
+performance_schema = OFF
+
+# Disable binary logging (no replication in dev)
+skip-log-bin
+
+# Optimize InnoDB for SSD
+innodb_io_capacity = 1000
+innodb_io_capacity_max = 2000
+innodb_flush_method = O_DIRECT
+
+# Increase temp table size for complex queries
+tmp_table_size = 64M
+max_heap_table_size = 64M
+MYSQLDEVEOF
+        echo "  MySQL dev optimization config created"
+    else
+        echo "  MySQL dev optimization config already exists"
+    fi
 else
     echo -e "${RED}WARNING: Could not configure MySQL automatically${NC}"
 fi
@@ -771,6 +804,9 @@ server {
         auth_request /auth/validate;
         expires 7d;
         add_header Cache-Control "public, immutable";
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Cross-Origin-Resource-Policy "cross-origin" always;
+        add_header Cross-Origin-Embedder-Policy "unsafe-none" always;
     }
 }
 NGINXPROJECTS

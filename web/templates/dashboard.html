@@ -2445,12 +2445,18 @@
                                 });
                                 if (resp.ok || resp.status === 302 || resp.status === 200) {
                                     appendToConsole('✅ Server is back online!\n');
-                                    document.getElementById('updateStatusText').textContent = 'Update complete!';
-                                    document.getElementById('updateStatusText').style.color = 'var(--accent-green)';
-                                    document.getElementById('updateSpinner').style.display = 'none';
-                                    document.getElementById('updateBadge').style.display = 'none';
-                                    appendToConsole('\n🔄 Reloading page in 3 seconds...\n');
-                                    setTimeout(() => location.reload(), 3000);
+                                    document.getElementById('updateStatusText').textContent = 'Waiting for services...';
+                                    appendToConsole('⏳ Waiting for all services to be ready...\n');
+
+                                    // Wait extra time for websocket/services to fully initialize
+                                    setTimeout(() => {
+                                        document.getElementById('updateStatusText').textContent = 'Update complete!';
+                                        document.getElementById('updateStatusText').style.color = 'var(--accent-green)';
+                                        document.getElementById('updateSpinner').style.display = 'none';
+                                        document.getElementById('updateBadge').style.display = 'none';
+                                        appendToConsole('\n🔄 Reloading page in 3 seconds...\n');
+                                        setTimeout(() => location.reload(), 3000);
+                                    }, 5000);  // Wait 5 seconds for services to fully start
                                     return;
                                 }
                             } catch (e) {
@@ -2466,7 +2472,7 @@
                             }
                         };
 
-                        setTimeout(checkServer, 2000); // Start checking after 2 seconds
+                        setTimeout(checkServer, 5000); // Start checking after 5 seconds (give time for full restart)
                     } else {
                         // Unexpected disconnect - show error
                         appendToConsole('\n⚠️ Connection lost during upgrade.\n');

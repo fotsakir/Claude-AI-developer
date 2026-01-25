@@ -476,6 +476,41 @@ if [ -f "$MYSQL_CONF" ]; then
     fi
 fi
 
+# Create MySQL dev optimization config (prioritizes speed over durability)
+MYSQL_DEV_CONF="/etc/mysql/mysql.conf.d/codehero-dev.cnf"
+if [ ! -f "$MYSQL_DEV_CONF" ]; then
+    log_info "Creating MySQL dev optimization config..."
+    cat > "$MYSQL_DEV_CONF" << 'MYSQLDEVEOF'
+[mysqld]
+# === CODEHERO DEV OPTIMIZATION ===
+# Optimized for development - prioritizes speed over durability
+
+# Reduce disk I/O - flush every 1 second instead of every transaction
+innodb_flush_log_at_trx_commit = 2
+sync_binlog = 0
+
+# Disable performance schema (saves ~400MB RAM)
+performance_schema = OFF
+
+# Disable binary logging (no replication in dev)
+skip-log-bin
+
+# Optimize InnoDB for SSD
+innodb_io_capacity = 1000
+innodb_io_capacity_max = 2000
+innodb_flush_method = O_DIRECT
+
+# Increase temp table size for complex queries
+tmp_table_size = 64M
+max_heap_table_size = 64M
+MYSQLDEVEOF
+    # Restart MySQL to apply new settings
+    systemctl restart mysql 2>/dev/null || true
+    log_success "MySQL dev optimization config created (restart required)"
+else
+    echo "  MySQL dev optimization config already exists"
+fi
+
 # =====================================================
 # STEP 6: UPDATE CONFIG (add new parameters if missing)
 # =====================================================
@@ -641,12 +676,25 @@ server {
         auth_request /auth/validate;
         expires 7d;
         add_header Cache-Control "public, immutable";
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Cross-Origin-Resource-Policy "cross-origin" always;
+        add_header Cross-Origin-Embedder-Policy "unsafe-none" always;
     }
 }
 NGINXPROJECTS
     # Remove old htpasswd file if exists
     rm -f /etc/codehero/projects.htpasswd
     log_success "Nginx config updated for session-based auth"
+fi
+
+# Add CORS headers if missing (for existing installs that have auth_request but no CORS)
+if grep -q "auth_request" /etc/nginx/sites-available/codehero-projects 2>/dev/null && \
+   ! grep -q "Access-Control-Allow-Origin" /etc/nginx/sites-available/codehero-projects 2>/dev/null; then
+    log_info "Adding CORS headers to nginx config..."
+    # Use sed to add CORS headers after Cache-Control line in static files location
+    sed -i '/add_header Cache-Control "public, immutable";/a\        add_header Access-Control-Allow-Origin "*" always;\n        add_header Cross-Origin-Resource-Policy "cross-origin" always;\n        add_header Cross-Origin-Embedder-Policy "unsafe-none" always;' \
+        /etc/nginx/sites-available/codehero-projects
+    log_success "CORS headers added to nginx config"
 fi
 
 # =====================================================

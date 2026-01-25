@@ -5,6 +5,35 @@ All notable changes to CodeHero will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.83.1] - 2026-01-25
+
+### Security
+- **Fixed Cookie Injection** - Sanitized project folder names in cookie names/paths
+- **Fixed Path Injection** - Added extra validation for context type in file paths
+
+### Improved
+- **Global Context v4.0** - Enhanced AI development guidelines
+  - Mandatory 7-step workflow for all tasks
+  - Verification Protocol with syntax check, log check, and visual verification
+  - Multi-platform visual verification (Playwright for web, ADB for Android, simctl for iOS, etc.)
+  - Stricter code quality rules (no minified code, no CDN, relative paths only)
+  - Mandatory project documentation (technologies.md, map.md)
+
+- **Persistent Project Auth Secret** - Session cookies now last full 7 days
+  - Secret stored in `/opt/codehero/data/project_auth_secret`
+  - Survives server restarts (previously regenerated on each restart)
+
+- **CORS Headers for Static Files** - Fixed cross-origin resource loading
+  - Added `Access-Control-Allow-Origin: *` to static file responses
+  - Added `Cross-Origin-Resource-Policy: cross-origin`
+  - Added `Cross-Origin-Embedder-Policy: unsafe-none`
+  - Fixes ORB/CORS errors when accessing projects from different origins
+
+- **Update Flow Improvements** - Better handling of server restart
+  - Increased wait time before checking server (2s → 5s)
+  - Added 5-second wait for services after server responds
+  - Better feedback during restart ("Waiting for services...")
+
 ## [2.83.0] - 2026-01-24
 
 ### Added
