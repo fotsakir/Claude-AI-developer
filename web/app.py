@@ -113,8 +113,86 @@ CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet', allow_upgrades=True)
 
 @app.context_processor
-def inject_version():
-    return {'version': VERSION}
+def inject_globals():
+    """Inject global variables available in all templates."""
+    result = {'version': VERSION, 'problem_tickets': 0}
+
+    # Get problem tickets count (stuck + failed)
+    try:
+        conn = get_db()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT COUNT(*) as cnt FROM tickets WHERE status IN ('stuck', 'failed')")
+        result['problem_tickets'] = cursor.fetchone()['cnt']
+        cursor.close()
+        conn.close()
+    except:
+        pass
+
+    return result
+
+
+@app.after_request
+def inject_problem_badge(response):
+    """Inject problem tickets badge script into all HTML responses."""
+    # Only for HTML responses
+    if not response.content_type or not response.content_type.startswith('text/html'):
+        return response
+
+    # Check if user is logged in
+    if 'user' not in session:
+        return response
+
+    try:
+        data = response.get_data(as_text=True)
+        if '</body>' not in data:
+            return response
+
+        script = '''<script>
+(function(){
+    function updateProblemBadge(){
+        fetch('/api/problem-tickets-count')
+        .then(r=>r.json())
+        .then(d=>{
+            let b=document.getElementById('problemBadge');
+            if(d.count>0){
+                if(!b){
+                    b=document.createElement('a');
+                    b.id='problemBadge';
+                    b.href='/tickets?status=problems';
+                    b.style.cssText='display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;font-size:14px;line-height:1;padding-bottom:2px;background:linear-gradient(135deg,#ef4444,#dc2626);border-radius:6px;text-decoration:none;animation:pulse-problem 2s infinite;cursor:pointer';
+                    b.title='Problem tickets (stuck/failed)';
+                    b.textContent='\\u26A0\\uFE0F';
+                    let header=document.querySelector('.header-left');
+                    if(header) header.appendChild(b);
+                    else{
+                        let h1=document.querySelector('.header h1');
+                        if(h1&&h1.parentElement) h1.parentElement.appendChild(b);
+                    }
+                }
+                b.style.display='inline-flex';
+            } else if(b) b.style.display='none';
+        }).catch(()=>{});
+    }
+    if(!document.getElementById('problemBadgeStyle')){
+        let s=document.createElement('style');
+        s.id='problemBadgeStyle';
+        s.textContent='@keyframes pulse-problem{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(239,68,68,0.4)}50%{opacity:0.9;box-shadow:0 0 10px 2px rgba(239,68,68,0.3)}}';
+        document.head.appendChild(s);
+    }
+    if(document.readyState==='loading'){
+        document.addEventListener('DOMContentLoaded',updateProblemBadge);
+    }else{
+        updateProblemBadge();
+    }
+    setInterval(updateProblemBadge,30000);
+})();
+</script>'''
+        data = data.replace('</body>', script + '</body>')
+        response.set_data(data)
+    except Exception as e:
+        pass  # Don't break page if injection fails
+
+    return response
 
 
 # Configure logging for error tracking
@@ -784,7 +862,7 @@ def validate_project_key():
         max_age=86400*7,
         path='/' + project_folder,
         httponly=True,
-        secure=True,
+        secure=request.is_secure,  # True only for HTTPS, False for HTTP
         samesite='Lax'
     )
     return response
@@ -836,6 +914,10 @@ def dashboard():
 
         cursor.execute("SELECT COUNT(*) as cnt FROM tickets WHERE status = 'done' AND DATE(updated_at) = CURDATE()")
         stats['completed_today'] = cursor.fetchone()['cnt']
+
+        # Problem tickets (stuck + failed) for notification
+        cursor.execute("SELECT COUNT(*) as cnt FROM tickets WHERE status IN ('stuck', 'failed')")
+        stats['problem_tickets'] = cursor.fetchone()['cnt']
 
         # Daemon status
         if os.path.exists(PID_FILE):
@@ -900,6 +982,8 @@ def tickets_list():
         if status_filter:
             if status_filter == 'open':
                 query += " AND t.status IN ('new', 'open', 'pending')"
+            elif status_filter == 'problems':
+                query += " AND t.status IN ('stuck', 'failed')"
             else:
                 query += " AND t.status = %s"
                 params.append(status_filter)
@@ -926,6 +1010,9 @@ def tickets_list():
         'in_progress': 'In Progress',
         'awaiting_input': 'Awaiting Input',
         'done': 'Completed' + (' Today' if today_only == '1' else ''),
+        'stuck': 'Stuck Tickets',
+        'failed': 'Failed Tickets',
+        'problems': 'Problem Tickets',
         '': 'All Tickets'
     }
     title = title_map.get(status_filter, f'{status_filter.title()} Tickets')
@@ -1043,6 +1130,22 @@ def project_progress_view(project_id):
 
     return render_template('project_progress.html', user=session['user'], role=session.get('role'),
                          project=project)
+
+
+@app.route('/api/problem-tickets-count')
+@login_required
+def api_problem_tickets_count():
+    """Get count of stuck + failed tickets for header notification badge."""
+    try:
+        conn = get_db()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT COUNT(*) as cnt FROM tickets WHERE status IN ('stuck', 'failed')")
+        count = cursor.fetchone()['cnt']
+        cursor.close()
+        conn.close()
+        return jsonify({'count': count})
+    except:
+        return jsonify({'count': 0})
 
 
 @app.route('/api/project/<int:project_id>/archive', methods=['POST'])

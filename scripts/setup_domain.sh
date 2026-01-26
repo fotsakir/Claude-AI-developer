@@ -219,7 +219,8 @@ get_letsencrypt_cert() {
     # Stop nginx temporarily for standalone mode
     systemctl stop nginx
 
-    if certbot certonly --standalone -d "$domain" --email "$email" --agree-tos --non-interactive; then
+    # Use RSA key for broader compatibility (ECDSA not supported by older devices)
+    if certbot certonly --standalone -d "$domain" --email "$email" --agree-tos --non-interactive --key-type rsa; then
         systemctl start nginx
         log_success "Certificate obtained for $domain"
         return 0

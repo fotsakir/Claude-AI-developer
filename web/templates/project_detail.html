@@ -1267,7 +1267,7 @@
                         <input type="text" id="previewUrlInput" value="{{ project.preview_url or '' }}" placeholder="https://hostname:9867/path">
                         <button onclick="savePreviewUrl()" class="btn btn-primary btn-small">Save</button>
                         {% if project.preview_url %}
-                        <a href="{{ project.preview_url }}" target="_blank" style="color:var(--accent-cyan);font-size:12px">Open</a>
+                        <a href="{{ project.preview_url }}{% if project.secure_key %}?key={{ project.secure_key }}{% endif %}" target="_blank" style="color:var(--accent-cyan);font-size:12px">Open</a>
                         {% endif %}
                     </div>
                     {% if project.web_path and project.secure_key %}

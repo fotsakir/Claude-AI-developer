@@ -5,6 +5,25 @@ All notable changes to CodeHero will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.83.4] - 2026-01-26
+
+### Added
+- **Problem Tickets Badge** - Warning icon in header for stuck/failed tickets
+  - Pulsing red badge appears when tickets need attention
+  - Click to navigate to filtered problem tickets view
+  - Auto-refreshes every 30 seconds
+  - Non-intrusive injection via Flask after_request
+
+- **Tickets Filter Enhancement** - New filter buttons
+  - Added "Stuck" filter for stuck tickets only
+  - Added "Problems" filter for both stuck and failed tickets
+  - Red-highlighted Problems button for visibility
+
+### Fixed
+- **Project Preview URL** - Now includes secure key
+  - "Open" link in project settings includes `?key=` parameter
+  - Prevents access denied errors when opening preview
+
 ## [2.83.3] - 2026-01-26
 
 ### Improved

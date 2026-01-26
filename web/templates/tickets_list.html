@@ -556,6 +556,8 @@
             <a href="/tickets?status=awaiting_input{% if search_query %}&q={{ search_query }}{% endif %}" class="filter-btn {{ 'active' if status_filter == 'awaiting_input' else '' }}">Awaiting Input</a>
             <a href="/tickets?status=done{% if search_query %}&q={{ search_query }}{% endif %}" class="filter-btn {{ 'active' if status_filter == 'done' else '' }}">Done</a>
             <a href="/tickets?status=failed{% if search_query %}&q={{ search_query }}{% endif %}" class="filter-btn {{ 'active' if status_filter == 'failed' else '' }}">Failed</a>
+            <a href="/tickets?status=stuck{% if search_query %}&q={{ search_query }}{% endif %}" class="filter-btn {{ 'active' if status_filter == 'stuck' else '' }}">Stuck</a>
+            <a href="/tickets?status=problems{% if search_query %}&q={{ search_query }}{% endif %}" class="filter-btn {{ 'active' if status_filter == 'problems' else '' }}" style="{% if status_filter == 'problems' %}background: linear-gradient(135deg, #ef4444, #dc2626);{% else %}border-color: var(--accent-red); color: var(--accent-red);{% endif %}">⚠️ Problems</a>
             <div class="search-box">
                 <input type="text" id="searchInput" placeholder="Search tickets, projects..." value="{{ search_query or '' }}" onkeyup="handleSearch(event)">
             </div>

@@ -1635,13 +1635,17 @@
             }
 
             els.projectsList.innerHTML = filtered.map(p => {
-                // Construct correct URL: https://hostname:9867/project_folder
+                // Construct correct URL: https://hostname:9867/project_folder?key=secure_key
                 let webUrl = '';
                 if (p.preview_url) {
                     webUrl = p.preview_url;
                 } else if (p.web_path) {
                     const folderName = p.web_path.split('/').filter(x => x).pop();
                     webUrl = `https://${window.location.hostname}:9867/${folderName}`;
+                }
+                // Add secure key if available
+                if (webUrl && p.secure_key) {
+                    webUrl += (webUrl.includes('?') ? '&' : '?') + 'key=' + p.secure_key;
                 }
                 return `
                 <div class="card" onclick="navigateToTickets(${JSON.stringify(p).replace(/"/g, '&quot;')})">
@@ -1800,6 +1804,10 @@
                 } else if (state.currentProject.web_path) {
                     const folderName = state.currentProject.web_path.split('/').filter(x => x).pop();
                     url = `https://${window.location.hostname}:9867/${folderName}`;
+                }
+                // Add secure key if available
+                if (url && state.currentProject.secure_key) {
+                    url += (url.includes('?') ? '&' : '?') + 'key=' + state.currentProject.secure_key;
                 }
                 els.webPathLink.href = url;
                 els.webPathText.textContent = url;
